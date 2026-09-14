@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('layouts.auth')
 
 @section('title', 'Masuk Akun - SOLID v4 Dinas Sosial Kota Bogor')
 
@@ -621,7 +621,7 @@
             }
           }
         </style>
-  
+
 @endsection
 
 @section('body_class', 'bg-surface font-body-md text-on-surface antialiased')
@@ -848,5 +848,5 @@
         }
       })();
     </script>
-  
+
 @endsection

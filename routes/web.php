@@ -1,28 +1,17 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-
-// Controllers Frontend
 use App\Http\Controllers\PageController;
-
-// Controllers Admin & Auth
 use App\Http\Controllers\Auth\LoginAdminController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\UserController;
 use App\Http\Controllers\Admin\DashboardController;
 
-/*
-|--------------------------------------------------------------------------
-| Web Routes
-|--------------------------------------------------------------------------
-*/
 
 // ==========================================
 // FRONTEND / PUBLIC ROUTES
 // ==========================================
 Route::get('/', [PageController::class, 'home'])->name('home');
-
-// Route::get('/login', [PageController::class, 'login'])->name('login'); // Dinonaktifkan karena bentrok dengan LoginAdminController di bawah
 
 Route::prefix('registrasi')->name('registrasi.')->group(function () {
     Route::get('/step-1', [PageController::class, 'registrasiStep1'])->name('step1');
@@ -38,8 +27,10 @@ Route::get('/tutorial-pendaftaran', [PageController::class, 'tutorialPendaftaran
 // ==========================================
 // AUTHENTICATION ROUTES
 // ==========================================
-Route::get('/login', [LoginAdminController::class, 'create'])->name('login');
-Route::post('/login', [LoginAdminController::class, 'store'])->name('login.store');
+Route::get('/login', [PageController::class, 'login'])->name('login');
+Route::post('/login', [PageController::class, 'loginStore'])->name('login.store');
+Route::get('/admin-login', [LoginAdminController::class, 'create'])->name('admin.login');
+Route::post('/admin-login', [LoginAdminController::class, 'store'])->name('admin.login.store');
 
 Route::get('/lupa-password', [ForgotPasswordController::class, 'showLinkRequestForm'])->name('password.request');
 Route::post('/lupa-password', [ForgotPasswordController::class, 'sendResetLink'])->name('password.email');
