@@ -105,4 +105,28 @@
             </div>
         </div>
     </div>
+
+    @push('scripts')
+        <script>
+            (function () {
+                const toggleBtn = document.getElementById('toggle-password');
+                const passwordInput = document.getElementById('password');
+
+                if (!toggleBtn || !passwordInput) return;
+
+                toggleBtn.addEventListener('click', function () {
+                    const isPassword = passwordInput.getAttribute('type') === 'password';
+                    passwordInput.setAttribute('type', isPassword ? 'text' : 'password');
+
+                    const icon = toggleBtn.querySelector('.material-symbols-outlined');
+                    icon.textContent = isPassword ? 'visibility_off' : 'visibility';
+
+                    toggleBtn.setAttribute(
+                        'aria-label',
+                        isPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'
+                    );
+                });
+            })();
+        </script>
+    @endpush
 @endsection

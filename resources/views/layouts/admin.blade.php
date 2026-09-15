@@ -251,35 +251,124 @@
                     <h1 class="text-base font-semibold text-on-surface">@yield('page_title', 'Beranda')</h1>
                 </div>
 
-                <div class="relative" x-data="{ userMenuOpen: false }">
-                    <button @click="userMenuOpen = !userMenuOpen" @click.outside="userMenuOpen = false"
-                        class="flex items-center gap-3 px-2 py-1.5 rounded-lg hover:bg-surface-container transition-colors">
-                        <div
-                            class="w-9 h-9 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container font-semibold text-sm shrink-0">
-                            {{ strtoupper(substr(auth()->user()->name ?? 'A', 0, 1)) }}
-                        </div>
-                        <div class="hidden sm:block leading-tight text-left">
-                            <p class="text-sm font-medium text-on-surface">{{ auth()->user()->name ?? 'Admin' }}</p>
-                            <p class="text-[11px] text-on-surface-variant">{{ auth()->user()->username ?? '' }}</p>
-                        </div>
-                        <span
-                            class="material-symbols-outlined text-[18px] text-on-surface-variant hidden sm:block">expand_more</span>
-                    </button>
+                {{-- ===== Dropdown user + Edit Profil (pop-up, tidak lewat halaman Kelola Akses) ===== --}}
+                <div x-data="{ userMenuOpen: false, profileModalOpen: {{ $errors->profil->any() ? 'true' : 'false' }} }">
+                    <div class="relative">
+                        <button @click="userMenuOpen = !userMenuOpen" @click.outside="userMenuOpen = false"
+                            class="flex items-center gap-3 px-2 py-1.5 rounded-lg hover:bg-surface-container transition-colors">
+                            <div
+                                class="w-9 h-9 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container font-semibold text-sm shrink-0">
+                                {{ strtoupper(substr(auth()->user()->name ?? 'A', 0, 1)) }}
+                            </div>
+                            <div class="hidden sm:block leading-tight text-left">
+                                <p class="text-sm font-medium text-on-surface">{{ auth()->user()->name ?? 'Admin' }}</p>
+                                <p class="text-[11px] text-on-surface-variant">{{ auth()->user()->username ?? '' }}</p>
+                            </div>
+                            <span
+                                class="material-symbols-outlined text-[18px] text-on-surface-variant hidden sm:block">expand_more</span>
+                        </button>
 
-                    <div x-show="userMenuOpen" x-cloak x-transition:enter="transition ease-out duration-100"
-                        x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
-                        class="absolute right-0 mt-2 w-52 bg-surface-container-lowest border border-outline-variant/40 rounded-xl shadow-lg overflow-hidden z-50">
+                        <div x-show="userMenuOpen" x-cloak x-transition:enter="transition ease-out duration-100"
+                            x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+                            class="absolute right-0 mt-2 w-52 bg-surface-container-lowest border border-outline-variant/40 rounded-xl shadow-lg overflow-hidden z-50">
 
-                        <div class="border-t border-outline-variant/40"></div>
-
-                        <form method="POST" action="{{ route('logout') }}">
-                            @csrf
-                            <button type="submit"
-                                class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-error hover:bg-error-container/40 transition-colors">
-                                <span class="material-symbols-outlined text-[18px]">logout</span>
-                                Logout
+                            <button type="button" @click="profileModalOpen = true; userMenuOpen = false"
+                                class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container transition-colors">
+                                <span class="material-symbols-outlined text-[18px]">person</span>
+                                Edit Profil
                             </button>
-                        </form>
+
+                            <div class="border-t border-outline-variant/40"></div>
+
+                            <form method="POST" action="{{ route('logout') }}">
+                                @csrf
+                                <button type="submit"
+                                    class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-error hover:bg-error-container/40 transition-colors">
+                                    <span class="material-symbols-outlined text-[18px]">logout</span>
+                                    Logout
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    {{-- Modal Edit Profil (akun milik pengguna yang sedang login) --}}
+                    <div x-show="profileModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                        <div @click.outside="profileModalOpen = false" x-transition:enter="transition ease-out duration-150"
+                            x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+                            class="bg-surface-container-lowest w-full max-w-md rounded-xl shadow-lg overflow-hidden">
+
+                            <div class="flex items-center justify-between px-5 py-4 border-b border-outline-variant/40">
+                                <h3 class="text-base font-semibold text-on-surface">Edit Profil</h3>
+                                <button @click="profileModalOpen = false" class="text-on-surface-variant">
+                                    <span class="material-symbols-outlined">close</span>
+                                </button>
+                            </div>
+
+                            <form method="POST" action="{{ route('profil.update') }}" class="p-5 space-y-4">
+                                @csrf
+                                @method('PUT')
+
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">Username</label>
+                                    <input name="username" type="text"
+                                        value="{{ old('username', auth()->user()->username ?? '') }}"
+                                        class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm" required />
+                                    @error('username', 'profil')
+                                        <p class="text-xs text-error mt-1">{{ $message }}</p>
+                                    @enderror
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">Email</label>
+                                    <input name="email" type="email"
+                                        value="{{ old('email', auth()->user()->email ?? '') }}"
+                                        class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm" required />
+                                    @error('email', 'profil')
+                                        <p class="text-xs text-error mt-1">{{ $message }}</p>
+                                    @enderror
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">Kata Sandi Baru</label>
+                                    <p class="text-xs text-red-600 font-medium mb-1">Kosongkan jika tidak ingin mengubah
+                                        kata sandi.</p>
+                                    <div class="relative" x-data="{ show: false }">
+                                        <input name="password" :type="show ? 'text' : 'password'"
+                                            class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 pr-10 text-sm" />
+                                        <button type="button" @click="show = !show" tabindex="-1"
+                                            class="absolute inset-y-0 right-0 flex items-center px-3 text-on-surface-variant"
+                                            :aria-label="show ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'">
+                                            <span class="material-symbols-outlined text-[16px]"
+                                                x-text="show ? 'visibility_off' : 'visibility'"></span>
+                                        </button>
+                                    </div>
+                                    @error('password', 'profil')
+                                        <p class="text-xs text-error mt-1">{{ $message }}</p>
+                                    @enderror
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">Konfirmasi Kata Sandi Baru</label>
+                                    <div class="relative" x-data="{ show: false }">
+                                        <input name="password_confirmation" :type="show ? 'text' : 'password'"
+                                            class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 pr-10 text-sm" />
+                                        <button type="button" @click="show = !show" tabindex="-1"
+                                            class="absolute inset-y-0 right-0 flex items-center px-3 text-on-surface-variant"
+                                            :aria-label="show ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'">
+                                            <span class="material-symbols-outlined text-[16px]"
+                                                x-text="show ? 'visibility_off' : 'visibility'"></span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="flex justify-end gap-2 pt-2">
+                                    <button type="button" @click="profileModalOpen = false"
+                                        class="px-4 py-2 rounded-lg text-sm border border-outline-variant/50">Batal</button>
+                                    <button type="submit"
+                                        class="px-4 py-2 rounded-lg text-sm bg-primary text-on-primary">Simpan</button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 </div>
             </header>

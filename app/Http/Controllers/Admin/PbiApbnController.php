@@ -44,11 +44,44 @@ class PbiApbnController extends Controller
         $pbiApbn->load(['anggotaKeluarga', 'logs.user']);
 
         $canAct = $this->userCanActOn($pbiApbn);
+        $faskesOptions = $this->faskesOptions($pbiApbn);
 
         return view('admin.pbi-apbn.ajuan.show', [
             'data' => $pbiApbn,
             'canAct' => $canAct,
+            'faskesOptions' => $faskesOptions,
         ]);
+    }
+
+    /**
+     * Update Diagnosa & Nama Faskes (field yang bisa diedit admin,
+     * terpisah dari alur simpan/next/back/reject).
+     */
+    public function ajuanUpdateTambahan(Request $request, PbiApbn $pbiApbn)
+    {
+        if (!$this->userCanActOn($pbiApbn)) {
+            return back()->with('error', 'Anda tidak berwenang mengedit data ini.');
+        }
+
+        $validated = $request->validate([
+            'diagnosa' => ['nullable', 'string', 'max:2000'],
+            'nama_faskes' => ['nullable', 'string', 'max:150'],
+        ]);
+
+        $pbiApbn->update($validated);
+
+        return back()->with('success', 'Data berhasil diperbarui.');
+    }
+
+    /**
+     * Daftar opsi Nama Faskes berdasarkan kecamatan pada data permohonan.
+     * Sementara masih hardcoded di config/faskes.php (belum ada tabel master).
+     */
+    private function faskesOptions(PbiApbn $pbiApbn): array
+    {
+        $master = config('faskes.puskesmas', []);
+
+        return $master[$pbiApbn->kecamatan] ?? [];
     }
 
     /**
@@ -136,7 +169,7 @@ class PbiApbnController extends Controller
      */
     public function arsipIndex(Request $request)
     {
-        $query = PbiApbn::query()->where('status', 'disetujui'); // sebelumnya whereIn(['disetujui','ditolak'])
+        $query = PbiApbn::query()->where('status', 'disetujui');
 
         if ($request->filled('tanggal_awal')) {
             $query->whereDate('updated_at', '>=', $request->tanggal_awal);
@@ -164,7 +197,8 @@ class PbiApbnController extends Controller
      */
     public function monitoringIndex(Request $request)
     {
-        $query = PbiApbn::query();
+        // [PERUBAHAN] Menarik riwayat LOG secara berurutan persis DTSEN
+        $query = PbiApbn::with(['logs' => fn($q) => $q->orderBy('created_at')]);
 
         if ($request->filled('tanggal_awal')) {
             $query->whereDate('created_at', '>=', $request->tanggal_awal);
@@ -186,7 +220,8 @@ class PbiApbnController extends Controller
             });
         }
 
-        $data = $query->latest()->paginate(15)->withQueryString();
+        $perPage = (int) $request->query('display', 10);
+        $data = $query->latest()->paginate($perPage)->withQueryString();
 
         return view('admin.pbi-apbn.monitoring.index', compact('data'));
     }
@@ -222,7 +257,6 @@ class PbiApbnController extends Controller
         $user = Auth::user();
         $roleSlug = $user->role->slug ?? null;
 
-        // Ubah pengecekan menjadi 'superadmin' tanpa strip
         if ($roleSlug === 'superadmin') {
             return true;
         }

@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\PbiApbnController;
 use App\Http\Controllers\Admin\PlaceholderController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\LoginAdminController;
+use App\Http\Controllers\Auth\ProfileController;
 use App\Http\Controllers\Auth\UserController;
 use App\Http\Controllers\PageController;
 use Illuminate\Support\Facades\Route;
@@ -49,6 +50,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::post('/logout', [LoginAdminController::class, 'destroy'])->name('logout');
 
+    // Edit profil akun sendiri (dipakai di dropdown pojok kanan atas, tampil sebagai pop-up)
+    Route::put('/profil', [ProfileController::class, 'update'])->name('profil.update');
+
     // Menu tunggal "Kelola User & Role" dengan tab: Pengguna | Hak Akses
     Route::prefix('kelola-role-user')->name('akun.')->group(function () {
         Route::get('/', [UserController::class, 'index'])->name('index');
@@ -73,6 +77,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/ajuan', [PbiApbnController::class, 'ajuanIndex'])->name('ajuan.index');
         Route::get('/ajuan/{pbiApbn}', [PbiApbnController::class, 'ajuanShow'])->name('ajuan.show');
         Route::post('/ajuan/{pbiApbn}/aksi', [PbiApbnController::class, 'ajuanAksi'])->name('ajuan.aksi');
+        Route::put('/ajuan/{pbiApbn}/tambahan', [PbiApbnController::class, 'ajuanUpdateTambahan'])->name('ajuan.updateTambahan');
 
         Route::get('/arsip', [PbiApbnController::class, 'arsipIndex'])->name('arsip.index');
         Route::get('/monitoring', [PbiApbnController::class, 'monitoringIndex'])->name('monitoring.index');
@@ -81,7 +86,7 @@ Route::middleware('auth')->group(function () {
 
     // ==========================================
     // 4. Kartu KKS — sudah dibangun penuh (punya Tika)
-    // PENTING: rute /ajuan, /arsip, /monitoring HARUS ada
+    // PENTING: rute /ajuan, /arsip, /monitoring, /log HARUS ada
     // sebelum rute wildcard /{permohonan}, agar tidak "ketangkap"
     // oleh wildcard tersebut.
     // ==========================================
@@ -89,6 +94,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/ajuan', [KartuKksController::class, 'ajuan'])->name('ajuan');
         Route::get('/arsip', [KartuKksController::class, 'arsip'])->name('arsip');
         Route::get('/monitoring', [KartuKksController::class, 'monitoring'])->name('monitoring');
+        Route::get('/log', [KartuKksController::class, 'logIndex'])->name('log');
 
         Route::get('/{permohonan}', [KartuKksController::class, 'show'])->name('show');
         Route::get('/{permohonan}/detail', [KartuKksController::class, 'detail'])->name('detail');
@@ -96,7 +102,10 @@ Route::middleware('auth')->group(function () {
         Route::post('/{permohonan}/proses', [KartuKksController::class, 'proses'])->name('proses');
     });
 
-    Route::prefix('dtsen')->name('dtsen.')->middleware('auth')->group(function () {
+    // ==========================================
+    // 5. DTSEN — sudah dibangun penuh
+    // ==========================================
+    Route::prefix('dtsen')->name('dtsen.')->group(function () {
         Route::get('/ajuan', [DtsenController::class, 'ajuan'])->name('ajuan');
         Route::get('/arsip', [DtsenController::class, 'arsip'])->name('arsip');
         Route::get('/monitoring', [DtsenController::class, 'monitoring'])->name('monitoring');
@@ -109,9 +118,9 @@ Route::middleware('auth')->group(function () {
     });
 
     // ==========================================
-    // 2, 5, 6. Modul lain — kerangka menu dulu, fitur menyusul
-    // (Asesmen SPMB, Kedaruratan Medis, DTSEN)
-    // 'kartu-kks' SUDAH DIHAPUS dari daftar placeholder ini
+    // 2, 6. Modul lain — kerangka menu dulu, fitur menyusul
+    // (Asesmen SPMB, Kedaruratan Medis)
+    // 'kartu-kks' dan 'dtsen' SUDAH DIHAPUS dari daftar placeholder ini
     // karena sudah dibangun penuh di atas.
     // ==========================================
     $placeholderModules = ['asesmen-spmb', 'kedaruratan-medis'];
