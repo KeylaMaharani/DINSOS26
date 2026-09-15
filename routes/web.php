@@ -6,6 +6,8 @@ use App\Http\Controllers\Auth\LoginAdminController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\UserController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\PbiApbnController;
+use App\Http\Controllers\Admin\PlaceholderController;
 
 
 // ==========================================
@@ -46,7 +48,6 @@ Route::middleware('auth')->group(function () {
     Route::post('/logout', [LoginAdminController::class, 'destroy'])->name('logout');
 
     // Menu tunggal "Kelola User & Role" dengan tab: Pengguna | Hak Akses
-    // Satu index untuk kedua tab, dibedakan lewat query string ?tab=
     Route::prefix('kelola-role-user')->name('akun.')->group(function () {
         Route::get('/', [UserController::class, 'index'])->name('index');
 
@@ -62,4 +63,38 @@ Route::middleware('auth')->group(function () {
         Route::put('/role/{role}', [UserController::class, 'updateRole'])->name('role.update');
         Route::delete('/role/{role}', [UserController::class, 'destroyRole'])->name('role.destroy');
     });
+
+    // ==========================================
+    // 3. PBI APBN — sudah dibangun penuh
+    // ==========================================
+    Route::prefix('pbi-apbn')->name('pbi-apbn.')->group(function () {
+        Route::get('/ajuan', [PbiApbnController::class, 'ajuanIndex'])->name('ajuan.index');
+        Route::get('/ajuan/{pbiApbn}', [PbiApbnController::class, 'ajuanShow'])->name('ajuan.show');
+        Route::post('/ajuan/{pbiApbn}/aksi', [PbiApbnController::class, 'ajuanAksi'])->name('ajuan.aksi');
+
+        Route::get('/arsip', [PbiApbnController::class, 'arsipIndex'])->name('arsip.index');
+        Route::get('/monitoring', [PbiApbnController::class, 'monitoringIndex'])->name('monitoring.index');
+        Route::get('/log', [PbiApbnController::class, 'logIndex'])->name('log.index');
+    });
+
+    // ==========================================
+    // 2, 4, 5, 6. Modul lain — kerangka menu dulu, fitur menyusul
+    // (Asesmen SPMB, Kedaruratan Medis, Kartu KKS, DTSEN)
+    // ==========================================
+    $placeholderModules = ['asesmen-spmb', 'kedaruratan-medis', 'kartu-kks', 'dtsen'];
+    foreach ($placeholderModules as $module) {
+        Route::prefix($module)->name(str_replace('-', '_', $module) . '.')->group(function () use ($module) {
+            foreach (['ajuan', 'arsip', 'monitoring', 'log'] as $tab) {
+                Route::get("/{$tab}", [PlaceholderController::class, 'tab'])
+                    ->defaults('module', $module)
+                    ->defaults('tab', $tab)
+                    ->name($tab);
+            }
+        });
+    }
+
+    // ==========================================
+    // 7. Dokumen — template dokumen
+    // ==========================================
+    Route::get('/dokumen', [PlaceholderController::class, 'dokumen'])->name('dokumen.index');
 });

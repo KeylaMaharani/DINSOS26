@@ -61,6 +61,9 @@
                         "success-container": "#d0f8d0",
                         "on-success-container": "#0a5e0a",
                         success: "#2e7d32",
+                        "warning-container": "#fff3cd",
+                        "on-warning-container": "#7a5b00",
+                        warning: "#b98900",
                     },
                     borderRadius: {
                         DEFAULT: "0.25rem",
@@ -102,6 +105,42 @@
 </head>
 
 <body class="bg-surface font-body-md text-on-surface antialiased">
+    @php
+        // Peta menu => info tampilan, dipakai untuk render sidebar & cek "aktif"
+        $sidebarMenus = [
+            [
+                'key' => 'asesmen-spmb',
+                'label' => 'Asesmen SPMB',
+                'icon' => 'fact_check',
+                'route_prefix' => 'asesmen_spmb.',
+            ],
+            [
+                'key' => 'pbi-apbn',
+                'label' => 'PBI APBN',
+                'icon' => 'health_and_safety',
+                'route_prefix' => 'pbi-apbn.',
+            ],
+            [
+                'key' => 'kedaruratan-medis',
+                'label' => 'Kedaruratan Medis',
+                'icon' => 'emergency',
+                'route_prefix' => 'kedaruratan_medis.',
+            ],
+            [
+                'key' => 'kartu-kks',
+                'label' => 'Kartu KKS',
+                'icon' => 'credit_card',
+                'route_prefix' => 'kartu_kks.',
+            ],
+            [
+                'key' => 'dtsen',
+                'label' => 'DTSEN',
+                'icon' => 'database',
+                'route_prefix' => 'dtsen.',
+            ],
+        ];
+    @endphp
+
     <div class="flex h-screen overflow-hidden" x-data="{ sidebarOpen: false }">
 
         <!-- Overlay (mobile) -->
@@ -128,14 +167,57 @@
                     Beranda
                 </a>
 
-                {{-- Tambahkan menu lain di sini, contoh: --}}
-                {{--
-                <a href="#"
-                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white transition-colors">
-                    <span class="material-symbols-outlined text-[20px]">group</span>
-                    Data Penerima
+                {{-- ========== Menu layanan (Asesmen SPMB, PBI APBN, Kedaruratan Medis, Kartu KKS, DTSEN) ========== --}}
+                @foreach ($sidebarMenus as $menu)
+                    @php $isMenuActive = request()->routeIs($menu['route_prefix'] . '*'); @endphp
+                    <div x-data="{ open: {{ $isMenuActive ? 'true' : 'false' }} }">
+                        <button @click="open = !open" type="button"
+                            class="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
+                                {{ $isMenuActive ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
+                            <span class="flex items-center gap-3">
+                                <span class="material-symbols-outlined text-[20px]">{{ $menu['icon'] }}</span>
+                                {{ $menu['label'] }}
+                            </span>
+                            <span class="material-symbols-outlined text-[18px] transition-transform"
+                                :class="open ? 'rotate-180' : ''">expand_more</span>
+                        </button>
+
+                        <div x-show="open" x-cloak
+                            x-transition:enter="transition ease-out duration-150"
+                            x-transition:enter-start="opacity-0 -translate-y-1"
+                            x-transition:enter-end="opacity-100 translate-y-0"
+                            class="mt-1 ml-4 pl-4 border-l border-white/15 space-y-0.5">
+                            @php
+                                $subRoutes = [
+                                    'ajuan' => 'Ajuan',
+                                    'arsip' => 'Arsip',
+                                    'monitoring' => 'Monitoring',
+                                    // 'log' => 'Log',
+                                ];
+                            @endphp
+                            @foreach ($subRoutes as $subKey => $subLabel)
+                                @php
+                                    $subRouteName = $menu['route_prefix'] . $subKey . ($menu['key'] === 'pbi-apbn' ? '.index' : '');
+                                @endphp
+                                <a href="{{ route($subRouteName) }}"
+                                    class="block px-3 py-2 rounded-lg text-[13px] transition-colors
+                                        {{ request()->routeIs($subRouteName) ? 'bg-white/15 text-white font-semibold' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
+                                    {{ $subLabel }}
+                                </a>
+                            @endforeach
+                        </div>
+                    </div>
+                @endforeach
+
+                {{-- ========== 7. Dokumen ========== --}}
+                <a href="{{ route('dokumen.index') }}"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
+                        {{ request()->routeIs('dokumen.*') ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
+                    <span class="material-symbols-outlined text-[20px]">description</span>
+                    Dokumen
                 </a>
-                --}}
+
+                <div class="pt-2 mt-2 border-t border-white/10"></div>
 
                 <a href="{{ route('akun.index') }}"
                     class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
@@ -182,17 +264,6 @@
                         x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
                         class="absolute right-0 mt-2 w-52 bg-surface-container-lowest border border-outline-variant/40 rounded-xl shadow-lg overflow-hidden z-50">
 
-                        {{-- <a href="#"
-                            class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container transition-colors">
-                            <span class="material-symbols-outlined text-[18px] text-on-surface-variant">lock</span>
-                            Ubah Kata Sandi
-                        </a>
-                        <a href="#"
-                            class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container transition-colors">
-                            <span class="material-symbols-outlined text-[18px] text-on-surface-variant">person</span>
-                            Edit Profil
-                        </a> --}}
-
                         <div class="border-t border-outline-variant/40"></div>
 
                         <form method="POST" action="{{ route('logout') }}">
@@ -209,6 +280,16 @@
 
             <!-- Content -->
             <main class="flex-1 overflow-y-auto p-4 lg:p-6">
+                @if (session('success'))
+                    <div class="mb-4 px-4 py-3 rounded-lg bg-success-container text-on-success-container text-sm">
+                        {{ session('success') }}
+                    </div>
+                @endif
+                @if (session('error'))
+                    <div class="mb-4 px-4 py-3 rounded-lg bg-error-container text-on-error-container text-sm">
+                        {{ session('error') }}
+                    </div>
+                @endif
                 @yield('content')
             </main>
         </div>
