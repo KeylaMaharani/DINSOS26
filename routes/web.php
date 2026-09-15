@@ -8,6 +8,7 @@ use App\Http\Controllers\Auth\UserController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\PbiApbnController;
 use App\Http\Controllers\Admin\PlaceholderController;
+use App\Http\Controllers\Admin\KartuKksController;
 
 
 // ==========================================
@@ -78,10 +79,29 @@ Route::middleware('auth')->group(function () {
     });
 
     // ==========================================
-    // 2, 4, 5, 6. Modul lain — kerangka menu dulu, fitur menyusul
-    // (Asesmen SPMB, Kedaruratan Medis, Kartu KKS, DTSEN)
+    // 4. Kartu KKS — sudah dibangun penuh (punya Tika)
+    // PENTING: rute /ajuan, /arsip, /monitoring HARUS ada
+    // sebelum rute wildcard /{permohonan}, agar tidak "ketangkap"
+    // oleh wildcard tersebut.
     // ==========================================
-    $placeholderModules = ['asesmen-spmb', 'kedaruratan-medis', 'kartu-kks', 'dtsen'];
+    Route::prefix('kartu-kks')->name('kartu-kks.')->group(function () {
+        Route::get('/ajuan', [KartuKksController::class, 'ajuan'])->name('ajuan');
+        Route::get('/arsip', [KartuKksController::class, 'arsip'])->name('arsip');
+        Route::get('/monitoring', [KartuKksController::class, 'monitoring'])->name('monitoring');
+
+        Route::get('/{permohonan}', [KartuKksController::class, 'show'])->name('show');
+        Route::get('/{permohonan}/detail', [KartuKksController::class, 'detail'])->name('detail');
+        Route::put('/{permohonan}/detail', [KartuKksController::class, 'updateDetail'])->name('detail.update');
+        Route::post('/{permohonan}/proses', [KartuKksController::class, 'proses'])->name('proses');
+    });
+
+    // ==========================================
+    // 2, 5, 6. Modul lain — kerangka menu dulu, fitur menyusul
+    // (Asesmen SPMB, Kedaruratan Medis, DTSEN)
+    // 'kartu-kks' SUDAH DIHAPUS dari daftar placeholder ini
+    // karena sudah dibangun penuh di atas.
+    // ==========================================
+    $placeholderModules = ['asesmen-spmb', 'kedaruratan-medis', 'dtsen'];
     foreach ($placeholderModules as $module) {
         Route::prefix($module)->name(str_replace('-', '_', $module) . '.')->group(function () use ($module) {
             foreach (['ajuan', 'arsip', 'monitoring', 'log'] as $tab) {

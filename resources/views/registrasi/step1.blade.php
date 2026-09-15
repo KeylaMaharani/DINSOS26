@@ -1,8 +1,8 @@
-@extends('layouts.app')
+@extends('layouts.auth')
 
 @section('title', 'Daftar - SOLID v4 Dinas Sosial Kota Bogor')
 
-@section('head')
+@push('head')
         <meta charset="utf-8" />
         <meta content="width=device-width, initial-scale=1.0" name="viewport" />
     <link href="https://fonts.googleapis.com" rel="preconnect" />
@@ -355,8 +355,8 @@
             box-shadow: 0 0 0 4px rgba(19, 98, 153, 0.12);
           }
 
-          /* ===== Tombol "Next" — REVISI: disamakan dengan tombol "Masuk"
-             di login.html (fit-content, centered, tidak full width). ===== */
+          /* ===== Tombol "Next" — disamakan dengan tombol "Masuk" di login.html
+             (fit-content, centered, tidak full width). ===== */
           .auth-submit {
             width: fit-content;
             min-width: 9.5rem;
@@ -431,7 +431,7 @@
             background: #e4e9f0;
           }
 
-          /* Tombol Login di bawah form register — dibuat setara tombol submit,
+          /* Tombol Login di bawah form register — setara tombol submit,
              rounded penuh dan centered, bukan teks polos. */
           .auth-login-btn {
             display: flex;
@@ -480,7 +480,6 @@
             font-size: 15px;
           }
 
-          /* Tombol "Kembali ke Login" versi di dalam panel form (putih) */
           .auth-back-form {
             display: inline-flex;
             align-items: center;
@@ -532,7 +531,7 @@
             font-size: 10px;
           }
 
-          @media (max-width: 860px) {
+          @media (max-width: 700px) {
             .auth-page {
               height: auto;
               min-height: 100vh;
@@ -597,8 +596,8 @@
             }
           }
         </style>
-  
-@endsection
+
+@endpush
 
 @section('body_class', 'bg-surface font-body-md text-on-surface antialiased')
 
@@ -750,5 +749,5 @@
         </div>
       </div>
     </div>
-  
+
 @endsection

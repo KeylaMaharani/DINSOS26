@@ -27,5 +27,9 @@ class DatabaseSeeder extends Seeder
             'email' => 'admin@gmail.com',
             'password' => bcrypt('admin123'),
         ]);
+
+        $this->call([
+            KartuKksSeeder::class,
+        ]);
     }
 }
