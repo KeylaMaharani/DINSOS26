@@ -6,6 +6,8 @@ use App\Http\Controllers\Auth\LoginAdminController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\UserController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\PbiApbnController;
+use App\Http\Controllers\Admin\PlaceholderController;
 use App\Http\Controllers\Admin\KartuKksController;
 
 
@@ -47,7 +49,6 @@ Route::middleware('auth')->group(function () {
     Route::post('/logout', [LoginAdminController::class, 'destroy'])->name('logout');
 
     // Menu tunggal "Kelola User & Role" dengan tab: Pengguna | Hak Akses
-    // Satu index untuk kedua tab, dibedakan lewat query string ?tab=
     Route::prefix('kelola-role-user')->name('akun.')->group(function () {
         Route::get('/', [UserController::class, 'index'])->name('index');
 
@@ -64,14 +65,56 @@ Route::middleware('auth')->group(function () {
         Route::delete('/role/{role}', [UserController::class, 'destroyRole'])->name('role.destroy');
     });
 
-    Route::prefix('kartu-kks')->name('kartu-kks.')->middleware('auth')->group(function () {
-    Route::get('/ajuan', [KartuKksController::class, 'ajuan'])->name('ajuan');
-    Route::get('/arsip', [KartuKksController::class, 'arsip'])->name('arsip');
-    Route::get('/monitoring', [KartuKksController::class, 'monitoring'])->name('monitoring');
+    // ==========================================
+    // 3. PBI APBN — sudah dibangun penuh
+    // ==========================================
+    Route::prefix('pbi-apbn')->name('pbi-apbn.')->group(function () {
+        Route::get('/ajuan', [PbiApbnController::class, 'ajuanIndex'])->name('ajuan.index');
+        Route::get('/ajuan/{pbiApbn}', [PbiApbnController::class, 'ajuanShow'])->name('ajuan.show');
+        Route::post('/ajuan/{pbiApbn}/aksi', [PbiApbnController::class, 'ajuanAksi'])->name('ajuan.aksi');
 
-    Route::get('/{permohonan}', [KartuKksController::class, 'show'])->name('show');
-    Route::get('/{permohonan}/detail', [KartuKksController::class, 'detail'])->name('detail');
-    Route::put('/{permohonan}/detail', [KartuKksController::class, 'updateDetail'])->name('detail.update');
-    Route::post('/{permohonan}/proses', [KartuKksController::class, 'proses'])->name('proses');
-});
+        Route::get('/arsip', [PbiApbnController::class, 'arsipIndex'])->name('arsip.index');
+        Route::get('/monitoring', [PbiApbnController::class, 'monitoringIndex'])->name('monitoring.index');
+        Route::get('/log', [PbiApbnController::class, 'logIndex'])->name('log.index');
+    });
+
+    // ==========================================
+    // 4. Kartu KKS — sudah dibangun penuh (punya Tika)
+    // PENTING: rute /ajuan, /arsip, /monitoring HARUS ada
+    // sebelum rute wildcard /{permohonan}, agar tidak "ketangkap"
+    // oleh wildcard tersebut.
+    // ==========================================
+    Route::prefix('kartu-kks')->name('kartu-kks.')->group(function () {
+        Route::get('/ajuan', [KartuKksController::class, 'ajuan'])->name('ajuan');
+        Route::get('/arsip', [KartuKksController::class, 'arsip'])->name('arsip');
+        Route::get('/monitoring', [KartuKksController::class, 'monitoring'])->name('monitoring');
+
+        Route::get('/{permohonan}', [KartuKksController::class, 'show'])->name('show');
+        Route::get('/{permohonan}/detail', [KartuKksController::class, 'detail'])->name('detail');
+        Route::put('/{permohonan}/detail', [KartuKksController::class, 'updateDetail'])->name('detail.update');
+        Route::post('/{permohonan}/proses', [KartuKksController::class, 'proses'])->name('proses');
+    });
+
+    // ==========================================
+    // 2, 5, 6. Modul lain — kerangka menu dulu, fitur menyusul
+    // (Asesmen SPMB, Kedaruratan Medis, DTSEN)
+    // 'kartu-kks' SUDAH DIHAPUS dari daftar placeholder ini
+    // karena sudah dibangun penuh di atas.
+    // ==========================================
+    $placeholderModules = ['asesmen-spmb', 'kedaruratan-medis', 'dtsen'];
+    foreach ($placeholderModules as $module) {
+        Route::prefix($module)->name(str_replace('-', '_', $module) . '.')->group(function () use ($module) {
+            foreach (['ajuan', 'arsip', 'monitoring', 'log'] as $tab) {
+                Route::get("/{$tab}", [PlaceholderController::class, 'tab'])
+                    ->defaults('module', $module)
+                    ->defaults('tab', $tab)
+                    ->name($tab);
+            }
+        });
+    }
+
+    // ==========================================
+    // 7. Dokumen — template dokumen
+    // ==========================================
+    Route::get('/dokumen', [PlaceholderController::class, 'dokumen'])->name('dokumen.index');
 });
