@@ -2,7 +2,7 @@
 
 @section('title', 'Masuk Akun - SOLID v4 Dinas Sosial Kota Bogor')
 
-@section('head')
+@push('head')
         <meta charset="utf-8" />
         <meta content="width=device-width, initial-scale=1.0" name="viewport" />
     <link href="https://fonts.googleapis.com" rel="preconnect" />
@@ -401,7 +401,7 @@
             text-decoration: underline;
           }
 
-          /* ===== Button "Masuk" - REVISI: dibuat lebih kecil & tidak full width ===== */
+          /* ===== Button "Masuk" ===== */
           .auth-submit {
             width: fit-content;
             min-width: 9.5rem;
@@ -461,16 +461,18 @@
           .auth-register-grid {
             display: grid;
             grid-template-columns: 1fr 1fr 1fr;
-            gap: 0.4rem;
+            gap: 0.5rem;
           }
           .auth-register-btn {
             display: flex;
             align-items: center;
             justify-content: center;
             text-align: center;
-            padding: 0.4rem 0.4rem;
+            padding: 0.5rem 0.5rem;
             border-radius: 0.75rem;
-            border: 1.5px solid #e4e9f0;
+            /* border lebih gelap supaya tetap kelihatan jelas walau layar sempit/di-scale */
+            border: 1.5px solid #c9d3e0;
+            background: #ffffff;
             color: #003b62;
             font-size: 11px;
             font-weight: 700;
@@ -553,8 +555,11 @@
             font-size: 10px;
           }
 
-          /* ===== Responsif: tumpuk vertikal di layar sempit ===== */
-          @media (max-width: 860px) {
+          /* ===== Responsif =====
+             Breakpoint diturunkan dari 860px -> 700px supaya tampilan
+             dua-panel (seperti versi desktop) tetap dipertahankan lebih lama
+             dan tidak cepat "tumpuk" saat dilihat di jendela/preview sempit. */
+          @media (max-width: 700px) {
             .auth-page {
               height: auto;
               min-height: 100vh;
@@ -622,7 +627,7 @@
           }
         </style>
 
-@endsection
+@endpush
 
 @section('body_class', 'bg-surface font-body-md text-on-surface antialiased')
 

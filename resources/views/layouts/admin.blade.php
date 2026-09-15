@@ -87,6 +87,12 @@
     @yield('head')
     @stack('styles')
     <style>
+        /* Sembunyikan elemen yang belum sempat diinisialisasi Alpine.js,
+           supaya tidak "kedip" muncul sebelum disembunyikan (misal overlay sidebar). */
+        [x-cloak] {
+            display: none !important;
+        }
+
         /* Sembunyikan scrollbar tapi tetap bisa discroll */
         * {
             scrollbar-width: none;
@@ -127,6 +133,38 @@
                     <span class="material-symbols-outlined text-[20px]">dashboard</span>
                     Beranda
                 </a>
+
+                {{-- ===== KARTU KKS (dropdown: Ajuan / Arsip / Monitoring) ===== --}}
+                <div x-data="{ kksOpen: {{ request()->routeIs('kartu-kks.*') ? 'true' : 'false' }} }">
+                    <button @click="kksOpen = !kksOpen"
+                        class="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
+                            {{ request()->routeIs('kartu-kks.*') ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
+                        <span class="flex items-center gap-3">
+                            <span class="material-symbols-outlined text-[20px]">credit_card</span>
+                            Kartu KKS
+                        </span>
+                        <span class="material-symbols-outlined text-[18px] transition-transform"
+                            :class="kksOpen ? 'rotate-180' : ''">expand_more</span>
+                    </button>
+
+                    <div x-show="kksOpen" x-cloak x-transition class="pl-9 pr-1 py-1 space-y-0.5">
+                        <a href="{{ route('kartu-kks.ajuan') }}"
+                            class="block px-3 py-2 rounded-lg text-sm transition-colors
+                                {{ request()->routeIs('kartu-kks.ajuan') ? 'bg-white/15 text-white' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
+                            Ajuan
+                        </a>
+                        <a href="{{ route('kartu-kks.arsip') }}"
+                            class="block px-3 py-2 rounded-lg text-sm transition-colors
+                                {{ request()->routeIs('kartu-kks.arsip') ? 'bg-white/15 text-white' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
+                            Arsip
+                        </a>
+                        <a href="{{ route('kartu-kks.monitoring') }}"
+                            class="block px-3 py-2 rounded-lg text-sm transition-colors
+                                {{ request()->routeIs('kartu-kks.monitoring') ? 'bg-white/15 text-white' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
+                            Monitoring
+                        </a>
+                    </div>
+                </div>
 
                 {{-- Tambahkan menu lain di sini, contoh: --}}
                 {{--
@@ -215,6 +253,140 @@
     </div>
 
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    {{-- ====== Modal konfirmasi bertema (menggantikan confirm() bawaan browser) ====== --}}
+    <div id="app-confirm-modal"
+         class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-[1px] px-4">
+        <div data-confirm-panel
+             class="opacity-0 scale-95 transition-all duration-150 ease-out bg-surface-container-lowest border border-outline-variant/40 rounded-xl shadow-xl w-full max-w-sm p-5">
+            <div class="flex items-start gap-3">
+                <span data-confirm-icon class="material-symbols-outlined text-[22px] text-primary">help</span>
+                <div class="flex-1 min-w-0">
+                    <h3 data-confirm-title class="text-sm font-semibold text-on-surface">Konfirmasi</h3>
+                    <p data-confirm-message class="text-sm text-on-surface-variant mt-1"></p>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-5">
+                <button type="button" data-confirm-cancel
+                    class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-outline-variant/60 text-on-surface hover:bg-surface-container text-sm font-medium transition-colors">
+                    Batal
+                </button>
+                <button type="button" data-confirm-ok
+                    class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-secondary text-sm font-medium transition-colors">
+                    Ya, Lanjutkan
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        let modalEl, titleEl, messageEl, confirmBtn, cancelBtn, iconEl, panelEl;
+        let resolvePromise = null;
+
+        function ensureModal() {
+            if (modalEl) return true;
+            modalEl = document.getElementById('app-confirm-modal');
+            if (!modalEl) return false;
+
+            panelEl = modalEl.querySelector('[data-confirm-panel]');
+            titleEl = modalEl.querySelector('[data-confirm-title]');
+            messageEl = modalEl.querySelector('[data-confirm-message]');
+            confirmBtn = modalEl.querySelector('[data-confirm-ok]');
+            cancelBtn = modalEl.querySelector('[data-confirm-cancel]');
+            iconEl = modalEl.querySelector('[data-confirm-icon]');
+
+            confirmBtn.addEventListener('click', () => close(true));
+            cancelBtn.addEventListener('click', () => close(false));
+            modalEl.addEventListener('click', (e) => {
+                if (e.target === modalEl) close(false);
+            });
+            document.addEventListener('keydown', (e) => {
+                if (!modalEl.classList.contains('hidden') && e.key === 'Escape') close(false);
+            });
+
+            return true;
+        }
+
+        function open(message, options) {
+            options = options || {};
+            if (!ensureModal()) {
+                return Promise.resolve(window.confirm(message));
+            }
+
+            const title = options.title || 'Konfirmasi';
+            const variant = options.variant || 'primary';
+            const confirmText = options.confirmText || 'Ya, Lanjutkan';
+            const cancelText = options.cancelText || 'Batal';
+
+            titleEl.textContent = title;
+            messageEl.textContent = message;
+            confirmBtn.textContent = confirmText;
+            cancelBtn.textContent = cancelText;
+
+            confirmBtn.className = variant === 'error'
+                ? 'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-error text-on-error hover:opacity-90 text-sm font-medium transition-colors'
+                : 'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-secondary text-sm font-medium transition-colors';
+
+            iconEl.textContent = variant === 'error' ? 'warning' : 'help';
+            iconEl.className = 'material-symbols-outlined text-[22px] ' + (variant === 'error' ? 'text-error' : 'text-primary');
+
+            modalEl.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                panelEl.classList.remove('opacity-0', 'scale-95');
+            });
+
+            return new Promise((resolve) => {
+                resolvePromise = resolve;
+            });
+        }
+
+        function close(result) {
+            if (!modalEl) return;
+            panelEl.classList.add('opacity-0', 'scale-95');
+            setTimeout(() => modalEl.classList.add('hidden'), 150);
+            if (resolvePromise) {
+                resolvePromise(result);
+                resolvePromise = null;
+            }
+        }
+
+        window.confirmModal = open;
+
+        document.addEventListener('click', async function (e) {
+            const trigger = e.target.closest('[data-confirm]');
+            if (!trigger || trigger.dataset.confirmBound === 'pending') return;
+
+            e.preventDefault();
+
+            const ok = await window.confirmModal(trigger.getAttribute('data-confirm'), {
+                variant: trigger.getAttribute('data-confirm-variant') || 'primary',
+                title: trigger.getAttribute('data-confirm-title') || undefined,
+            });
+            if (!ok) return;
+
+            trigger.dataset.confirmBound = 'pending';
+
+            const form = trigger.closest('form');
+            if (form) {
+                if (trigger.tagName === 'BUTTON' && trigger.name) {
+                    const hidden = document.createElement('input');
+                    hidden.type = 'hidden';
+                    hidden.name = trigger.name;
+                    hidden.value = trigger.value;
+                    form.appendChild(hidden);
+                }
+                form.submit();
+            } else if (trigger.tagName === 'A' && trigger.href) {
+                window.location.href = trigger.href;
+            }
+
+            delete trigger.dataset.confirmBound;
+        });
+    })();
+    </script>
+    {{-- ====== Akhir blok modal konfirmasi ====== --}}
+
     @stack('scripts')
 </body>
 

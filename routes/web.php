@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\LoginAdminController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\UserController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\KartuKksController;
 
 
 // ==========================================
@@ -62,4 +63,15 @@ Route::middleware('auth')->group(function () {
         Route::put('/role/{role}', [UserController::class, 'updateRole'])->name('role.update');
         Route::delete('/role/{role}', [UserController::class, 'destroyRole'])->name('role.destroy');
     });
+
+    Route::prefix('kartu-kks')->name('kartu-kks.')->middleware('auth')->group(function () {
+    Route::get('/ajuan', [KartuKksController::class, 'ajuan'])->name('ajuan');
+    Route::get('/arsip', [KartuKksController::class, 'arsip'])->name('arsip');
+    Route::get('/monitoring', [KartuKksController::class, 'monitoring'])->name('monitoring');
+
+    Route::get('/{permohonan}', [KartuKksController::class, 'show'])->name('show');
+    Route::get('/{permohonan}/detail', [KartuKksController::class, 'detail'])->name('detail');
+    Route::put('/{permohonan}/detail', [KartuKksController::class, 'updateDetail'])->name('detail.update');
+    Route::post('/{permohonan}/proses', [KartuKksController::class, 'proses'])->name('proses');
+});
 });

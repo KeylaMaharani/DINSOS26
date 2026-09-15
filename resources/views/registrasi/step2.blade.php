@@ -1,8 +1,8 @@
-@extends('layouts.app')
+@extends('layouts.auth')
 
 @section('title', 'Registrasi Data Diri - SOLID v4 Dinas Sosial Kota Bogor')
 
-@section('head')
+@push('head')
         <meta charset="utf-8" />
         <meta content="width=device-width, initial-scale=1.0" name="viewport" />
     <link href="https://fonts.googleapis.com" rel="preconnect" />
@@ -441,10 +441,6 @@
           /* ===== Grid 2 kolom untuk form panjang ===== */
           .reg-grid {
             display: grid;
-            /* FIX: minmax(0, 1fr) bukan cuma "1fr" — supaya kolom grid
-               tidak ikut melebar mengikuti konten terlebar di dalamnya
-               (mis. tabel keluarga). Ini akar masalah kenapa bagian
-               "Anggota Keluarga" kepotong sebelumnya. */
             grid-template-columns: minmax(0, 1fr);
             gap: 1rem 1.75rem;
           }
@@ -457,7 +453,7 @@
             display: flex;
             flex-direction: column;
             gap: 1rem;
-            min-width: 0; /* FIX: idem, cegah kolom melebar mengikuti tabel */
+            min-width: 0;
           }
 
           .reg-section-title {
@@ -494,7 +490,7 @@
             border-radius: 1rem;
             padding: 0.9rem 1rem;
             background: #f7f9ff;
-            min-width: 0; /* FIX: cegah kartu ini mendorong lebar .reg-col */
+            min-width: 0;
           }
           .reg-add-family {
             display: flex;
@@ -525,7 +521,7 @@
               box-shadow 0.2s ease,
               transform 0.15s ease;
             white-space: nowrap;
-            flex-shrink: 0; /* FIX: tombol jangan ikut menyusut/kepotong, biar label yg wrap duluan */
+            flex-shrink: 0;
           }
           .reg-add-btn:hover {
             box-shadow: 0 8px 18px rgba(0, 59, 98, 0.3);
@@ -534,15 +530,9 @@
             transform: scale(0.98);
           }
 
-          /* Wrapper supaya tabel bisa discroll horizontal di layar kecil
-             tanpa merusak layout kartu di sekitarnya */
           .reg-family-table-wrap {
             width: 100%;
-            min-width: 0; /* FIX: wrapper ini yang bertugas nampung overflow
-                             tabel via scroll horizontal — tapi hanya bisa
-                             bekerja kalau parent-nya (.reg-family-card,
-                             .reg-col, .reg-grid, .auth-card-body) semuanya
-                             sudah tidak lagi ikut melebar. */
+            min-width: 0;
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
             border-radius: 0.75rem;
@@ -590,7 +580,6 @@
             font-weight: 700;
             white-space: nowrap;
           }
-          /* Petunjuk kecil kalau tabel bisa digeser (muncul hanya saat sempit) */
           .reg-family-scroll-hint {
             display: none;
             align-items: center;
@@ -969,7 +958,7 @@
             .auth-field input,
             .auth-field select,
             .auth-field textarea {
-              font-size: 16px; /* cegah auto-zoom Safari iOS saat fokus input */
+              font-size: 16px;
               padding: 0.6rem 0.9rem 0.6rem 2.6rem;
             }
             .reg-rtrw {
@@ -992,8 +981,6 @@
             .reg-success-meta {
               font-size: 11.5px;
             }
-            /* Tabel anggota keluarga: sedikit dipersempit dan munculkan
-               petunjuk geser supaya user tahu bisa discroll ke kanan */
             .reg-family-table {
               min-width: 380px;
               font-size: 12px;
@@ -1017,8 +1004,8 @@
             }
           }
         </style>
-  
-@endsection
+
+@endpush
 
 @section('body_class', 'bg-surface font-body-md text-on-surface antialiased')
 
@@ -1872,5 +1859,5 @@
         }
       })();
     </script>
-  
+
 @endsection
