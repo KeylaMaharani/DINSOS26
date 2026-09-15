@@ -1,15 +1,16 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\PageController;
-use App\Http\Controllers\Auth\LoginAdminController;
-use App\Http\Controllers\Auth\ForgotPasswordController;
-use App\Http\Controllers\Auth\UserController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\DtsenController;
+use App\Http\Controllers\Admin\KartuKksController;
 use App\Http\Controllers\Admin\PbiApbnController;
 use App\Http\Controllers\Admin\PlaceholderController;
-use App\Http\Controllers\Admin\KartuKksController;
+use App\Http\Controllers\Auth\ForgotPasswordController;
+use App\Http\Controllers\Auth\LoginAdminController;
 use App\Http\Controllers\Auth\ProfileController;
+use App\Http\Controllers\Auth\UserController;
+use App\Http\Controllers\PageController;
+use Illuminate\Support\Facades\Route;
 
 
 // ==========================================
@@ -72,20 +73,20 @@ Route::middleware('auth')->group(function () {
     // ==========================================
     // 3. PBI APBN — sudah dibangun penuh
     // ==========================================
-       Route::prefix('pbi-apbn')->name('pbi-apbn.')->group(function () {
-            Route::get('/ajuan', [PbiApbnController::class, 'ajuanIndex'])->name('ajuan.index');
-            Route::get('/ajuan/{pbiApbn}', [PbiApbnController::class, 'ajuanShow'])->name('ajuan.show');
-            Route::post('/ajuan/{pbiApbn}/aksi', [PbiApbnController::class, 'ajuanAksi'])->name('ajuan.aksi');
-            Route::put('/ajuan/{pbiApbn}/tambahan', [PbiApbnController::class, 'ajuanUpdateTambahan'])->name('ajuan.updateTambahan'); // <-- baris baru
+    Route::prefix('pbi-apbn')->name('pbi-apbn.')->group(function () {
+        Route::get('/ajuan', [PbiApbnController::class, 'ajuanIndex'])->name('ajuan.index');
+        Route::get('/ajuan/{pbiApbn}', [PbiApbnController::class, 'ajuanShow'])->name('ajuan.show');
+        Route::post('/ajuan/{pbiApbn}/aksi', [PbiApbnController::class, 'ajuanAksi'])->name('ajuan.aksi');
+        Route::put('/ajuan/{pbiApbn}/tambahan', [PbiApbnController::class, 'ajuanUpdateTambahan'])->name('ajuan.updateTambahan');
 
-            Route::get('/arsip', [PbiApbnController::class, 'arsipIndex'])->name('arsip.index');
-            Route::get('/monitoring', [PbiApbnController::class, 'monitoringIndex'])->name('monitoring.index');
-            Route::get('/log', [PbiApbnController::class, 'logIndex'])->name('log.index');
-        });
+        Route::get('/arsip', [PbiApbnController::class, 'arsipIndex'])->name('arsip.index');
+        Route::get('/monitoring', [PbiApbnController::class, 'monitoringIndex'])->name('monitoring.index');
+        Route::get('/log', [PbiApbnController::class, 'logIndex'])->name('log.index');
+    });
 
     // ==========================================
     // 4. Kartu KKS — sudah dibangun penuh (punya Tika)
-    // PENTING: rute /ajuan, /arsip, /monitoring HARUS ada
+    // PENTING: rute /ajuan, /arsip, /monitoring, /log HARUS ada
     // sebelum rute wildcard /{permohonan}, agar tidak "ketangkap"
     // oleh wildcard tersebut.
     // ==========================================
@@ -93,7 +94,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/ajuan', [KartuKksController::class, 'ajuan'])->name('ajuan');
         Route::get('/arsip', [KartuKksController::class, 'arsip'])->name('arsip');
         Route::get('/monitoring', [KartuKksController::class, 'monitoring'])->name('monitoring');
-        Route::get('/log', [KartuKksController::class, 'logIndex'])->name('log'); // <-- tambahan ini
+        Route::get('/log', [KartuKksController::class, 'logIndex'])->name('log');
 
         Route::get('/{permohonan}', [KartuKksController::class, 'show'])->name('show');
         Route::get('/{permohonan}/detail', [KartuKksController::class, 'detail'])->name('detail');
@@ -102,12 +103,27 @@ Route::middleware('auth')->group(function () {
     });
 
     // ==========================================
-    // 2, 5, 6. Modul lain — kerangka menu dulu, fitur menyusul
-    // (Asesmen SPMB, Kedaruratan Medis, DTSEN)
-    // 'kartu-kks' SUDAH DIHAPUS dari daftar placeholder ini
+    // 5. DTSEN — sudah dibangun penuh
+    // ==========================================
+    Route::prefix('dtsen')->name('dtsen.')->group(function () {
+        Route::get('/ajuan', [DtsenController::class, 'ajuan'])->name('ajuan');
+        Route::get('/arsip', [DtsenController::class, 'arsip'])->name('arsip');
+        Route::get('/monitoring', [DtsenController::class, 'monitoring'])->name('monitoring');
+
+        Route::get('/{permohonan}', [DtsenController::class, 'show'])->name('show');
+        Route::get('/{permohonan}/detail', [DtsenController::class, 'detail'])->name('detail');
+        Route::put('/{permohonan}/detail', [DtsenController::class, 'updateDetail'])->name('detail.update');
+        Route::put('/{permohonan}/bansos', [DtsenController::class, 'updateBansos'])->name('bansos.update');
+        Route::post('/{permohonan}/proses', [DtsenController::class, 'proses'])->name('proses');
+    });
+
+    // ==========================================
+    // 2, 6. Modul lain — kerangka menu dulu, fitur menyusul
+    // (Asesmen SPMB, Kedaruratan Medis)
+    // 'kartu-kks' dan 'dtsen' SUDAH DIHAPUS dari daftar placeholder ini
     // karena sudah dibangun penuh di atas.
     // ==========================================
-    $placeholderModules = ['asesmen-spmb', 'kedaruratan-medis', 'dtsen'];
+    $placeholderModules = ['asesmen-spmb', 'kedaruratan-medis'];
     foreach ($placeholderModules as $module) {
         Route::prefix($module)->name(str_replace('-', '_', $module) . '.')->group(function () use ($module) {
             foreach (['ajuan', 'arsip', 'monitoring', 'log'] as $tab) {
@@ -123,4 +139,4 @@ Route::middleware('auth')->group(function () {
     // 7. Dokumen — template dokumen
     // ==========================================
     Route::get('/dokumen', [PlaceholderController::class, 'dokumen'])->name('dokumen.index');
-}); 
+});
