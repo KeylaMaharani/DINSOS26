@@ -1,14 +1,15 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\PageController;
-use App\Http\Controllers\Auth\LoginAdminController;
-use App\Http\Controllers\Auth\ForgotPasswordController;
-use App\Http\Controllers\Auth\UserController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\DtsenController;
+use App\Http\Controllers\Admin\KartuKksController;
 use App\Http\Controllers\Admin\PbiApbnController;
 use App\Http\Controllers\Admin\PlaceholderController;
-use App\Http\Controllers\Admin\KartuKksController;
+use App\Http\Controllers\Auth\ForgotPasswordController;
+use App\Http\Controllers\Auth\LoginAdminController;
+use App\Http\Controllers\Auth\UserController;
+use App\Http\Controllers\PageController;
+use Illuminate\Support\Facades\Route;
 
 
 // ==========================================
@@ -95,13 +96,25 @@ Route::middleware('auth')->group(function () {
         Route::post('/{permohonan}/proses', [KartuKksController::class, 'proses'])->name('proses');
     });
 
+    Route::prefix('dtsen')->name('dtsen.')->middleware('auth')->group(function () {
+        Route::get('/ajuan', [DtsenController::class, 'ajuan'])->name('ajuan');
+        Route::get('/arsip', [DtsenController::class, 'arsip'])->name('arsip');
+        Route::get('/monitoring', [DtsenController::class, 'monitoring'])->name('monitoring');
+
+        Route::get('/{permohonan}', [DtsenController::class, 'show'])->name('show');
+        Route::get('/{permohonan}/detail', [DtsenController::class, 'detail'])->name('detail');
+        Route::put('/{permohonan}/detail', [DtsenController::class, 'updateDetail'])->name('detail.update');
+        Route::put('/{permohonan}/bansos', [DtsenController::class, 'updateBansos'])->name('bansos.update');
+        Route::post('/{permohonan}/proses', [DtsenController::class, 'proses'])->name('proses');
+    });
+
     // ==========================================
     // 2, 5, 6. Modul lain — kerangka menu dulu, fitur menyusul
     // (Asesmen SPMB, Kedaruratan Medis, DTSEN)
     // 'kartu-kks' SUDAH DIHAPUS dari daftar placeholder ini
     // karena sudah dibangun penuh di atas.
     // ==========================================
-    $placeholderModules = ['asesmen-spmb', 'kedaruratan-medis', 'dtsen'];
+    $placeholderModules = ['asesmen-spmb', 'kedaruratan-medis'];
     foreach ($placeholderModules as $module) {
         Route::prefix($module)->name(str_replace('-', '_', $module) . '.')->group(function () use ($module) {
             foreach (['ajuan', 'arsip', 'monitoring', 'log'] as $tab) {
