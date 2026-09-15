@@ -4,14 +4,42 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\KartuKksPermohonan;
+use App\Models\KartuKksLog;
 use App\Models\Role;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
 
 class KartuKksController extends Controller
 {
+
+    /**
+     * GET /kartu-kks/log
+     */
+    public function logIndex(Request $request)
+    {
+        $query = KartuKksLog::query()->with('permohonan');
+
+        if ($request->filled('search')) {
+            $s = $request->search;
+            $query->where(function ($q) use ($s) {
+                $q->where('username', 'like', "%{$s}%")
+                    ->orWhereHas('permohonan', function ($q2) use ($s) {
+                        $q2->where('nik', 'like', "%{$s}%")
+                            ->orWhere('nama_pemohon', 'like', "%{$s}%");
+                    });
+            });
+        }
+
+        $logs = $query->orderByDesc('tanggal_proses')->paginate(15)->withQueryString();
+
+        return view('admin.kartu-kks.monitoring.log', [
+            'logs' => $logs,
+        ]);
+    }
+
     /**
      * Sama seperti logika di CheckRole: role apapun yang namanya mengandung
      * "admin" dianggap admin dan bebas dari pembatasan role di bawah ini.
@@ -52,13 +80,6 @@ class KartuKksController extends Controller
 
     /**
      * Peta alur status -> aksi berikutnya & aksi kembali.
-     *
-     * 'next'          : status setelah aksi "lanjut" disetujui
-     * 'allowed_role'  : slug role yang BOLEH memproses status saat ini
-     * 'task_lanjut'   : nama task yang dicatat di log saat disetujui/dilanjutkan
-     * 'next_role'     : role yang akan "memegang" berkas setelah lanjut (current_role_id)
-     * 'return_status' : status tujuan saat aksi "kembalikan" dipakai (opsional)
-     * 'return_role'   : role yang akan memegang berkas setelah dikembalikan (opsional)
      */
     private function transitions(): array
     {
@@ -68,14 +89,12 @@ class KartuKksController extends Controller
                 'task_lanjut' => 'Verifikasi Kelurahan',
                 'next' => KartuKksPermohonan::STATUS_VERIFIKASI_KELURAHAN,
                 'next_role' => 'kelurahan',
-                // Tahap paling awal, tidak ada tahap sebelumnya untuk dikembalikan.
             ],
             KartuKksPermohonan::STATUS_VERIFIKASI_KELURAHAN => [
                 'allowed_role' => 'kelurahan',
                 'task_lanjut' => 'TTD Lurah',
                 'next' => KartuKksPermohonan::STATUS_TTD_LURAH,
                 'next_role' => 'operator_dinsos',
-                // Masih di role Kelurahan yang sama, tidak ada return lintas-role.
             ],
             KartuKksPermohonan::STATUS_TTD_LURAH => [
                 'allowed_role' => 'operator_dinsos',
@@ -125,7 +144,7 @@ class KartuKksController extends Controller
             ->whereNotIn('status', [KartuKksPermohonan::STATUS_SELESAI, KartuKksPermohonan::STATUS_DITOLAK]);
 
         if (! $isAdmin) {
-            $query->whereHas('currentRole', fn ($q) => $q->where('slug', $roleSlug));
+            $query->whereHas('currentRole', fn($q) => $q->where('slug', $roleSlug));
         }
 
         if ($request->filled('search')) {
@@ -196,7 +215,8 @@ class KartuKksController extends Controller
      */
     public function monitoring(Request $request)
     {
-        $query = KartuKksPermohonan::with(['logs' => fn ($q) => $q->latest('tanggal_proses')->limit(1)])
+        // [PERUBAHAN] Menarik SEMUA LOG secara urut layaknya DTSEN, bukan cuma 1
+        $query = KartuKksPermohonan::with(['currentRole', 'logs' => fn($q) => $q->orderBy('tanggal_proses')])
             ->where('status', '!=', KartuKksPermohonan::STATUS_SELESAI);
 
         if ($request->filled('tanggal_awal')) {
@@ -228,7 +248,6 @@ class KartuKksController extends Controller
 
     /**
      * GET /kartu-kks/{permohonan}
-     * Halaman detail penuh (menggantikan modal Log + Peta + Tolak).
      */
     public function show(KartuKksPermohonan $permohonan)
     {
@@ -236,7 +255,7 @@ class KartuKksController extends Controller
             'detail',
             'lampiran',
             'surat',
-            'logs' => fn ($q) => $q->orderBy('tanggal_proses'),
+            'logs' => fn($q) => $q->orderBy('tanggal_proses'),
             'currentRole',
         ]);
 
@@ -272,7 +291,7 @@ class KartuKksController extends Controller
     }
 
     /**
-     * GET /kartu-kks/{permohonan}/detail  (dipanggil via fetch() untuk modal Arsip / Log Ajuan)
+     * GET /kartu-kks/{permohonan}/detail
      */
     public function detail(KartuKksPermohonan $permohonan)
     {
@@ -283,7 +302,6 @@ class KartuKksController extends Controller
 
     /**
      * PUT /kartu-kks/{permohonan}/detail
-     * Admin/petugas mengedit Data Detail pemohon.
      */
     public function updateDetail(Request $request, KartuKksPermohonan $permohonan)
     {
@@ -307,33 +325,109 @@ class KartuKksController extends Controller
             abort(403, 'Anda tidak berwenang mengedit data ini.');
         }
 
+        $permohonan->loadMissing('lampiran', 'surat');
+        $hasScreenshotDtsen = optional($permohonan->lampiran)->screenshot_dtsen;
+
         $validated = $request->validate([
-            'nik' => 'nullable|string|max:20',
-            'nama' => 'nullable|string|max:150',
-            'jenis_kelamin' => 'nullable|string|max:20',
-            'tempat_lahir' => 'nullable|string|max:100',
-            'tanggal_lahir' => 'nullable|date',
-            'agama' => 'nullable|in:Islam,Kristen,Katolik,Hindu,Buddha,Konghuchu',
-            'status_perkawinan' => 'nullable|in:Kawin,Belum Kawin,Cerai Hidup,Cerai Mati',
-            'no_pkh' => 'nullable|string|max:50',
-            'no_kk' => 'nullable|string|max:30',
-            'no_kartu_kks' => 'nullable|string|max:30',
-            'no_rekening' => 'nullable|string|max:50',
-            'pekerjaan' => 'nullable|string|max:100',
-            'alamat' => 'nullable|string|max:255',
-            'masalah_kartu' => 'nullable|in:terblokir,rusak,hilang,masa berlaku habis,nama tidak sesuai,keterangan lainnya',
+            // ---- Data Detail — wajib ----
+            'nik' => 'required|string|max:20',
+            'nama' => 'required|string|max:150',
+            'jenis_kelamin' => 'required|string|max:20',
+            'tempat_lahir' => 'required|string|max:100',
+            'tanggal_lahir' => 'required|date',
+            'agama' => 'required|in:Islam,Kristen,Katolik,Hindu,Buddha,Konghuchu',
+            'status_perkawinan' => 'required|in:Kawin,Belum Kawin,Cerai Hidup,Cerai Mati',
+            'no_pkh' => 'required|string|max:50',
+            'no_kk' => 'required|string|max:30',
+            'no_kartu_kks' => 'required|string|max:30',
+            'no_rekening' => 'required|string|max:50',
+            'pekerjaan' => 'required|string|max:100',
+            'alamat' => 'required|string|max:255',
+            'masalah_kartu' => 'required|in:terblokir,rusak,hilang,masa berlaku habis,nama tidak sesuai,keterangan lainnya',
+
+            // ---- Data Detail — opsional ----
             'nomor_kehilangan_polisi' => 'nullable|string|max:100',
+
+            // ---- Lampiran ----
+            'scan_ktp' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
+            'scan_kartu_keluarga' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
+            'surat_kehilangan_polisi' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
+            'scan_kartu_kks' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
+            'screenshot_dtsen' => [
+                'nullable',
+                'file',
+                'mimes:jpg,jpeg,png,pdf',
+                'max:2048',
+                function ($attribute, $value, $fail) use ($hasScreenshotDtsen) {
+                    if (! $value && ! $hasScreenshotDtsen) {
+                        $fail('Screenshot DTSEN wajib diunggah.');
+                    }
+                },
+            ],
+
+            // ---- Surat — disesuaikan dengan model ----
+            'surat_pengantar_kelurahan' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
+            'surat_keterangan_dinsos' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
         ]);
 
-        $permohonan->detail()->updateOrCreate([], $validated);
+        // ---- 1. Data Detail ----
+        $detailData = collect($validated)->only([
+            'nik',
+            'nama',
+            'jenis_kelamin',
+            'tempat_lahir',
+            'tanggal_lahir',
+            'agama',
+            'status_perkawinan',
+            'no_pkh',
+            'no_kk',
+            'no_kartu_kks',
+            'no_rekening',
+            'pekerjaan',
+            'alamat',
+            'masalah_kartu',
+            'nomor_kehilangan_polisi',
+        ])->toArray();
+
+        $permohonan->detail()->updateOrCreate([], $detailData);
+
+        // ---- 2. Lampiran ----
+        $lampiranFields = ['scan_ktp', 'scan_kartu_keluarga', 'surat_kehilangan_polisi', 'scan_kartu_kks', 'screenshot_dtsen'];
+        $lampiranData = [];
+        foreach ($lampiranFields as $field) {
+            if ($request->hasFile($field)) {
+                $oldPath = optional($permohonan->lampiran)->{$field};
+                if ($oldPath) {
+                    Storage::disk('public')->delete($oldPath);
+                }
+                $lampiranData[$field] = $request->file($field)->store('kartu-kks/lampiran', 'public');
+            }
+        }
+        if (! empty($lampiranData)) {
+            $permohonan->lampiran()->updateOrCreate([], $lampiranData);
+        }
+
+        // ---- 3. Surat (disesuaikan dengan model) ----
+        $suratFields = ['surat_pengantar_kelurahan', 'surat_keterangan_dinsos'];
+        $suratData = [];
+        foreach ($suratFields as $field) {
+            if ($request->hasFile($field)) {
+                $oldPath = optional($permohonan->surat)->{$field};
+                if ($oldPath) {
+                    Storage::disk('public')->delete($oldPath);
+                }
+                $suratData[$field] = $request->file($field)->store('kartu-kks/surat', 'public');
+            }
+        }
+        if (! empty($suratData)) {
+            $permohonan->surat()->updateOrCreate([], $suratData);
+        }
 
         return back()->with('success', 'Data Detail berhasil diperbarui.');
     }
 
     /**
      * POST /kartu-kks/{permohonan}/proses
-     * Body: action = lanjut|tolak|kembalikan|simpan_catatan
-     *       catatan (wajib untuk tolak, opsional untuk lainnya)
      */
     public function proses(Request $request, KartuKksPermohonan $permohonan)
     {

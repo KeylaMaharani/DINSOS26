@@ -73,7 +73,6 @@ class PbiApbnSeeder extends Seeder
         foreach ($contoh as $i => $row) {
             $noRegistrasi = 'PBI-APBN-2026-' . str_pad($i + 1, 4, '0', STR_PAD_LEFT);
 
-            // updateOrCreate: aman dijalankan berkali-kali, tidak nabrak unique constraint.
             $pbi = PbiApbn::updateOrCreate(
                 ['no_registrasi' => $noRegistrasi],
                 array_merge([
@@ -104,6 +103,17 @@ class PbiApbnSeeder extends Seeder
                     'tempat_pembuangan_akhir_tinja' => 'Tangki Septik',
                     'kesimpulan_rekomendasi' => 'Layak diberikan bantuan PBI APBN.',
                     'nama_faskes' => 'Puskesmas Terdekat',
+                    'diagnosa' => 'Ibu hamil /gapias gravid 29-30 m664,presboking +4T+anensia',
+                    
+                    // PAKSA KOSONGKAN LAMPIRAN AGAR MUNCUL ICON SILANG
+                    'screenshot_dtsen' => null,
+                    'surat_rawat_inap' => null,
+                    'scan_ktp' => null,
+                    'scan_kk' => null,
+                    'foto_rumah' => null,
+                    'foto_kamar_mandi' => null,
+                    'foto_selfie_ktp' => null,
+                    'screenshot_pembaharuan_desil' => null,
                 ], $row)
             );
 
@@ -121,10 +131,6 @@ class PbiApbnSeeder extends Seeder
                 ]
             );
 
-            // ============================================================
-            // Rangkaian log sesuai status AKHIR data ini, supaya perjalanan
-            // berkasnya kelihatan (bukan cuma 1 baris "kelurahan" doang).
-            // ============================================================
             $kesimpulan = $row['catatan_internal'] ?? 'Layak diberikan bantuan PBI APBN.';
 
             $riwayat = [
@@ -143,14 +149,14 @@ class PbiApbnSeeder extends Seeder
             if ($row['status'] === 'ditolak') {
                 $riwayat[] = [
                     'username' => 'Operator Dayasos',
-                    'role_name' => PbiApbn::OPERATOR_ROLE,
+                    'role_name' => PbiApbn::OPERATOR_ROLE ?? 'operator',
                     'task_name' => 'Menolak permohonan',
                     'catatan' => $kesimpulan,
                 ];
             } elseif ($sudahLewatOperator) {
                 $riwayat[] = [
                     'username' => 'Operator Dayasos',
-                    'role_name' => PbiApbn::OPERATOR_ROLE,
+                    'role_name' => PbiApbn::OPERATOR_ROLE ?? 'operator',
                     'task_name' => 'Meneruskan ke Kepala Bidang',
                     'catatan' => 'Berkas lengkap, memenuhi syarat administrasi. Diteruskan untuk persetujuan Kepala Bidang.',
                 ];

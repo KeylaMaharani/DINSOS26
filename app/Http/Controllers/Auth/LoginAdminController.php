@@ -76,6 +76,6 @@ class LoginAdminController
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect('/admin-login');
+        return redirect()->route('admin.login');
     }
 }
