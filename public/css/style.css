@@ -3,7 +3,8 @@
    Dinas Sosial Kota Bogor - SOLID v4
    REVISI: mobile-friendly pass + pembersihan duplikasi
    REVISI 2: label Akses Cepat selalu tampil kecil di bawah ikon
-   (tidak lagi hanya muncul saat hover/tap)
+   REVISI 3: CSS tracking/captcha dipindah ke sini (tidak lagi
+   inline di home.blade.php) supaya tidak tergantung @stack/@section
    ========================================================= */
 
 @layer base {
@@ -65,7 +66,7 @@ header:not(.header-scrolled) #nav-search {
   border-left-color: rgba(255, 255, 255, 0.3) !important;
 }
 
-/* ===== TAMBAHAN: Tombol Login ikut transparan/solid ===== */
+/* ===== Tombol Login ikut transparan/solid ===== */
 header:not(.header-scrolled) .nav-login-btn {
   background: transparent !important;
   border: 1.5px solid rgba(255, 255, 255, 0.7);
@@ -84,8 +85,6 @@ header.header-scrolled .nav-login-btn {
 header.header-scrolled .nav-login-btn:hover {
   background: #136299;
 }
-/* ===== END TAMBAHAN ===== */
-
 
 header.header-scrolled {
   background-color: rgba(247, 249, 255, 0.95) !important;
@@ -133,25 +132,20 @@ header.header-scrolled .bg-surface-container-low {
   border-radius: 999px;
   transform: translateX(-50%);
   transition: width 0.25s ease;
-  background: #0f4c75; /* default: warna saat header solid */
+  background: #0f4c75;
 }
 .nav-link:hover::after,
 .nav-link.active::after {
   width: calc(100% - 16px);
 }
-/* Di atas carousel (header transparan) garis jadi putih */
 header:not(.header-scrolled) .nav-link::after {
   background: #ffffff;
 }
-/* Setelah discroll (header solid) garis jadi biru */
 header.header-scrolled .nav-link::after {
   background: #0f4c75;
 }
 
-/* Navbar — search yang expand saat diklik.
-   Saat "open", seluruh grup (input + tombol icon) dibungkus jadi
-   satu pill menyatu dengan header, bukan kotak putih lepas yang
-   melayang di atas hero. */
+/* Navbar — search yang expand saat diklik */
 #nav-search {
   position: relative;
   border-radius: 9999px;
@@ -161,12 +155,10 @@ header.header-scrolled .nav-link::after {
   padding-left: 0.25rem;
   box-shadow: 0 2px 10px rgba(0,0,0,0.12);
 }
-/* Header transparan (di atas hero): pill jadi kaca buram gelap */
 header:not(.header-scrolled) #nav-search.open {
   background: rgba(255, 255, 255, 0.16);
   backdrop-filter: blur(10px);
 }
-/* Header solid (sudah discroll): pill jadi abu muda senada surface */
 header.header-scrolled #nav-search.open {
   background: #edf4ff;
 }
@@ -192,16 +184,12 @@ header.header-scrolled #nav-search.open {
   padding: 0 0.75rem;
   margin-right: 0.25rem;
 }
-/* Di atas hero (transparan): teks & placeholder putih supaya kebaca
-   di atas kaca buram, bukan teks gelap di background gelap */
 header:not(.header-scrolled) #nav-search.open .nav-search-input {
   color: #ffffff;
 }
 header:not(.header-scrolled) #nav-search.open .nav-search-input::placeholder {
   color: rgba(255, 255, 255, 0.75);
 }
-/* Ikon search saat pill terbuka: beri sedikit latar bulat supaya
-   tetap terlihat sebagai "tombol", bukan ikon nyasar */
 #nav-search.open #nav-search-toggle {
   background: rgba(255, 255, 255, 0.25);
 }
@@ -279,11 +267,6 @@ header.header-scrolled #nav-search.open #nav-search-toggle {
    ========================================================= */
 .fab-radial {
   position: absolute;
-  /* Sejajarkan persis dengan left-edge konten hero
-     (container max-w-[1400px] mx-auto + px-margin-*),
-     bukan angka piksel tetap — supaya tidak pernah geser
-     dari judul/deskripsi/"Baca Selengkapnya" di atasnya
-     di lebar layar berapa pun. */
   left: max(1rem, calc((100% - 1400px) / 2 + 1rem));
   bottom: 6.5rem;
   z-index: 30;
@@ -330,8 +313,6 @@ header.header-scrolled #nav-search.open #nav-search-toggle {
   transform: scale(0.95);
 }
 
-/* Label kecil di bawah ikon — SELALU TAMPIL (bukan lagi tooltip
-   yang cuma muncul saat hover / tap di HP). */
 .fab-radial-item-label {
   position: static;
   width: 5.5rem;
@@ -359,9 +340,6 @@ header.header-scrolled #nav-search.open #nav-search-toggle {
   display: none;
 }
 
-/* Alignment breakpoints — mengikuti persis breakpoint & nilai padding
-   yang dipakai container hero (md:px-margin-tablet, lg:px-margin-desktop
-   di tailwind.config bawaan Blade). Hanya mengubah "left", bukan ukuran. */
 @media (min-width: 768px) {
   .fab-radial {
     left: max(1.5rem, calc((100% - 1400px) / 2 + 1.5rem));
@@ -373,7 +351,6 @@ header.header-scrolled #nav-search.open #nav-search-toggle {
   }
 }
 
-/* Tablet (ukuran ikon/jarak, alignment "left" sudah diatur di atas) */
 @media (max-width: 1024px) {
   .fab-radial {
     bottom: 4.5rem;
@@ -389,8 +366,6 @@ header.header-scrolled #nav-search.open #nav-search-toggle {
   }
 }
 
-/* Mobile: baris ikon jadi scrollable horizontal, label kecil
-   tetap tampil di bawah tiap ikon (ukuran disesuaikan) */
 @media (max-width: 640px) {
   .fab-radial {
     left: 0;
@@ -445,9 +420,6 @@ header.header-scrolled #nav-search.open #nav-search-toggle {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 }
 
-/* Mobile: tinggi hero ditambah + teks didorong ke atas supaya
-   judul, deskripsi, tombol CTA, dan baris ikon Akses Cepat di
-   bawahnya tidak saling tumpuk */
 @media (max-width: 640px) {
   #hero-carousel .relative.w-full.h-\[500px\] {
     height: 620px !important;
@@ -551,7 +523,6 @@ header.header-scrolled #nav-search.open #nav-search-toggle {
 }
 .berita-card:hover .berita-card-title { color: #136299; }
 
-/* Mobile sangat sempit: 1 kolom penuh supaya judul tidak sesak */
 @media (max-width: 480px) {
   #berita .grid.sm\:grid-cols-2 {
     grid-template-columns: 1fr !important;
@@ -595,6 +566,7 @@ header.header-scrolled #nav-search.open #nav-search-toggle {
 }
 .mitra-logo:hover { transform: translateY(-2px); }
 .mitra-logo:hover img { filter: grayscale(0%); opacity: 1; }
+.mitra-logo img.active { filter: grayscale(0%); opacity: 1; }
 .mitra-dot {
   width: 0.5rem;
   height: 0.5rem;
@@ -690,7 +662,12 @@ header.header-scrolled #nav-search.open #nav-search-toggle {
 
 /* Floating accessibility button */
 .a11y-fab { position: fixed; right: 1rem; bottom: calc(1rem + 1.5rem + 0.75rem); z-index: 60; }
-.a11y-fab-panel { display: none; position: absolute; right: 0; bottom: 4.75rem; }
+.a11y-fab-panel {
+  display: none;
+  position: absolute;
+  right: 0;
+  bottom: 4.75rem;
+}
 .a11y-fab.open .a11y-fab-panel { display: block; }
 #a11y-fab-toggle { width: 3.25rem; height: 3.25rem; }
 #a11y-fab-toggle .material-symbols-outlined { font-size: 26px !important; }
@@ -710,7 +687,6 @@ header.header-scrolled #nav-search.open #nav-search-toggle {
 .back-to-top .material-symbols-outlined { font-size: 13px !important; }
 .back-to-top.visible { opacity: 1; visibility: visible; transform: translateY(0); }
 
-/* Mobile: geser tombol mengambang sedikit dari tepi + susun ulang jarak */
 @media (max-width: 640px) {
   .back-to-top {
     right: 0.75rem;
@@ -757,7 +733,7 @@ header.header-scrolled #nav-search.open #nav-search-toggle {
 }
 
 /* =========================================================
-   Tombol Hamburger (muncul di bawah breakpoint xl)
+   Tombol Hamburger
    ========================================================= */
 .mobile-menu-toggle {
   display: none;
@@ -917,41 +893,29 @@ header.header-scrolled #nav-search.open #nav-search-toggle {
 }
 .mobile-nav-search input {
   flex: 1 1 auto;
-  min-width: 0; /* kunci: biar input boleh menyusut, bukan lang-btn yang kepotong */
+  min-width: 0;
   border: none;
   outline: none;
   background: transparent;
-  font-size: 16px; /* cegah auto-zoom iOS */
+  font-size: 16px;
   color: #121d26;
 }
 .mobile-nav-search input::placeholder { color: #72777f; }
 
-/* Tombol bahasa mobile: jangan pernah menyusut/kepotong */
-#lang-mobile-wrap {
-  flex-shrink: 0;
-}
-#lang-mobile-btn {
-  white-space: nowrap;
-}
+#lang-mobile-wrap { flex-shrink: 0; }
+#lang-mobile-btn { white-space: nowrap; }
 
-/* Layar sangat sempit: sembunyikan label teks "ID", sisakan bendera + panah saja */
 @media (max-width: 380px) {
-  #lang-mobile-label {
-    display: none;
-  }
+  #lang-mobile-label { display: none; }
   #lang-mobile-btn {
     padding-left: 0.5rem;
     padding-right: 0.5rem;
   }
-  .mobile-nav-search input::placeholder {
-    font-size: 13px;
-  }
+  .mobile-nav-search input::placeholder { font-size: 13px; }
 }
 
-/* Cegah body scroll saat menu mobile terbuka */
 body.mobile-nav-locked { overflow: hidden; }
 
-/* Sembunyikan semua tombol mengambang saat menu mobile terbuka */
 body.mobile-nav-locked .social-fab,
 body.mobile-nav-locked .wa-fab,
 body.mobile-nav-locked .a11y-fab,
@@ -963,7 +927,7 @@ body.mobile-nav-locked .back-to-top {
 }
 
 /* =========================================================
-   Footer — responsive mobile: grid 2 kolom rapi
+   Footer — responsive mobile
    ========================================================= */
 @media (max-width: 767px) {
   footer .grid.lg\:grid-cols-6 {
@@ -971,7 +935,6 @@ body.mobile-nav-locked .back-to-top {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     gap: 1.75rem 1.25rem;
   }
-  /* Kolom 1: Logo & badge Play Store -> full width, center */
   footer .grid.lg\:grid-cols-6 > div:first-child {
     grid-column: 1 / -1;
     display: flex;
@@ -980,11 +943,7 @@ body.mobile-nav-locked .back-to-top {
     text-align: center;
     margin: 0 auto 0.5rem auto;
   }
-  /* Kolom 2-6 (Pelayanan, Informasi, Cek Bansos, Tentang Kami,
-     Alamat Kantor): rata kiri, 2 kolom rapi */
-  footer .grid.lg\:grid-cols-6 > div:not(:first-child) {
-    text-align: left;
-  }
+  footer .grid.lg\:grid-cols-6 > div:not(:first-child) { text-align: left; }
   footer .grid.lg\:grid-cols-6 > div:not(:first-child) > h4 {
     text-align: left;
     font-size: 14px;
@@ -998,19 +957,13 @@ body.mobile-nav-locked .back-to-top {
     font-size: 13px;
     line-height: 1.6;
   }
-  /* Alamat Kantor (kolom terakhir): sejajar dengan Tentang Kami,
-     teks sedikit dikecilkan karena kolomnya sempit */
-  footer .grid.lg\:grid-cols-6 > div:last-child {
-    grid-column: auto;
-  }
+  footer .grid.lg\:grid-cols-6 > div:last-child { grid-column: auto; }
 
   .footer-address-block p,
   .footer-address-block span { font-size: 12.5px; line-height: 1.5; }
   .footer-address-block .material-symbols-outlined { font-size: 14px !important; }
 }
 
-/* Layar sangat sempit (<380px): jadi 1 kolom penuh supaya tidak
-   terlalu sempit dan mepet */
 @media (max-width: 380px) {
   footer .grid.lg\:grid-cols-6 {
     grid-template-columns: 1fr !important;
@@ -1027,7 +980,7 @@ body.mobile-nav-locked .back-to-top {
 }
 
 /* =========================================================
-   PETA SEBARAN — Leaflet (peta OpenStreetMap sungguhan)
+   PETA SEBARAN — Leaflet
    ========================================================= */
 #peta-leaflet {
   width: 100%;
@@ -1059,7 +1012,6 @@ body.mobile-nav-locked .back-to-top {
   box-shadow: 0 2px 8px rgba(0,0,0,0.25);
 }
 
-/* Garis batas wilayah (polygon dari Nominatim) */
 .peta-boundary-path {
   transition: fill-opacity 0.2s ease, stroke-width 0.2s ease;
 }
@@ -1068,7 +1020,6 @@ body.mobile-nav-locked .back-to-top {
   stroke-width: 3 !important;
 }
 
-/* Loading kecil di pojok peta saat sedang ambil data batas wilayah */
 .peta-loading-badge {
   position: absolute;
   top: 1rem;
@@ -1094,8 +1045,6 @@ body.mobile-nav-locked .back-to-top {
 }
 @keyframes peta-spin { to { transform: rotate(360deg); } }
 
-/* Mobile/tablet: stack vertikal (filter -> peta -> info), tinggi
-   peta dijaga tetap cukup untuk dibaca */
 @media (max-width: 767px) {
   #peta-app { display: flex; flex-direction: column; }
   #peta-map,
@@ -1107,7 +1056,7 @@ body.mobile-nav-locked .back-to-top {
 }
 
 /* =========================================================
-   Input — cegah auto-zoom Safari iOS (font wajib >= 16px)
+   Input — cegah auto-zoom Safari iOS
    ========================================================= */
 @media (max-width: 640px) {
   .nav-search-input,
@@ -1117,7 +1066,7 @@ body.mobile-nav-locked .back-to-top {
 }
 
 /* =========================================================
-   Sambutan Kepala Dinas — collapse/expand teks (Baca Selengkapnya)
+   Sambutan Kepala Dinas — collapse/expand teks
    ========================================================= */
 .sambutan-body {
   overflow: hidden;
@@ -1125,7 +1074,7 @@ body.mobile-nav-locked .back-to-top {
   transition: max-height 0.35s ease;
 }
 .sambutan-body.sambutan-collapsed {
-  max-height: 8.5rem; /* kira-kira 4-5 baris teks pertama */
+  max-height: 8.5rem;
 }
 .sambutan-body.sambutan-collapsed::after {
   content: "";
@@ -1138,42 +1087,77 @@ body.mobile-nav-locked .back-to-top {
   pointer-events: none;
 }
 .sambutan-body.sambutan-expanded {
-  max-height: 2000px; /* cukup besar supaya semua teks muat */
+  max-height: 2000px;
 }
 
 /* =========================================================
-   Tracking Permohonan — layout 3 kolom
-   (Gambar Rubo | Form Lacak | Hasil)
+   TRACKING PERMOHONAN — captcha huruf kode + badge status
+   (dipindah dari <style> inline home.blade.php)
    ========================================================= */
+.tr-captcha {
+  font-family: "Georgia", serif;
+  font-weight: 700;
+  font-size: 26px;
+  letter-spacing: 0.35em;
+  color: #003b62;
+  background:
+    repeating-linear-gradient(
+      115deg,
+      rgba(19, 98, 153, 0.08) 0 2px,
+      transparent 2px 10px
+    ),
+    #edf4ff;
+  border: 1px dashed #98cbff;
+  border-radius: 0.6rem;
+  padding: 0.85rem 1rem;
+  user-select: none;
+  text-align: center;
+  position: relative;
+}
+.tr-captcha::before,
+.tr-captcha::after {
+  content: "";
+  position: absolute;
+  height: 1px;
+  left: 8%;
+  right: 8%;
+  background: rgba(0, 59, 98, 0.35);
+}
+.tr-captcha::before {
+  top: 38%;
+  transform: rotate(-3deg);
+}
+.tr-captcha::after {
+  top: 62%;
+  transform: rotate(2deg);
+}
 
-/* Default: placeholder tampil, kartu hasil disembunyikan */
-#tracking-3col #tracking-placeholder {
-  display: flex;
+.tr-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
 }
-#tracking-3col #tracking-results {
-  display: none;
-}
+.tr-badge-diterima { background: #d7f3df; color: #146c2e; }
+.tr-badge-diverifikasi { background: #fff2cc; color: #8a5a00; }
+.tr-badge-ditolak { background: #ffdad6; color: #93000a; }
+.tr-badge-selesai { background: #d6e9ff; color: #003b62; }
 
-/* Saat hasil muncul (class "has-result" ditambahkan lewat JS):
-   sembunyikan placeholder, tampilkan kartu hasil */
-#tracking-3col.has-result #tracking-placeholder {
-  display: none;
-}
-#tracking-3col.has-result #tracking-results {
-  display: block;
-}
+/* Kondisi awal: alert & hasil tersembunyi (JS yang memunculkan) */
+#tracking-alert { display: none; }
+#tracking-results { display: none; }
+
+#tracking-3col.has-result #tracking-results { display: block; }
 
 @media (max-width: 1023px) {
-  #tracking-3col > div {
-    width: 100%;
-  }
+  #tracking-3col > div { width: 100%; }
 }
 
-/* =========================================================
-   Fix: Huruf Kode captcha di layout sebelahan NIK — kecilkan
-   supaya tetap 1 baris, tidak wrap jadi 2 baris, dan tingginya
-   selaras dengan tinggi input NIK.
-   ========================================================= */
+/* Huruf Kode captcha di layout sebelahan NIK */
 #tracking-3col .tr-captcha {
   font-size: 15px;
   letter-spacing: 0.15em;
@@ -1193,8 +1177,7 @@ body.mobile-nav-locked .back-to-top {
 }
 
 /* =========================================================
-   Ruang aman kanan biar konten TIDAK PERNAH ketutup
-   ikon sosmed yang melayang (fixed) - semua ukuran layar
+   Ruang aman kanan biar konten tidak ketutup ikon sosmed
    ========================================================= */
 .max-w-\[1400px\],
 .max-w-\[1450px\] {
@@ -1209,21 +1192,15 @@ body.mobile-nav-locked .back-to-top {
 }
 
 @media (min-width: 1024px) {
-   main .max-w-\[1400px\],
+  main .max-w-\[1400px\],
   main .max-w-\[1450px\] {
     padding-right: 4.5rem !important;
-    /* padding-left sengaja tidak diatur di sini agar sejajar rata kiri dengan navbar header */
   }
 }
 
 /* =========================================================
    AUTH PAGES — Login (user & admin)
-   Tempelkan blok ini ke PALING BAWAH file public/css/style.css
-   milikmu. Ini yang bikin halaman /login dan /admin-login
-   (yang pakai layouts.auth) tampil sebagai card biru di
-   tengah, sesuai desain awal.
    ========================================================= */
-
 .auth-page {
   min-height: 100vh;
   display: flex;

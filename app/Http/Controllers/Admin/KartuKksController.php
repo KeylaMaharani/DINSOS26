@@ -41,27 +41,62 @@ class KartuKksController extends Controller
     }
 
     /**
-     * Sama seperti logika di CheckRole: role apapun yang namanya mengandung
-     * "admin" dianggap admin dan bebas dari pembatasan role di bawah ini.
+     * Slug role yang sudah dinormalisasi (lowercase, strip/spasi -> underscore)
+     * supaya "super-admin", "Super Admin", "SUPERADMIN", dll dianggap sama.
      */
-    private function isAdmin($role): bool
-    {
-        if (! $role) {
-            return false;
-        }
-        $slug = $role->slug ?: Str::slug($role->name, '_');
-
-        return str_contains(strtolower($role->name ?? ''), 'admin')
-            || in_array($slug, ['admin', 'super_admin', 'superadmin'], true);
-    }
-
     private function roleSlug($role): ?string
     {
         if (! $role) {
             return null;
         }
 
-        return $role->slug ?: Str::slug($role->name, '_');
+        $slug = $role->slug ?: Str::slug($role->name, '_');
+
+        return strtolower(str_replace(['-', ' '], '_', $slug));
+    }
+
+    /**
+     * Role apapun yang namanya mengandung "admin", atau slug-nya (setelah
+     * dinormalisasi) termasuk admin/super_admin/superadmin, dianggap admin
+     * dan bebas dari pembatasan role di bawah ini — termasuk melihat SEMUA
+     * data tanpa terikat tahap/role manapun (dipakai untuk visibilitas
+     * daftar Ajuan, lihat ajuan()).
+     *
+     * PENTING: method ini TIDAK dipakai lagi untuk menentukan siapa yang
+     * boleh menjalankan alur Proses Permohonan (Teruskan/Tolak/
+     * Kembalikan/Simpan Catatan) maupun mengedit Data Detail. Untuk itu
+     * pakai isSuperAdmin() di bawah, supaya role "admin" biasa tidak ikut
+     * mendapat hak proses — hanya super admin.
+     */
+    private function isAdmin($role): bool
+    {
+        if (! $role) {
+            return false;
+        }
+
+        $slug = $this->roleSlug($role);
+
+        return str_contains(strtolower($role->name ?? ''), 'admin')
+            || in_array($slug, ['admin', 'super_admin', 'superadmin'], true);
+    }
+
+    /**
+     * Role yang benar-benar berwenang menjalankan alur Proses Permohonan
+     * (Teruskan/Tolak/Kembalikan/Simpan Catatan) serta mengedit Data
+     * Detail, tanpa terikat role pada tahap manapun. HANYA super admin —
+     * role "admin" biasa TIDAK termasuk di sini, meskipun tetap bisa
+     * melihat semua data lewat isAdmin() di tempat lain (mis. daftar
+     * Ajuan). Disamakan dengan userCanActOn() di PbiApbnController.
+     */
+    private function isSuperAdmin($role): bool
+    {
+        if (! $role) {
+            return false;
+        }
+
+        $slug = $this->roleSlug($role);
+
+        return in_array($slug, ['super_admin', 'superadmin'], true);
     }
 
     /**
@@ -143,6 +178,7 @@ class KartuKksController extends Controller
         $query = KartuKksPermohonan::with('currentRole')
             ->whereNotIn('status', [KartuKksPermohonan::STATUS_SELESAI, KartuKksPermohonan::STATUS_DITOLAK]);
 
+        // Superadmin/admin bisa melihat SEMUA data tanpa dibatasi role/tahap.
         if (! $isAdmin) {
             $query->whereHas('currentRole', fn($q) => $q->where('slug', $roleSlug));
         }
@@ -262,6 +298,7 @@ class KartuKksController extends Controller
         $user = Auth::user();
         $roleSlug = $this->roleSlug($user->role);
         $isAdmin = $this->isAdmin($user->role);
+        $isSuperAdmin = $this->isSuperAdmin($user->role);
         $transitions = $this->transitions();
 
         $isFinal = in_array($permohonan->status, [
@@ -271,9 +308,13 @@ class KartuKksController extends Controller
 
         $rule = $transitions[$permohonan->status] ?? null;
 
+        // Hanya super admin yang selalu bisa bertindak di tahap manapun
+        // selama permohonan belum final. Role "admin" biasa tetap harus
+        // sesuai dengan role yang berwenang pada tahap saat ini — sama
+        // seperti alur PBI APBN.
         $canAct = ! $isFinal
             && $rule
-            && ($isAdmin || $roleSlug === 'super_admin' || $roleSlug === $rule['allowed_role']);
+            && ($isSuperAdmin || $roleSlug === $rule['allowed_role']);
 
         $returnLabel = ($canAct && isset($rule['return_role']))
             ? 'Kembalikan ke ' . $this->roleLabel($rule['return_role'])
@@ -307,7 +348,7 @@ class KartuKksController extends Controller
     {
         $user = Auth::user();
         $roleSlug = $this->roleSlug($user->role);
-        $isAdmin = $this->isAdmin($user->role);
+        $isSuperAdmin = $this->isSuperAdmin($user->role);
         $transitions = $this->transitions();
 
         $isFinal = in_array($permohonan->status, [
@@ -317,9 +358,12 @@ class KartuKksController extends Controller
 
         $rule = $transitions[$permohonan->status] ?? null;
 
+        // Hanya super admin yang selalu boleh mengedit data selama belum
+        // final. Role "admin" biasa tetap harus sesuai role yang
+        // berwenang pada tahap saat ini.
         $canAct = ! $isFinal
             && $rule
-            && ($isAdmin || $roleSlug === 'super_admin' || $roleSlug === $rule['allowed_role']);
+            && ($isSuperAdmin || $roleSlug === $rule['allowed_role']);
 
         if (! $canAct) {
             abort(403, 'Anda tidak berwenang mengedit data ini.');
@@ -440,7 +484,7 @@ class KartuKksController extends Controller
 
         $user = Auth::user();
         $roleSlug = $this->roleSlug($user->role);
-        $isAdmin = $this->isAdmin($user->role);
+        $isSuperAdmin = $this->isSuperAdmin($user->role);
         $transitions = $this->transitions();
 
         $isFinal = in_array($permohonan->status, [
@@ -454,8 +498,12 @@ class KartuKksController extends Controller
 
         $rule = $transitions[$permohonan->status] ?? null;
 
+        // Hanya super admin yang selalu boleh memproses (lanjut/tolak/
+        // kembalikan/simpan catatan) pada tahap apapun. Role "admin"
+        // biasa tetap harus sesuai role yang berwenang pada tahap ini —
+        // sama seperti alur PBI APBN (userCanActOn()).
         $canAct = $rule
-            && ($isAdmin || $roleSlug === 'super_admin' || $roleSlug === $rule['allowed_role']);
+            && ($isSuperAdmin || $roleSlug === $rule['allowed_role']);
 
         if (! $canAct) {
             abort(403, 'Anda tidak berwenang memproses permohonan pada tahap ini.');

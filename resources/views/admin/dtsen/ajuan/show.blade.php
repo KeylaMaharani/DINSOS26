@@ -297,38 +297,38 @@
             </div>
         </div>
 
-        {{-- 6. Log Proses --}}
-        <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden">
-            <div class="px-4 py-3 border-b border-outline-variant/40">
-                <h3 class="text-sm font-semibold flex items-center gap-2">
-                    <span class="material-symbols-outlined text-[18px] text-secondary">history</span>
+        {{-- 6. Log Proses (disamakan gaya dengan PBI APBN) --}}
+        <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
+            <div class="px-5 py-4 border-b border-outline-variant/40">
+                <h3 class="text-sm font-bold flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[20px] text-secondary">history</span>
                     Log Proses
                 </h3>
             </div>
             <div class="overflow-x-auto">
-                <table class="w-full text-sm">
-                    <thead class="bg-surface-container text-on-surface-variant text-xs uppercase">
+                <table class="w-full text-sm text-left">
+                    <thead class="bg-surface-container/50 text-on-surface-variant text-xs uppercase tracking-wider">
                         <tr>
-                            <th class="text-left px-4 py-2">Tanggal Proses</th>
-                            <th class="text-left px-4 py-2">Username</th>
-                            <th class="text-left px-4 py-2">Role</th>
-                            <th class="text-left px-4 py-2">Aktivitas</th>
-                            <th class="text-left px-4 py-2">Catatan</th>
+                            <th class="px-5 py-3 font-medium">Tanggal Proses</th>
+                            <th class="px-5 py-3 font-medium">Username</th>
+                            <th class="px-5 py-3 font-medium">Role</th>
+                            <th class="px-5 py-3 font-medium">Aktivitas</th>
+                            <th class="px-5 py-3 font-medium">Catatan</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-outline-variant/30">
                         @forelse ($data->logs as $log)
-                            <tr>
-                                <td class="px-4 py-2 whitespace-nowrap">
-                                    {{ \Carbon\Carbon::parse($log->tanggal_proses)->format('d-m-Y H:i') }}</td>
-                                <td class="px-4 py-2">{{ $log->username }}</td>
-                                <td class="px-4 py-2">{{ $log->rolename }}</td>
-                                <td class="px-4 py-2">{{ $log->taskname }}</td>
-                                <td class="px-4 py-2 text-on-surface-variant">{{ $log->catatan ?: '-' }}</td>
+                            <tr class="hover:bg-surface-container-lowest/50 transition-colors">
+                                <td class="px-5 py-3 whitespace-nowrap text-on-surface-variant">
+                                    {{ \Carbon\Carbon::parse($log->tanggal_proses)->format('d M Y - H:i') }}</td>
+                                <td class="px-5 py-3 font-medium text-on-surface">{{ $log->username }}</td>
+                                <td class="px-5 py-3"><span class="bg-surface-container px-2 py-1 rounded text-xs">{{ $log->rolename }}</span></td>
+                                <td class="px-5 py-3 font-medium">{{ $log->taskname }}</td>
+                                <td class="px-5 py-3 text-on-surface-variant">{{ $log->catatan ?: '-' }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="px-4 py-4 text-center text-on-surface-variant">Belum ada log proses.</td>
+                                <td colspan="5" class="px-5 py-6 text-center text-on-surface-variant">Belum ada log proses.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -336,59 +336,71 @@
             </div>
         </div>
 
-        {{-- 7. Aksi & Catatan --}}
-        <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden">
-            <div class="px-4 py-3 border-b border-outline-variant/40">
-                <h3 class="text-sm font-semibold flex items-center gap-2">
-                    <span class="material-symbols-outlined text-[18px] text-secondary">alt_route</span>
+        {{-- 7. Aksi & Catatan — gaya disamakan dengan Kartu KKS / PBI APBN --}}
+        <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm mb-10">
+            <div class="px-5 py-4 border-b border-outline-variant/40 bg-surface-container/20">
+                <h3 class="text-sm font-bold flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[20px] text-secondary">alt_route</span>
                     Proses Permohonan
                 </h3>
             </div>
 
             @if ($isFinal)
-                <p class="px-4 py-6 text-sm text-on-surface-variant">
-                    Permohonan ini sudah final dengan status
-                    <strong>{{ $statusLabels[$data->status] ?? $data->status }}</strong>. Tidak ada aksi lanjutan.
-                </p>
+                <div class="p-6 text-center bg-surface-container-lowest">
+                    <div class="inline-flex items-center justify-center w-12 h-12 rounded-full {{ $data->status === \App\Models\DtsenPermohonan::STATUS_SELESAI ? 'bg-success/20 text-success' : 'bg-error/20 text-error' }} mb-3">
+                        <span class="material-symbols-outlined text-[24px]">{{ $data->status === \App\Models\DtsenPermohonan::STATUS_SELESAI ? 'check_circle' : 'cancel' }}</span>
+                    </div>
+                    <h4 class="text-lg font-bold mb-1">Permohonan Final</h4>
+                    <p class="text-sm text-on-surface-variant">
+                        Permohonan ini sudah final dengan status
+                        <strong>{{ $statusLabels[$data->status] ?? $data->status }}</strong>. Tidak ada aksi lanjutan.
+                    </p>
+                </div>
             @elseif (!$canAct)
-                <p class="px-4 py-6 text-sm text-on-surface-variant">
-                    Permohonan ini sedang berada di tahap
-                    <strong>{{ $statusLabels[$data->status] ?? $data->status }}</strong>.
-                    Anda tidak berwenang memproses pada tahap ini — hanya bisa melihat.
-                </p>
+                <div class="p-6 text-center bg-surface-container-lowest">
+                    <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-warning/20 text-warning mb-3">
+                        <span class="material-symbols-outlined text-[24px]">hourglass_empty</span>
+                    </div>
+                    <h4 class="text-lg font-bold mb-1">Menunggu Tahap Selanjutnya</h4>
+                    <p class="text-sm text-on-surface-variant">
+                        Permohonan ini sedang berada di tahap
+                        <strong>{{ $statusLabels[$data->status] ?? $data->status }}</strong>.<br>
+                        Anda tidak berwenang memproses pada tahap ini.
+                    </p>
+                </div>
             @else
-                <form method="POST" action="{{ route('dtsen.proses', $data) }}" class="p-4 space-y-3">
+                <form method="POST" action="{{ route('dtsen.proses', $data) }}" class="p-5">
                     @csrf
 
-                    <div>
-                        <label class="block text-xs text-on-surface-variant mb-1">Catatan <span class="text-error">*</span></label>
-                        <textarea name="catatan" rows="3" required placeholder="Tulis catatan untuk tahap ini..."
-                            class="w-full px-3 py-2 rounded-lg border border-outline-variant/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">{{ old('catatan') }}</textarea>
+                    <div class="mb-5">
+                        <label class="block text-sm font-bold text-on-surface mb-2">Catatan Proses <span class="text-error">*</span></label>
+                        <textarea name="catatan" rows="3" required placeholder="Tulis catatan (wajib diisi untuk semua aksi)..."
+                            class="w-full px-4 py-3 rounded-lg border border-outline-variant/60 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-sm">{{ old('catatan') }}</textarea>
                     </div>
 
-                    <div class="flex flex-wrap items-center gap-2">
+                    <div class="flex flex-col sm:flex-row flex-wrap items-center gap-3">
 
                         @if ($returnLabel)
                             <button type="submit" name="action" value="kembalikan"
                                 data-confirm="{{ $returnLabel }}?"
                                 data-confirm-variant="primary"
-                                class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-outline-variant/60 text-on-surface hover:bg-surface-container text-sm font-medium transition-colors">
+                                class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-5 py-2.5 rounded-lg border border-outline-variant hover:bg-surface-container-highest text-on-surface text-sm font-bold transition-all">
                                 <span class="material-symbols-outlined text-[18px]">undo</span>
                                 {{ $returnLabel }}
                             </button>
                         @endif
 
                         <button type="submit" name="action" value="simpan_catatan"
-                            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-outline-variant/60 text-on-surface hover:bg-surface-container text-sm font-medium transition-colors">
+                            class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-5 py-2.5 rounded-lg bg-surface-container hover:bg-secondary/20 text-secondary text-sm font-bold transition-all">
                             <span class="material-symbols-outlined text-[18px]">save</span>
-                            Simpan Catatan
+                            Simpan Catatan Saja
                         </button>
 
                         <button type="submit" name="action" value="lanjut"
                             data-confirm="Teruskan permohonan ini ke tahap berikutnya{{ $nextTaskLabel ? ' (' . $nextTaskLabel . ')' : '' }}?"
                             data-confirm-variant="primary"
-                            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-secondary text-sm font-medium transition-colors">
-                            <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+                            class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-on-primary hover:bg-secondary text-sm font-bold shadow-md transition-all sm:ml-auto">
+                            <span class="material-symbols-outlined text-[18px]">redo</span>
                             @if ($nextTaskLabel)
                                 Teruskan ke {{ $nextTaskLabel }}
                             @else
@@ -399,13 +411,13 @@
                         <button type="submit" name="action" value="tolak"
                             data-confirm="Yakin ingin menolak permohonan ini? Catatan alasan wajib diisi."
                             data-confirm-variant="error"
-                            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-error/10 text-error hover:bg-error hover:text-on-error text-sm font-medium transition-colors ml-auto">
+                            class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-5 py-2.5 rounded-lg border border-error text-error hover:bg-error hover:text-on-error text-sm font-bold transition-all">
                             <span class="material-symbols-outlined text-[18px]">cancel</span>
-                            Reject
+                            Tolak (Reject)
                         </button>
                     </div>
 
-                    <p class="text-[11px] text-on-surface-variant italic">
+                    <p class="text-[11px] text-on-surface-variant italic mt-3">
                         Catatan wajib diisi untuk semua aksi (Lanjut, Kembalikan, Simpan, maupun Reject).
                     </p>
                 </form>

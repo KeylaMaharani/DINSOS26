@@ -78,8 +78,8 @@
                     <th class="text-center px-2 py-2 whitespace-nowrap">No</th>
                     <th class="text-center px-2 py-2 whitespace-nowrap">Diperbarui</th>
                     <th class="text-center px-2 py-2 whitespace-nowrap">NIK</th>
-                    <th class="text-left px-2 py-2 whitespace-nowrap">Nama</th>
-                    <th class="text-left px-2 py-2 whitespace-nowrap">Alamat</th>
+                    <th class="text-center px-2 py-2 whitespace-nowrap">Nama</th>
+                    <th class="text-center px-2 py-2 whitespace-nowrap">Alamat</th>
                     <th class="text-center px-2 py-2 whitespace-nowrap">Masalah KKS</th>
                     <th class="text-center px-2 py-2 whitespace-nowrap">Status</th>
                     <th class="text-center px-2 py-2 whitespace-nowrap">Aksi</th>
@@ -97,7 +97,7 @@
                         <td class="px-2 py-2 whitespace-nowrap truncate text-center">{{ $arsipList->firstItem() + $loop->index }}</td>
                         <td class="px-2 py-2 whitespace-nowrap text-center text-on-surface-variant">{{ $item->updated_at->format('d-m-Y') }}</td>
                         <td class="px-2 py-2 whitespace-nowrap truncate font-medium text-primary text-center" title="{{ $item->nik }}">{{ $item->nik }}</td>
-                        <td class="px-2 py-2 whitespace-nowrap truncate" title="{{ $item->nama_pemohon }}">{{ $item->nama_pemohon }}</td>
+                        <td class="px-2 py-2 whitespace-nowrap truncate text-center" title="{{ $item->nama_pemohon }}">{{ $item->nama_pemohon }}</td>
                         <td class="px-2 py-2 whitespace-nowrap truncate text-on-surface-variant" title="{{ $item->alamat }}">{{ $item->alamat }}</td>
                         <td class="px-2 py-2 whitespace-nowrap truncate text-center" title="{{ $item->masalah_kartu }}">{{ $item->masalah_kartu ?: '-' }}</td>
                         <td class="px-2 py-2 whitespace-nowrap truncate text-center">
