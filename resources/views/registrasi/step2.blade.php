@@ -83,50 +83,12 @@
           };
         </script>
         <style>
-          /* ============================================================
-             Basis identik dengan login.html / registrasi-step1.html
-             (.auth-page, .auth-card, .auth-side, dst) supaya tema sama.
-             Panel kanan dibuat lebih lebar (max-width lebih besar) karena
-             formnya jauh lebih panjang (data diri lengkap + keluarga).
-
-             REVISI:
-             - Mobile-friendly (breakpoint tambahan utk hp kecil, tabel
-               anggota keluarga bisa discroll horizontal, ukuran elemen
-               disesuaikan supaya tidak overflow / kegencet di layar sempit).
-             - Semua field diisi otomatis dgn data dummy saat halaman dibuka.
-             - Submit tidak lagi pakai alert(), tapi menampilkan layar
-               "Registrasi Berhasil" (dummy) di dalam kartu yg sama.
-
-             FIX TAMBAHAN (revisi ke-2):
-             - PERBAIKAN BUG UTAMA: bagian "Anggota Keluarga" (tabel +
-               tombol "Tambah Data") kepotong di sisi kanan, baik di
-               desktop maupun mobile. Penyebabnya klasik pada CSS Grid/
-               Flexbox: item grid/flex punya default `min-width: auto`,
-               jadi ketika ada elemen anak dengan lebar minimum (tabel
-               .reg-family-table punya min-width: 420px), seluruh kolom
-               grid (.reg-col), grid pembungkus (.reg-grid), bahkan
-               panel form (.auth-card-body yang notabene flex item dari
-               .auth-card) ikut "dipaksa" melebar mengikuti konten,
-               padahal .auth-card sudah overflow:hidden -> hasilnya
-               konten kepotong tanpa ada scrollbar sama sekali.
-             - Solusinya: set `min-width: 0` di semua elemen container
-               grid/flex yang relevan (.auth-card-body, .reg-grid via
-               minmax(0, 1fr), .reg-col, .reg-family-card, dan
-               .reg-family-table-wrap). Dengan begitu container akan
-               menghormati lebar layar yang tersedia, dan tabel yang
-               memang lebih lebar dari layar HP akan discroll horizontal
-               di dalam wrapper-nya sendiri (.reg-family-table-wrap),
-               bukan mendorong seluruh halaman melebar.
-             - Tambahan pengaman: overflow-x: hidden di html/body supaya
-               kalaupun ada elemen lain yang "nakal", halaman tidak akan
-               muncul scrollbar horizontal di level body.
-             ============================================================ */
           html,
           body {
             height: 100%;
             margin: 0;
             padding: 0;
-            overflow-x: hidden; /* pengaman tambahan supaya body tidak pernah scroll ke samping */
+            overflow-x: hidden;
           }
           * {
             box-sizing: border-box;
@@ -175,7 +137,6 @@
             border-color: rgba(255, 255, 255, 0.08);
           }
 
-          /* ===== KARTU — sama gaya dgn login/step1, tapi lebih lebar ===== */
           .auth-card {
             position: relative;
             z-index: 10;
@@ -326,10 +287,7 @@
 
           .auth-card-body {
             flex: 1 1 74%;
-            min-width: 0; /* FIX: item flex tanpa ini akan melebar mengikuti
-                             konten terlebar di dalamnya (tabel keluarga),
-                             mendorong .auth-card jadi lebih lebar dari layar
-                             lalu terpotong karena .auth-card punya overflow:hidden */
+            min-width: 0;
             padding: 1.9rem 2.2rem 1.9rem;
             display: flex;
             flex-direction: column;
@@ -352,7 +310,6 @@
             margin-bottom: 0.1rem;
           }
 
-          /* ===== Field pill (sama seperti login/step1) ===== */
           .auth-field {
             margin-bottom: 0;
           }
@@ -438,7 +395,6 @@
             padding: 0 0.3rem;
           }
 
-          /* ===== Grid 2 kolom untuk form panjang ===== */
           .reg-grid {
             display: grid;
             grid-template-columns: minmax(0, 1fr);
@@ -484,7 +440,6 @@
             margin: 0;
           }
 
-          /* ===== Kartu anggota keluarga ===== */
           .reg-family-card {
             border: 1.5px solid #e4e9f0;
             border-radius: 1rem;
@@ -592,16 +547,6 @@
             font-size: 14px;
           }
 
-          /* ===== Captcha ===== */
-          .reg-captcha-label {
-            display: block;
-            font-size: 12px;
-            font-weight: 600;
-            color: #121d26;
-            margin-bottom: 0.3rem;
-          }
-
-          /* ===== Actions ===== */
           .reg-actions {
             display: flex;
             align-items: center;
@@ -676,7 +621,6 @@
             line-height: 1.45;
           }
 
-          /* ===== Modal tambah anggota keluarga (tema disamakan) ===== */
           .reg-modal-backdrop {
             position: fixed;
             inset: 0;
@@ -795,88 +739,6 @@
             font-size: 10px;
           }
 
-          /* ===== Layar sukses (dummy) ===== */
-          .reg-success-screen {
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            gap: 0.9rem;
-            padding: 2.5rem 1rem;
-            flex: 1 1 auto;
-          }
-          .reg-success-screen.is-visible {
-            display: flex;
-          }
-          .reg-success-icon {
-            width: 4.5rem;
-            height: 4.5rem;
-            border-radius: 9999px;
-            background: #d0f8d0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            animation: reg-pop 0.35s ease;
-          }
-          .reg-success-icon .material-symbols-outlined {
-            font-size: 40px;
-            color: #2e7d32;
-          }
-          @keyframes reg-pop {
-            0% {
-              transform: scale(0.6);
-              opacity: 0;
-            }
-            100% {
-              transform: scale(1);
-              opacity: 1;
-            }
-          }
-          .reg-success-screen h2 {
-            font-size: 18px;
-            font-weight: 700;
-            color: #121d26;
-          }
-          .reg-success-screen p {
-            font-size: 12.5px;
-            color: #42474e;
-            max-width: 26rem;
-            line-height: 1.55;
-          }
-          .reg-success-meta {
-            width: 100%;
-            max-width: 22rem;
-            background: #f7f9ff;
-            border: 1.5px solid #e4e9f0;
-            border-radius: 0.85rem;
-            padding: 0.85rem 1rem;
-            text-align: left;
-            font-size: 12px;
-            color: #42474e;
-          }
-          .reg-success-meta div {
-            display: flex;
-            justify-content: space-between;
-            gap: 0.5rem;
-            padding: 0.2rem 0;
-          }
-          .reg-success-meta div span:first-child {
-            color: #72777f;
-          }
-          .reg-success-meta div span:last-child {
-            font-weight: 700;
-            color: #121d26;
-          }
-          .reg-success-actions {
-            display: flex;
-            gap: 0.6rem;
-            flex-wrap: wrap;
-            justify-content: center;
-            margin-top: 0.3rem;
-          }
-
-          /* ===== Responsif ===== */
           @media (max-width: 980px) {
             .auth-card {
               flex-direction: column;
@@ -919,7 +781,6 @@
               flex-direction: column-reverse;
             }
           }
-          /* --- Tambahan khusus HP kecil (<=640px) --- */
           @media (max-width: 640px) {
             .auth-page {
               padding: 0.75rem 0.6rem;
@@ -978,9 +839,6 @@
             .reg-modal {
               padding: 1.1rem;
             }
-            .reg-success-meta {
-              font-size: 11.5px;
-            }
             .reg-family-table {
               min-width: 380px;
               font-size: 12px;
@@ -1014,7 +872,7 @@
     <div class="auth-page">
       <div class="auth-outer-wrap">
         <div class="auth-card">
-          <!-- Panel kiri: sama seperti login/step1 -->
+          <!-- Panel kiri -->
           <div class="auth-side">
             <div
               class="auth-brand-row"
@@ -1069,9 +927,16 @@
             </div>
           </div>
 
-          <!-- Panel kanan: form Step 2 (data diri lengkap) -->
+          <!-- Panel kanan: form Step 2 (terhubung ke server) -->
           <div class="auth-card-body" id="auth-card-body">
-            <form id="register-step2-form" novalidate>
+            <form
+              id="register-step2-form"
+              method="POST"
+              action="{{ route('registrasi.step2.store') }}"
+              novalidate
+            >
+              @csrf
+
               <div class="auth-warning">
                 <span class="material-symbols-outlined text-[17px] shrink-0"
                   >error</span
@@ -1090,6 +955,15 @@
                 </p>
               </div>
 
+              @if ($errors->any())
+                <div class="auth-warning">
+                  <span class="material-symbols-outlined text-[17px] shrink-0"
+                    >error</span
+                  >
+                  <span>Periksa kembali kolom yang ditandai merah di bawah.</span>
+                </div>
+              @endif
+
               <div class="reg-grid">
                 <!-- ==================== KOLOM KIRI ==================== -->
                 <div class="reg-col">
@@ -1107,10 +981,8 @@
                       >
                       <input
                         id="no-kk"
-                        name="no_kk"
                         type="text"
-                        inputmode="numeric"
-                        placeholder="Masukan No KK (Kartu Keluarga) Anda"
+                        value="{{ $noKk }}"
                         readonly
                       />
                     </div>
@@ -1127,13 +999,14 @@
                       >
                       <select id="status-hubungan" name="status_hubungan">
                         <option value="">-Pilih-</option>
-                        <option value="kepala_keluarga">Kepala Keluarga</option>
-                        <option value="suami">Suami</option>
-                        <option value="istri">Istri</option>
-                        <option value="anak">Anak</option>
-                        <option value="lainnya">Lainnya</option>
+                        <option value="kepala_keluarga" @selected(old('status_hubungan') == 'kepala_keluarga')>Kepala Keluarga</option>
+                        <option value="suami" @selected(old('status_hubungan') == 'suami')>Suami</option>
+                        <option value="istri" @selected(old('status_hubungan') == 'istri')>Istri</option>
+                        <option value="anak" @selected(old('status_hubungan') == 'anak')>Anak</option>
+                        <option value="lainnya" @selected(old('status_hubungan') == 'lainnya')>Lainnya</option>
                       </select>
                     </div>
+                    @error('status_hubungan') <p class="auth-hint-text">{{ $message }}</p> @enderror
                   </div>
 
                   <div class="auth-field">
@@ -1148,9 +1021,12 @@
                         name="nik"
                         type="text"
                         inputmode="numeric"
+                        maxlength="16"
                         placeholder="Masukan No KTP Anda"
+                        value="{{ old('nik') }}"
                       />
                     </div>
+                    @error('nik') <p class="auth-hint-text">{{ $message }}</p> @enderror
                   </div>
 
                   <div class="auth-field">
@@ -1178,18 +1054,19 @@
                         >
                       </button>
                     </div>
+                    @error('password') <p class="auth-hint-text">{{ $message }}</p> @enderror
                   </div>
 
                   <div class="auth-field">
-                    <label for="ulangi-password">Ulangi Password</label>
+                    <label for="password_confirmation">Ulangi Password</label>
                     <div class="auth-field-icon-wrap">
                       <span
                         class="auth-input-icon material-symbols-outlined text-[17px]"
                         >lock_reset</span
                       >
                       <input
-                        id="ulangi-password"
-                        name="ulangi_password"
+                        id="password_confirmation"
+                        name="password_confirmation"
                         type="password"
                         placeholder="Ulangi password Anda"
                         autocomplete="new-password"
@@ -1197,7 +1074,7 @@
                       <button
                         class="auth-toggle-eye"
                         type="button"
-                        data-toggle-target="ulangi-password"
+                        data-toggle-target="password_confirmation"
                         aria-label="Tampilkan password"
                       >
                         <span class="material-symbols-outlined text-[17px]"
@@ -1228,8 +1105,9 @@
                         id="alamat"
                         name="alamat"
                         placeholder="Masukan Alamat Anda"
-                      ></textarea>
+                      >{{ old('alamat') }}</textarea>
                     </div>
+                    @error('alamat') <p class="auth-hint-text">{{ $message }}</p> @enderror
                   </div>
 
                   <div class="reg-rtrw">
@@ -1240,6 +1118,7 @@
                       type="text"
                       inputmode="numeric"
                       placeholder="01"
+                      value="{{ old('rt') }}"
                       style="
                         border-radius: 9999px;
                         border: 1.5px solid #e4e9f0;
@@ -1253,6 +1132,7 @@
                       type="text"
                       inputmode="numeric"
                       placeholder="01"
+                      value="{{ old('rw') }}"
                       style="
                         border-radius: 9999px;
                         border: 1.5px solid #e4e9f0;
@@ -1269,7 +1149,7 @@
                         >map</span
                       >
                       <select id="provinsi" name="provinsi">
-                        <option value="jawa_barat" selected>Jawa Barat</option>
+                        <option value="Jawa Barat" selected>Jawa Barat</option>
                       </select>
                     </div>
                   </div>
@@ -1282,7 +1162,7 @@
                         >location_city</span
                       >
                       <select id="kab-kota" name="kab_kota">
-                        <option value="kota_bogor" selected>Kota Bogor</option>
+                        <option value="Kota Bogor" selected>Kota Bogor</option>
                       </select>
                     </div>
                   </div>
@@ -1296,14 +1176,15 @@
                       >
                       <select id="kecamatan" name="kecamatan">
                         <option value="">-Pilih-</option>
-                        <option value="bogor_selatan">Bogor Selatan</option>
-                        <option value="bogor_timur">Bogor Timur</option>
-                        <option value="bogor_utara">Bogor Utara</option>
-                        <option value="bogor_tengah">Bogor Tengah</option>
-                        <option value="bogor_barat">Bogor Barat</option>
-                        <option value="tanah_sareal">Tanah Sareal</option>
+                        <option value="Bogor Selatan" @selected(old('kecamatan') == 'Bogor Selatan')>Bogor Selatan</option>
+                        <option value="Bogor Timur" @selected(old('kecamatan') == 'Bogor Timur')>Bogor Timur</option>
+                        <option value="Bogor Utara" @selected(old('kecamatan') == 'Bogor Utara')>Bogor Utara</option>
+                        <option value="Bogor Tengah" @selected(old('kecamatan') == 'Bogor Tengah')>Bogor Tengah</option>
+                        <option value="Bogor Barat" @selected(old('kecamatan') == 'Bogor Barat')>Bogor Barat</option>
+                        <option value="Tanah Sareal" @selected(old('kecamatan') == 'Tanah Sareal')>Tanah Sareal</option>
                       </select>
                     </div>
+                    @error('kecamatan') <p class="auth-hint-text">{{ $message }}</p> @enderror
                   </div>
 
                   <div class="auth-field">
@@ -1313,10 +1194,15 @@
                         class="auth-input-icon material-symbols-outlined text-[17px]"
                         >holiday_village</span
                       >
-                      <select id="desa-kelurahan" name="desa_kelurahan">
-                        <option value="">-Pilih-</option>
-                      </select>
+                      <input
+                        id="desa-kelurahan"
+                        name="desa_kelurahan"
+                        type="text"
+                        placeholder="Masukan Desa/Kelurahan Anda"
+                        value="{{ old('desa_kelurahan') }}"
+                      />
                     </div>
+                    @error('desa_kelurahan') <p class="auth-hint-text">{{ $message }}</p> @enderror
                   </div>
                 </div>
 
@@ -1339,8 +1225,10 @@
                         name="nama_lengkap"
                         type="text"
                         placeholder="Masukan Nama Anda"
+                        value="{{ old('nama_lengkap') }}"
                       />
                     </div>
+                    @error('nama_lengkap') <p class="auth-hint-text">{{ $message }}</p> @enderror
                   </div>
 
                   <div class="auth-field">
@@ -1355,8 +1243,10 @@
                         name="email"
                         type="email"
                         placeholder="Masukan Email Anda"
+                        value="{{ old('email') }}"
                       />
                     </div>
+                    @error('email') <p class="auth-hint-text">{{ $message }}</p> @enderror
                   </div>
 
                   <div class="auth-field">
@@ -1372,8 +1262,10 @@
                         type="text"
                         inputmode="numeric"
                         placeholder="Masukan Telp Anda"
+                        value="{{ old('telp') }}"
                       />
                     </div>
+                    @error('telp') <p class="auth-hint-text">{{ $message }}</p> @enderror
                   </div>
 
                   <div class="auth-field">
@@ -1385,14 +1277,15 @@
                       >
                       <select id="agama" name="agama">
                         <option value="">-Pilih-</option>
-                        <option value="islam">Islam</option>
-                        <option value="kristen">Kristen</option>
-                        <option value="katolik">Katolik</option>
-                        <option value="hindu">Hindu</option>
-                        <option value="buddha">Buddha</option>
-                        <option value="konghucu">Khonghucu</option>
+                        <option value="islam" @selected(old('agama') == 'islam')>Islam</option>
+                        <option value="kristen" @selected(old('agama') == 'kristen')>Kristen</option>
+                        <option value="katolik" @selected(old('agama') == 'katolik')>Katolik</option>
+                        <option value="hindu" @selected(old('agama') == 'hindu')>Hindu</option>
+                        <option value="buddha" @selected(old('agama') == 'buddha')>Buddha</option>
+                        <option value="konghucu" @selected(old('agama') == 'konghucu')>Khonghucu</option>
                       </select>
                     </div>
+                    @error('agama') <p class="auth-hint-text">{{ $message }}</p> @enderror
                   </div>
 
                   <div class="auth-field">
@@ -1407,8 +1300,10 @@
                         name="pekerjaan"
                         type="text"
                         placeholder="Masukan Pekerjaan Anda Sesuai KTP"
+                        value="{{ old('pekerjaan') }}"
                       />
                     </div>
+                    @error('pekerjaan') <p class="auth-hint-text">{{ $message }}</p> @enderror
                   </div>
 
                   <div class="auth-field">
@@ -1423,8 +1318,10 @@
                         name="tempat_lahir"
                         type="text"
                         placeholder="Masukan Tempat Lahir Anda"
+                        value="{{ old('tempat_lahir') }}"
                       />
                     </div>
+                    @error('tempat_lahir') <p class="auth-hint-text">{{ $message }}</p> @enderror
                   </div>
 
                   <div class="auth-field">
@@ -1434,8 +1331,9 @@
                         class="auth-input-icon material-symbols-outlined text-[17px]"
                         >calendar_month</span
                       >
-                      <input id="tgl-lahir" name="tgl_lahir" type="date" />
+                      <input id="tgl-lahir" name="tgl_lahir" type="date" value="{{ old('tgl_lahir') }}" />
                     </div>
+                    @error('tgl_lahir') <p class="auth-hint-text">{{ $message }}</p> @enderror
                   </div>
 
                   <div class="auth-field">
@@ -1447,10 +1345,11 @@
                       >
                       <select id="jenis-kelamin" name="jenis_kelamin">
                         <option value="">-Pilih-</option>
-                        <option value="L">Laki-laki</option>
-                        <option value="P">Perempuan</option>
+                        <option value="L" @selected(old('jenis_kelamin') == 'L')>Laki-laki</option>
+                        <option value="P" @selected(old('jenis_kelamin') == 'P')>Perempuan</option>
                       </select>
                     </div>
+                    @error('jenis_kelamin') <p class="auth-hint-text">{{ $message }}</p> @enderror
                   </div>
 
                   <div class="reg-section-title">
@@ -1460,7 +1359,7 @@
 
                   <div class="reg-family-card">
                     <div class="reg-add-family">
-                      <label>Anggota Keluarga yang didaftarkan</label>
+                      <label>Anggota Keluarga yang didaftarkan (opsional)</label>
                       <button
                         type="button"
                         class="reg-add-btn"
@@ -1497,26 +1396,6 @@
                       Geser tabel ke kanan untuk lihat semua kolom
                     </div>
                   </div>
-
-                  <div class="auth-field">
-                    <label for="captcha" class="reg-captcha-label"
-                      >Berapa <span id="captcha-a">7</span> +
-                      <span id="captcha-b">9</span> ?</label
-                    >
-                    <div class="auth-field-icon-wrap">
-                      <span
-                        class="auth-input-icon material-symbols-outlined text-[17px]"
-                        >quiz</span
-                      >
-                      <input
-                        id="captcha"
-                        name="captcha"
-                        type="text"
-                        inputmode="numeric"
-                        placeholder="Jawaban captcha"
-                      />
-                    </div>
-                  </div>
                 </div>
               </div>
 
@@ -1535,54 +1414,6 @@
                 </a>
               </div>
             </form>
-
-            <!-- ============================================================
-                 LAYAR SUKSES (dummy) — muncul menggantikan form setelah
-                 tombol Submit ditekan. Murni tampilan, tidak ada backend.
-                 ============================================================ -->
-            <div class="reg-success-screen" id="reg-success-screen">
-              <div class="reg-success-icon">
-                <span class="material-symbols-outlined">check_circle</span>
-              </div>
-              <h2>Pendaftaran Berhasil!</h2>
-              <p>
-                Data pendaftaran BPJS PBI Anda berhasil dikirim (contoh tampilan
-                / dummy, belum terhubung ke sistem backend). Simpan nomor
-                registrasi berikut sebagai bukti.
-              </p>
-              <div class="reg-success-meta">
-                <div>
-                  <span>No. Registrasi</span>
-                  <span id="reg-success-nomor">-</span>
-                </div>
-                <div>
-                  <span>Nama Pemohon</span>
-                  <span id="reg-success-nama">-</span>
-                </div>
-                <div>
-                  <span>Tanggal</span>
-                  <span id="reg-success-tanggal">-</span>
-                </div>
-                <div>
-                  <span>Status</span>
-                  <span style="color: #2e7d32">Menunggu Verifikasi</span>
-                </div>
-              </div>
-              <div class="reg-success-actions">
-                <a href="{{ route('registrasi.step1') }}" class="reg-cancel-btn">
-                  <span class="material-symbols-outlined text-[16px]"
-                    >login</span
-                  >
-                  Kembali ke Login
-                </a>
-                <button type="button" class="auth-submit" id="btn-isi-ulang">
-                  <span class="material-symbols-outlined text-[16px]"
-                    >refresh</span
-                  >
-                  Isi Form Lagi
-                </button>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -1596,6 +1427,9 @@
 
     <!-- ============================================================
          MODAL — Tambah Anggota Keluarga
+         Setiap "Simpan" menambahkan hidden input ke <form> utama
+         (anggota[i][nama], anggota[i][nik], anggota[i][status]),
+         supaya benar-benar ikut ter-submit ke server.
          ============================================================ -->
     <div class="reg-modal-backdrop" id="modal-tambah-anggota">
       <div class="reg-modal">
@@ -1622,6 +1456,7 @@
               id="modal-nik"
               type="text"
               inputmode="numeric"
+              maxlength="16"
               placeholder="Masukan NIK"
             />
           </div>
@@ -1654,17 +1489,7 @@
 
     <script>
       (function () {
-        // ---------------------------------------------------------------
-        // 1) Ambil No KK dari query string (jika ada), fallback ke dummy
-        // ---------------------------------------------------------------
-        var params = new URLSearchParams(window.location.search);
-        var noKk = params.get("no_kk");
-        var noKkInput = document.getElementById("no-kk");
-        if (noKkInput) noKkInput.value = noKk || "3271011234567890";
-
-        // ---------------------------------------------------------------
-        // 2) Toggle show/hide password
-        // ---------------------------------------------------------------
+        // 1) Toggle show/hide password
         document.querySelectorAll(".auth-toggle-eye").forEach(function (btn) {
           btn.addEventListener("click", function () {
             var targetId = btn.getAttribute("data-toggle-target");
@@ -1677,91 +1502,58 @@
           });
         });
 
-        // ---------------------------------------------------------------
-        // 3) Captcha acak + auto-isi jawaban dummy
-        // ---------------------------------------------------------------
-        var a = Math.floor(Math.random() * 9) + 1;
-        var b = Math.floor(Math.random() * 9) + 1;
-        var elA = document.getElementById("captcha-a");
-        var elB = document.getElementById("captcha-b");
-        if (elA) elA.textContent = a;
-        if (elB) elB.textContent = b;
-        var captchaInput = document.getElementById("captcha");
-        if (captchaInput) captchaInput.value = a + b;
-
-        // ---------------------------------------------------------------
-        // 4) Isi semua field data diri dengan data dummy saat halaman dibuka
-        // ---------------------------------------------------------------
-        function setVal(id, val) {
-          var el = document.getElementById(id);
-          if (el) el.value = val;
-        }
-
-        setVal("status-hubungan", "kepala_keluarga");
-        setVal("nik", "3271012503900007");
-        setVal("password", "budi123");
-        setVal("ulangi-password", "budi123");
-        setVal("alamat", "Jl. Papandayan No.02");
-        setVal("rt", "01");
-        setVal("rw", "05");
-        setVal("kecamatan", "bogor_tengah");
-        setVal("nama-lengkap", "Budi Santoso");
-        setVal("email", "budi.santoso@contoh.com");
-        setVal("telp", "081234567890");
-        setVal("agama", "islam");
-        setVal("pekerjaan", "Wiraswasta");
-        setVal("tempat-lahir", "Bogor");
-        setVal("tgl-lahir", "1990-05-25");
-        setVal("jenis-kelamin", "L");
-
-        // Isi Desa/Kelurahan (dummy) setelah pilih Kecamatan, karena
-        // select-nya awalnya kosong menunggu pilihan kecamatan
-        var desaSelect = document.getElementById("desa-kelurahan");
-        if (desaSelect) {
-          var dummyDesaOption = document.createElement("option");
-          dummyDesaOption.value = "dummy_kelurahan";
-          dummyDesaOption.textContent = "Babakan";
-          dummyDesaOption.selected = true;
-          desaSelect.appendChild(dummyDesaOption);
-        }
-
-        // ---------------------------------------------------------------
-        // 5) Modal tambah anggota keluarga (+ 1 contoh data dummy default)
-        // ---------------------------------------------------------------
+        // 2) Modal tambah anggota keluarga -> hidden input beneran di form utama
         var modal = document.getElementById("modal-tambah-anggota");
         var btnOpen = document.getElementById("btn-tambah-anggota");
         var btnCancel = document.getElementById("modal-batal");
         var btnSave = document.getElementById("modal-simpan");
         var tableBody = document.getElementById("family-table-body");
         var emptyRow = document.getElementById("family-empty-row");
+        var mainForm = document.getElementById("register-step2-form");
+        var familyIndex = 0;
 
         function openModal() {
-          document.getElementById("modal-nama").value = "Siti Aminah";
-          document.getElementById("modal-nik").value = "3271014503920005";
-          document.getElementById("modal-status").value = "istri";
+          document.getElementById("modal-nama").value = "";
+          document.getElementById("modal-nik").value = "";
+          document.getElementById("modal-status").value = "";
           modal.classList.add("is-open");
         }
         function closeModal() {
           modal.classList.remove("is-open");
         }
 
-        function addFamilyRow(nama, nik, status) {
+        function addFamilyRow(nama, nik, statusValue, statusLabel) {
           if (emptyRow) {
             emptyRow.remove();
             emptyRow = null;
           }
+          var idx = familyIndex++;
+
           var row = document.createElement("tr");
           row.innerHTML =
-            "<td>" +
-            nama +
-            "</td>" +
-            "<td>" +
-            nik +
-            "</td>" +
-            "<td>" +
-            (status || "-") +
-            "</td>" +
+            "<td>" + nama + "</td>" +
+            "<td>" + nik + "</td>" +
+            "<td>" + statusLabel + "</td>" +
             '<td><button type="button" class="reg-family-remove">Hapus</button></td>';
+
+          var inputNama = document.createElement("input");
+          inputNama.type = "hidden";
+          inputNama.name = "anggota[" + idx + "][nama]";
+          inputNama.value = nama;
+
+          var inputNik = document.createElement("input");
+          inputNik.type = "hidden";
+          inputNik.name = "anggota[" + idx + "][nik]";
+          inputNik.value = nik;
+
+          var inputStatus = document.createElement("input");
+          inputStatus.type = "hidden";
+          inputStatus.name = "anggota[" + idx + "][status]";
+          inputStatus.value = statusValue;
+
+          row.appendChild(inputNama);
+          row.appendChild(inputNik);
+          row.appendChild(inputStatus);
 
           row
             .querySelector(".reg-family-remove")
@@ -1791,70 +1583,17 @@
             var nama = document.getElementById("modal-nama").value.trim();
             var nik = document.getElementById("modal-nik").value.trim();
             var statusSelect = document.getElementById("modal-status");
-            var status = statusSelect.options[statusSelect.selectedIndex]
+            var statusValue = statusSelect.value;
+            var statusLabel = statusSelect.options[statusSelect.selectedIndex]
               ? statusSelect.options[statusSelect.selectedIndex].text
               : "";
 
-            if (!nama || !nik) {
-              alert("Nama dan NIK wajib diisi.");
+            if (!nama || !nik || !statusValue) {
+              alert("Nama, NIK, dan Status wajib diisi.");
               return;
             }
-            addFamilyRow(nama, nik, status);
+            addFamilyRow(nama, nik, statusValue, statusLabel);
             closeModal();
-          });
-        }
-
-        // Otomatis tambahkan 1 anggota keluarga dummy supaya tabel
-        // sudah terisi contoh saat halaman pertama kali dibuka
-        addFamilyRow("Siti Aminah", "3271014503920005", "Istri");
-
-        // ---------------------------------------------------------------
-        // 6) Submit -> tampilkan layar "Registrasi Berhasil" (dummy)
-        //    Tidak ada request ke backend sama sekali.
-        // ---------------------------------------------------------------
-        var form = document.getElementById("register-step2-form");
-        var successScreen = document.getElementById("reg-success-screen");
-        var btnIsiUlang = document.getElementById("btn-isi-ulang");
-        var cardBody = document.getElementById("auth-card-body");
-
-        function randomNoRegistrasi() {
-          var now = new Date();
-          var y = now.getFullYear();
-          var rand = Math.floor(100000 + Math.random() * 900000);
-          return "PBI-" + y + "-" + rand;
-        }
-
-        if (form) {
-          form.addEventListener("submit", function (e) {
-            e.preventDefault();
-
-            var namaVal = document.getElementById("nama-lengkap").value || "-";
-            var todayStr = new Date().toLocaleDateString("id-ID", {
-              day: "2-digit",
-              month: "long",
-              year: "numeric",
-            });
-
-            document.getElementById("reg-success-nomor").textContent =
-              randomNoRegistrasi();
-            document.getElementById("reg-success-nama").textContent = namaVal;
-            document.getElementById("reg-success-tanggal").textContent =
-              todayStr;
-
-            form.style.display = "none";
-            successScreen.classList.add("is-visible");
-
-            // Scroll ke atas kartu supaya layar sukses langsung terlihat,
-            // penting terutama di HP karena body form ada scroll sendiri
-            if (cardBody) cardBody.scrollTop = 0;
-          });
-        }
-
-        if (btnIsiUlang) {
-          btnIsiUlang.addEventListener("click", function () {
-            successScreen.classList.remove("is-visible");
-            form.style.display = "";
-            if (cardBody) cardBody.scrollTop = 0;
           });
         }
       })();

@@ -10,6 +10,10 @@ use App\Http\Controllers\Auth\LoginAdminController;
 use App\Http\Controllers\Auth\ProfileController;
 use App\Http\Controllers\Auth\UserController;
 use App\Http\Controllers\PageController;
+use App\Http\Controllers\RegistrasiController;
+use App\Http\Controllers\Layanan\KartuKksAjuanController;
+use App\Http\Controllers\Layanan\DtsenAjuanController;
+use App\Http\Controllers\Masyarakat\MasyarakatController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -19,8 +23,10 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', [PageController::class, 'home'])->name('home');
 
 Route::prefix('registrasi')->name('registrasi.')->group(function () {
-    Route::get('/step-1', [PageController::class, 'registrasiStep1'])->name('step1');
-    Route::get('/step-2', [PageController::class, 'registrasiStep2'])->name('step2');
+    Route::get('/step-1', [RegistrasiController::class, 'step1'])->name('step1');
+    Route::post('/step-1', [RegistrasiController::class, 'step1Store'])->name('step1.store');
+    Route::get('/step-2', [RegistrasiController::class, 'step2'])->name('step2');
+    Route::post('/step-2', [RegistrasiController::class, 'step2Store'])->name('step2.store');
 });
 
 Route::get('/cek-densil', [PageController::class, 'cekDensil'])->name('cek-densil');
@@ -46,7 +52,7 @@ Route::post('/reset-password', [ForgotPasswordController::class, 'reset'])->name
 // ==========================================
 // ADMIN / PROTECTED ROUTES
 // ==========================================
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'staff'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::post('/logout', [LoginAdminController::class, 'destroy'])->name('logout');
 
@@ -70,6 +76,18 @@ Route::middleware('auth')->group(function () {
         Route::delete('/role/{role}', [UserController::class, 'destroyRole'])->name('role.destroy');
     });
 
+    Route::prefix('layanan/kartu-kks')->name('layanan.kartu-kks.')->group(function () {
+        Route::get('/ajukan', [KartuKksAjuanController::class, 'create'])->name('ajukan');
+        Route::post('/ajukan', [KartuKksAjuanController::class, 'store'])->name('ajukan.store');
+        Route::get('/riwayat', [KartuKksAjuanController::class, 'riwayat'])->name('riwayat');
+    });
+
+    Route::prefix('layanan/dtsen')->name('layanan.dtsen.')->group(function () {
+        Route::get('/ajukan', [DtsenAjuanController::class, 'create'])->name('ajukan');
+        Route::post('/ajukan', [DtsenAjuanController::class, 'store'])->name('ajukan.store');
+        Route::get('/riwayat', [DtsenAjuanController::class, 'riwayat'])->name('riwayat');
+    });
+
     // ==========================================
     // 3. PBI APBN — sudah dibangun penuh
     // ==========================================
@@ -78,6 +96,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/ajuan/{pbiApbn}', [PbiApbnController::class, 'ajuanShow'])->name('ajuan.show');
         Route::post('/ajuan/{pbiApbn}/aksi', [PbiApbnController::class, 'ajuanAksi'])->name('ajuan.aksi');
         Route::put('/ajuan/{pbiApbn}/tambahan', [PbiApbnController::class, 'ajuanUpdateTambahan'])->name('ajuan.updateTambahan');
+        Route::post('/ajuan/{pbiApbn}/diagnosa', [PbiApbnController::class, 'ajuanTambahDiagnosa'])->name('ajuan.diagnosa.store');
 
         Route::get('/arsip', [PbiApbnController::class, 'arsipIndex'])->name('arsip.index');
         Route::get('/monitoring', [PbiApbnController::class, 'monitoringIndex'])->name('monitoring.index');
@@ -139,4 +158,18 @@ Route::middleware('auth')->group(function () {
     // 7. Dokumen — template dokumen
     // ==========================================
     Route::get('/dokumen', [PlaceholderController::class, 'dokumen'])->name('dokumen.index');
+}); // <-- GRUP ADMIN DITUTUP DI SINI
+
+
+// ==========================================
+// AREA MASYARAKAT (setelah login) — DIPINDAH KE LUAR grup admin,
+// supaya TIDAK ikut kena middleware 'staff'.
+// ==========================================
+Route::middleware(['auth', 'role:masyarakat'])->prefix('akun-saya')->name('masyarakat.')->group(function () {
+    Route::get('/', [MasyarakatController::class, 'dashboard'])->name('dashboard');
+
+    Route::prefix('pbi-apbn/{pbiApbn}')->name('pbi-apbn.')->group(function () {
+        Route::get('/lengkapi', [MasyarakatController::class, 'lengkapiData'])->name('lengkapi');
+        Route::post('/lengkapi', [MasyarakatController::class, 'lengkapiDataStore'])->name('lengkapi.store');
+    });
 });

@@ -149,7 +149,7 @@
         </dl>
     </div>
 
-    {{-- Lampiran + Diagnosa (editable) --}}
+    {{-- Lampiran + Diagnosa (riwayat) --}}
     <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
         <div class="px-5 py-4 border-b border-outline-variant/40">
             <h3 class="text-sm font-bold flex items-center gap-2">
@@ -168,73 +168,62 @@
                 'screenshot_pembaharuan_desil' => 'Screenshot Pembaharuan Desil',
                 'screenshot_dtsen' => 'Screenshot DTSEN',
             ] as $field => $label)
-                <a @if($data->$field) href="{{ asset('storage/' . $data->$field) }}" target="_blank" @endif
-                    class="group block border border-outline-variant/40 rounded-lg overflow-hidden hover:border-primary transition-all">
-                    <div class="aspect-square bg-surface-container/50 flex items-center justify-center p-2">
-                        @if ($data->$field)
-                            <img src="{{ asset('storage/' . $data->$field) }}" class="w-full h-full object-contain mix-blend-multiply transition-transform group-hover:scale-105" alt="{{ $label }}">
-                        @else
-                            <span class="material-symbols-outlined text-[32px] text-on-surface-variant/40">image_not_supported</span>
-                        @endif
-                    </div>
-                    <div class="bg-surface-container-lowest border-t border-outline-variant/40 p-2">
-                        <p class="text-[11px] text-center text-on-surface-variant font-medium">{{ $label }}</p>
-                    </div>
-                </a>
+                <x-lampiran-preview
+                    :src="$data->$field ? asset('storage/' . $data->$field) : null"
+                    :label="$label" />
             @endforeach
         </div>
 
-        {{-- Diagnosa (editable) - BERSIH HANYA FORM --}}
+        {{-- Diagnosa (riwayat, bisa diisi berulang kali) --}}
         <div class="border-t border-outline-variant/40 px-5 py-6">
-            @if ($canAct)
-                <form method="POST" action="{{ route('pbi-apbn.ajuan.updateTambahan', $data) }}">
-                    @csrf
-                    @method('PUT')
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        {{-- Sisi Kiri: Label & Keterangan --}}
-                        <div class="md:col-span-1">
-                            <label class="block text-sm font-bold text-on-surface mb-1">
-                                Diagnosa <span class="text-error">*</span>
-                            </label>
-                            <p class="text-xs text-on-surface-variant leading-relaxed">
-                                Sesuaikan diagnosa dengan lampiran surat keterangan dari faskes.
-                            </p>
-                        </div>
-                        
-                        {{-- Sisi Kanan: Input, Tombol --}}
-                        <div class="md:col-span-2 flex flex-col gap-4">
-                            <div>
-                                <textarea name="diagnosa" rows="3" placeholder="Tulis diagnosa..."
-                                    class="w-full px-4 py-3 rounded-lg border border-outline-variant/60 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-[#003B5C]/40 focus:border-[#003B5C] bg-white shadow-sm transition-shadow">{{ old('diagnosa', $data->diagnosa) }}</textarea>
-                                @error('diagnosa')
-                                    <p class="text-xs text-error mt-1">{{ $message }}</p>
-                                @enderror
-                            </div>
-
-                            <div>
-                                <button type="submit"
-                                    class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#003B5C] text-white hover:bg-[#002A42] text-sm font-medium transition-all shadow-sm">
-                                    <span class="material-symbols-outlined text-[18px]">save</span>
-                                    Simpan Diagnosa
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </form>
-            @else
-                {{-- Tampilan Read-only jika user tidak bisa edit --}}
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div class="md:col-span-1">
-                        <p class="text-sm font-bold text-on-surface mb-1">Diagnosa</p>
-                    </div>
-                    <div class="md:col-span-2">
-                        <div class="px-4 py-3 bg-surface-container/30 rounded-lg border border-outline-variant/30">
-                            <p class="text-sm font-medium text-on-surface">{{ $data->diagnosa ?: 'Belum ada diagnosa.' }}</p>
-                        </div>
-                    </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {{-- Sisi Kiri: Label & Keterangan --}}
+                <div class="md:col-span-1">
+                    <label class="block text-sm font-bold text-on-surface mb-1">
+                        Diagnosa
+                    </label>
+                    <p class="text-xs text-on-surface-variant leading-relaxed">
+                        Setiap entri diagnosa akan tersimpan sebagai riwayat — tidak menimpa entri sebelumnya.
+                    </p>
                 </div>
-            @endif
+
+                {{-- Sisi Kanan: Riwayat + Form tambah (kalau berwenang) --}}
+                <div class="md:col-span-2 flex flex-col gap-4">
+
+                    {{-- Riwayat diagnosa --}}
+                    <div class="space-y-2 max-h-64 overflow-y-auto">
+                        @forelse ($data->diagnosaLogs as $log)
+                            <div class="p-3 bg-surface-container/30 rounded-lg border border-outline-variant/30">
+                                <div class="flex items-center justify-between gap-2 flex-wrap mb-1">
+                                    <span class="text-xs font-semibold text-on-surface">{{ $log->username }} <span class="text-on-surface-variant font-normal">({{ $log->role_name }})</span></span>
+                                    <span class="text-[11px] text-on-surface-variant whitespace-nowrap">{{ $log->created_at->format('d M Y - H:i') }}</span>
+                                </div>
+                                <p class="text-sm text-on-surface">{{ $log->diagnosa }}</p>
+                            </div>
+                        @empty
+                            <p class="text-sm text-on-surface-variant italic">Belum ada diagnosa yang tercatat.</p>
+                        @endforelse
+                    </div>
+
+                    {{-- Form tambah diagnosa baru --}}
+                    @if ($canAct)
+                        <form method="POST" action="{{ route('pbi-apbn.ajuan.diagnosa.store', $data) }}" class="pt-2 border-t border-outline-variant/30">
+                            @csrf
+                            <textarea name="diagnosa" rows="3" placeholder="Tulis diagnosa baru..."
+                                class="w-full px-4 py-3 rounded-lg border border-outline-variant/60 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-[#003B5C]/40 focus:border-[#003B5C] bg-white shadow-sm transition-shadow">{{ old('diagnosa') }}</textarea>
+                            @error('diagnosa')
+                                <p class="text-xs text-error mt-1">{{ $message }}</p>
+                            @enderror
+
+                            <button type="submit"
+                                class="mt-3 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#003B5C] text-white hover:bg-[#002A42] text-sm font-medium transition-all shadow-sm">
+                                <span class="material-symbols-outlined text-[18px]">add</span>
+                                Tambah Diagnosa
+                            </button>
+                        </form>
+                    @endif
+                </div>
+            </div>
         </div>
     </div>
 
@@ -290,11 +279,27 @@
                 'scan_surat_pengantar' => 'Scan Surat Pengantar',
                 'surat_pengantar_digital' => 'Surat Pengantar Digital',
             ] as $field => $label)
-                <a @if($data->$field) href="{{ asset('storage/' . $data->$field) }}" target="_blank" @endif
-                    class="flex items-center justify-center gap-2 border border-outline-variant/60 rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-surface-container/50 hover:border-primary transition-all">
-                    <span class="material-symbols-outlined text-[18px] text-primary">description</span>
-                    {{ $label }}
-                </a>
+                <div class="relative" x-data="{ open: false }" @click.outside="open = false">
+                    <button type="button"
+                        @if($data->$field) @click="open = !open" @else disabled @endif
+                        class="w-full flex items-center justify-center gap-2 border border-outline-variant/60 rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-surface-container/50 hover:border-primary transition-all">
+                        <span class="material-symbols-outlined text-[18px] text-primary">description</span>
+                        {{ $label }}
+                    </button>
+                    @if ($data->$field)
+                        <div x-show="open" x-cloak x-transition
+                             class="absolute z-30 left-1/2 -translate-x-1/2 mt-1 w-36 bg-white border border-outline-variant/40 rounded-lg shadow-lg overflow-hidden">
+                            <a href="{{ asset('storage/' . $data->$field) }}" target="_blank" rel="noopener"
+                               class="flex items-center gap-2 px-3 py-2 text-xs hover:bg-surface-container">
+                                <span class="material-symbols-outlined text-[16px]">visibility</span> Lihat
+                            </a>
+                            <a href="{{ asset('storage/' . $data->$field) }}" download
+                               class="flex items-center gap-2 px-3 py-2 text-xs hover:bg-surface-container border-t border-outline-variant/30">
+                                <span class="material-symbols-outlined text-[16px]">download</span> Unduh
+                            </a>
+                        </div>
+                    @endif
+                </div>
             @endforeach
         </div>
     </div>

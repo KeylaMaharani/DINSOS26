@@ -6,9 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 
-/**
- * Halaman-halaman statis SOLID v4 Dinas Sosial Kota Bogor.
- */
+
 class PageController extends Controller
 {
     public function home()
@@ -64,18 +62,23 @@ class PageController extends Controller
 
         if (Auth::attempt($credentials, $remember)) {
             $user = Auth::user();
+            $roleSlug = $user->role->slug ?? null;
 
-            // TODO: sesuaikan dengan cara kamu menandai admin
-            if ($user->role === 'admin') {
+            // Halaman /login ini KHUSUS masyarakat. Role apapun selain
+            // masyarakat (admin, kelurahan, kabid, kadis, operator_dinsos, dll)
+            // wajib login lewat /admin-login.
+            if ($roleSlug !== 'masyarakat') {
                 Auth::logout();
+                $request->session()->invalidate();
+
                 throw ValidationException::withMessages([
-                    'username' => 'Akun admin harus login lewat halaman admin.',
+                    'username' => 'Akun ini bukan akun masyarakat. Silakan login lewat halaman khusus petugas.',
                 ]);
             }
 
             $request->session()->regenerate();
 
-            return redirect()->intended('/dashboard');
+            return redirect()->intended(route('masyarakat.dashboard'));
         }
 
         throw ValidationException::withMessages([
