@@ -15,6 +15,13 @@ class DtsenController extends Controller
     /**
      * Sama seperti logika di CheckRole: role apapun yang namanya mengandung
      * "admin" dianggap admin dan bebas dari pembatasan role di bawah ini.
+     *
+     * PENTING: method ini TIDAK dipakai lagi untuk menentukan siapa yang
+     * boleh menjalankan alur Proses Permohonan (Teruskan/Tolak/
+     * Kembalikan/Simpan Catatan) maupun mengedit Data Detail/BANSOS.
+     * Untuk itu pakai isSuperAdmin() di bawah, supaya role "admin" biasa
+     * tidak ikut mendapat hak proses — hanya super admin (disamakan
+     * dengan Kartu KKS & PBI APBN).
      */
     private function isAdmin($role): bool
     {
@@ -25,6 +32,26 @@ class DtsenController extends Controller
 
         return str_contains(strtolower($role->name ?? ''), 'admin')
             || in_array($slug, ['admin', 'super_admin', 'superadmin'], true);
+    }
+
+    /**
+     * Role yang benar-benar berwenang menjalankan alur Proses Permohonan
+     * serta mengedit Data Detail/BANSOS, tanpa terikat role pada tahap
+     * manapun. HANYA super admin — role "admin" biasa TIDAK termasuk di
+     * sini, meskipun tetap bisa melihat semua data lewat isAdmin() di
+     * tempat lain (mis. daftar Ajuan). Disamakan dengan isSuperAdmin() di
+     * KartuKksController / userCanActOn() di PbiApbnController.
+     */
+    private function isSuperAdmin($role): bool
+    {
+        if (! $role) {
+            return false;
+        }
+
+        $slug = $role->slug ?: Str::slug($role->name, '_');
+        $slug = strtolower(str_replace(['-', ' '], '_', $slug));
+
+        return in_array($slug, ['super_admin', 'superadmin'], true);
     }
 
     private function roleSlug($role): ?string
@@ -244,6 +271,7 @@ class DtsenController extends Controller
         $user = Auth::user();
         $roleSlug = $this->roleSlug($user->role);
         $isAdmin = $this->isAdmin($user->role);
+        $isSuperAdmin = $this->isSuperAdmin($user->role);
         $transitions = $this->transitions();
 
         $isFinal = in_array($permohonan->status, [
@@ -253,9 +281,13 @@ class DtsenController extends Controller
 
         $rule = $transitions[$permohonan->status] ?? null;
 
+        // Hanya super admin yang selalu bisa bertindak di tahap manapun
+        // selama permohonan belum final. Role "admin" biasa tetap harus
+        // sesuai dengan role yang berwenang pada tahap saat ini — sama
+        // seperti alur Kartu KKS & PBI APBN.
         $canAct = ! $isFinal
             && $rule
-            && ($isAdmin || $roleSlug === 'super_admin' || $roleSlug === $rule['allowed_role']);
+            && ($isSuperAdmin || $roleSlug === $rule['allowed_role']);
 
         $returnLabel = ($canAct && isset($rule['return_role']))
             ? 'Kembalikan ke ' . $this->roleLabel($rule['return_role'])
@@ -341,7 +373,7 @@ class DtsenController extends Controller
     {
         $user = Auth::user();
         $roleSlug = $this->roleSlug($user->role);
-        $isAdmin = $this->isAdmin($user->role);
+        $isSuperAdmin = $this->isSuperAdmin($user->role);
         $transitions = $this->transitions();
 
         $isFinal = in_array($permohonan->status, [
@@ -351,9 +383,12 @@ class DtsenController extends Controller
 
         $rule = $transitions[$permohonan->status] ?? null;
 
+        // Hanya super admin yang selalu boleh mengedit data selama belum
+        // final. Role "admin" biasa tetap harus sesuai role yang
+        // berwenang pada tahap saat ini.
         $canAct = ! $isFinal
             && $rule
-            && ($isAdmin || $roleSlug === 'super_admin' || $roleSlug === $rule['allowed_role']);
+            && ($isSuperAdmin || $roleSlug === $rule['allowed_role']);
 
         if (! $canAct) {
             abort(403, 'Anda tidak berwenang mengedit data ini.');
@@ -376,7 +411,7 @@ class DtsenController extends Controller
 
         $user = Auth::user();
         $roleSlug = $this->roleSlug($user->role);
-        $isAdmin = $this->isAdmin($user->role);
+        $isSuperAdmin = $this->isSuperAdmin($user->role);
         $transitions = $this->transitions();
 
         $isFinal = in_array($permohonan->status, [
@@ -390,8 +425,12 @@ class DtsenController extends Controller
 
         $rule = $transitions[$permohonan->status] ?? null;
 
+        // Hanya super admin yang selalu boleh memproses (lanjut/tolak/
+        // kembalikan/simpan catatan) pada tahap apapun. Role "admin"
+        // biasa tetap harus sesuai role yang berwenang pada tahap ini —
+        // sama seperti alur Kartu KKS & PBI APBN.
         $canAct = $rule
-            && ($isAdmin || $roleSlug === 'super_admin' || $roleSlug === $rule['allowed_role']);
+            && ($isSuperAdmin || $roleSlug === $rule['allowed_role']);
 
         if (! $canAct) {
             abort(403, 'Anda tidak berwenang memproses permohonan pada tahap ini.');

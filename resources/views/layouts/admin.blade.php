@@ -107,6 +107,36 @@
             width: 0;
             height: 0;
         }
+
+        /* ====== Flipbook (buku panduan bantuan) ====== */
+        #help-flipbook .page {
+            background-color: #ffffff;
+            overflow: hidden;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.03); /* Tambahan shadow tipis di dalam buku */
+            border-right: 1px solid rgba(0,0,0,0.05); /* Batas lipatan tengah */
+        }
+
+        /* page-flip me-render tiap halaman sebagai <img> ketika dimuat lewat
+           loadFromImages()/updateFromImages() -- jaga rasio asli, tidak digepengkan */
+        #help-flipbook img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        /* Buku terasa lebih natural: sudut sedikit membulat & rasio halaman dijaga */
+        #help-flipbook {
+            border-radius: 6px;
+        }
+
+        .stf__parent {
+            margin: 0 auto;
+        }
+
+        #help-flipbook-search-highlight {
+            transition: opacity 0.3s ease;
+        }
     </style>
 </head>
 
@@ -145,6 +175,11 @@
                 'route_prefix' => 'dtsen.',
             ],
         ];
+
+        // URL file PDF panduan penggunaan yang akan ditampilkan sebagai flipbook.
+        // Taruh file PDF-nya di public/assets/help/panduan-penggunaan.pdf,
+        // atau ganti path di bawah ini sesuai lokasi file kamu.
+        $helpPdfUrl = asset('assets/help/panduan-penggunaan.pdf');
     @endphp
 
     <div class="flex h-screen overflow-hidden" x-data="{ sidebarOpen: false }">
@@ -390,7 +425,124 @@
         </div>
     </div>
 
+    {{-- ====== Tombol bantuan mengambang (floating) + modal Flipbook PDF ====== --}}
+    <div x-data="{ helpOpen: false }">
+
+        <button type="button" @click="helpOpen = true"
+            title="Bantuan / Panduan Penggunaan"
+            class="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-primary text-on-primary shadow-lg
+                   hover:bg-secondary transition-all flex items-center justify-center">
+            <span class="material-symbols-outlined text-[26px]">help</span>
+        </button>
+
+        <div x-show="helpOpen" x-cloak
+            x-init="$watch('helpOpen', value => { if (value) window.dispatchEvent(new CustomEvent('help-flipbook-open')); })"
+            @keydown.escape.window="helpOpen = false"
+            x-transition:enter="transition ease-out duration-150"
+            x-transition:enter-start="opacity-0"
+            x-transition:enter-end="opacity-100"
+            class="fixed inset-0 z-[9990] bg-[#101418] overflow-hidden">
+
+            {{-- Header — bar tipis tembus pandang, melayang di atas buku
+                 (absolute, tidak mereservasi ruang lewat padding) supaya
+                 area buku di bawahnya bisa penuh setinggi layar. --}}
+            <div class="absolute top-0 left-0 right-0 flex items-center justify-between px-4 py-2 gap-3 bg-white/85 backdrop-blur z-30 shadow-sm">
+                <h3 class="text-sm font-bold text-on-surface flex items-center gap-2 min-w-0">
+                    <span class="material-symbols-outlined text-[20px] text-primary shrink-0">menu_book</span>
+                    <span class="truncate">Panduan Penggunaan</span>
+                </h3>
+                <div class="flex items-center gap-1 shrink-0">
+                    <a href="{{ $helpPdfUrl }}" target="_blank" rel="noopener noreferrer"
+                        title="Buka di Tab Baru"
+                        class="w-8 h-8 rounded-full flex items-center justify-center text-primary hover:bg-primary/10 transition-colors">
+                        <span class="material-symbols-outlined text-[18px]">open_in_new</span>
+                    </a>
+                    <a href="{{ $helpPdfUrl }}" download="Panduan-Penggunaan-SOLID.pdf"
+                        title="Unduh PDF"
+                        class="w-8 h-8 rounded-full flex items-center justify-center text-primary hover:bg-primary/10 transition-colors">
+                        <span class="material-symbols-outlined text-[20px]">cloud_download</span>
+                    </a>
+                    <div class="w-px h-5 bg-outline-variant/40 mx-1"></div>
+                    <button @click="helpOpen = false" title="Tutup (Esc)"
+                        class="w-8 h-8 rounded-full flex items-center justify-center text-error hover:bg-error-container/50 transition-colors">
+                        <span class="material-symbols-outlined text-[20px]">close</span>
+                    </button>
+                </div>
+            </div>
+
+            {{-- Container Flipbook — full-bleed, memakai hampir seluruh layar.
+                 Header & kontrol di bawah melayang TEMBUS PANDANG di atasnya
+                 (bukan mendorong/mengecilkan area buku), jadi bukunya bisa
+                 setinggi & sebesar mungkin. --}}
+            <div class="absolute inset-0 w-full h-full flex items-center justify-center p-2">
+
+                    <div id="help-flipbook-loading" class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-on-surface-variant z-10 bg-[#eef1f6]">
+                        <span class="material-symbols-outlined text-[32px] animate-spin text-primary">progress_activity</span>
+                        <span class="text-sm font-medium">Memuat Panduan...</span>
+                    </div>
+
+                    <div id="help-flipbook-wrap" class="w-full h-full flex items-center justify-center px-2">
+                        <div id="help-flipbook" class="hidden shadow-2xl"></div>
+                    </div>
+
+                    {{-- Kontrol Navigasi + Pencarian (Absolute di bagian bawah) --}}
+                    <div id="help-flipbook-controls"
+                        class="hidden absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex-col sm:flex-row items-center gap-2 sm:gap-3 bg-white/90 backdrop-blur px-3 py-1.5 rounded-2xl sm:rounded-full shadow-lg border border-outline-variant/30 max-w-[92%] w-max">
+
+
+                        {{-- Pencarian --}}
+                        <div class="flex items-center gap-1.5">
+                            <input type="text" id="help-flipbook-search-input" placeholder="Cari kata..."
+                                class="w-28 sm:w-40 text-xs px-2.5 py-1.5 rounded-full border border-outline-variant/50 focus:outline-none focus:ring-1 focus:ring-primary" />
+                            <button type="button" id="help-flipbook-search-btn"
+                                class="w-7 h-7 shrink-0 rounded-full bg-primary text-white flex items-center justify-center hover:bg-secondary transition-colors">
+                                <span class="material-symbols-outlined text-[16px]">search</span>
+                            </button>
+                            <span id="help-flipbook-search-status" class="text-[11px] text-on-surface-variant whitespace-nowrap"></span>
+                        </div>
+
+                        <div class="hidden sm:block w-px h-5 bg-outline-variant/40"></div>
+
+                        {{-- Navigasi halaman --}}
+                        <div class="flex items-center gap-3">
+                            <button type="button" id="help-flipbook-prev"
+                                class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center hover:bg-primary hover:text-white transition-all">
+                                <span class="material-symbols-outlined text-[20px]">chevron_left</span>
+                            </button>
+                            <span class="flex items-center gap-1 text-xs font-bold text-on-surface-variant tabular-nums">
+                                <input type="number" id="help-flipbook-page-input" min="1" value="1"
+                                    class="w-10 text-center rounded-md border border-outline-variant/50 px-1 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
+                                <span>/ <span id="help-flipbook-page-total">0</span></span>
+                            </span>
+                            <button type="button" id="help-flipbook-next"
+                                class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center hover:bg-primary hover:text-white transition-all">
+                                <span class="material-symbols-outlined text-[20px]">chevron_right</span>
+                            </button>
+                        </div>
+
+                        <span id="help-flipbook-load-progress" class="text-[11px] text-success font-medium whitespace-nowrap"></span>
+                    </div>
+
+                    <p id="help-flipbook-error" class="hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-sm text-error text-center bg-error-container px-6 py-4 rounded-xl shadow-lg border border-error/20 max-w-sm z-30">
+                        Gagal memuat file panduan. Pastikan file PDF tersedia dan perangkat memiliki cukup memori.
+                    </p>
+                </div>
+            </div>
+        </div>
+    {{-- ====== Akhir tombol bantuan & modal flipbook ====== --}}
+
+    {{-- Kotak highlight hasil pencarian pada flipbook. Diletakkan di level
+         body supaya `position: fixed`-nya selalu mengacu ke viewport, aman
+         dari elemen ancestor mana pun yang mungkin memakai transform. --}}
+    <div id="help-flipbook-search-highlight"
+        class="hidden fixed pointer-events-none border-2 border-yellow-400 bg-yellow-300/40 rounded shadow-[0_0_10px_rgba(250,204,21,0.75)] z-[9995]"></div>
+
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    {{-- pdf.js: merender tiap halaman PDF ke <canvas> lalu dikonversi ke gambar --}}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    {{-- page-flip: efek membalik halaman seperti buku, dari gambar yang sudah dirender --}}
+    <script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.js"></script>
 
     {{-- ====== Modal konfirmasi bertema (menggantikan confirm() bawaan browser) ====== --}}
     <div id="app-confirm-modal"
@@ -524,6 +676,422 @@
     })();
     </script>
     {{-- ====== Akhir blok modal konfirmasi ====== --}}
+
+    {{-- ====== Flipbook PDF untuk tombol bantuan (pdf.js + page-flip) ======
+         Dirapikan seperti contoh viewer manual-book: rendering per-halaman
+         bertahap (tidak memblokir modal), navigasi lewat input nomor halaman,
+         indikator progres pemuatan, dan pencarian kata dengan highlight. --}}
+    <script>
+    (function () {
+        const PDF_URL = @json($helpPdfUrl);
+
+        let loaded = false;
+        let loading = false;
+        let pageFlipInstance = null;
+        let pdfDocRef = null;
+        let totalPages = 0;
+        let loadedCount = 0;
+        let renderScale = 2; // nilai awal, dihitung ulang secara dinamis di initFlipbook()
+
+        let pageImages = [];
+        let pageTexts = [];
+        let pageItemsData = [];
+
+        let currentMatches = [];
+        let currentMatchPos = -1;
+        let lastQuery = null;
+
+        function createPlaceholder(w, h) {
+            const c = document.createElement('canvas');
+            c.width = w;
+            c.height = h;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = '#eef1f6';
+            ctx.fillRect(0, 0, w, h);
+            ctx.fillStyle = '#9aa5b1';
+            ctx.font = '16px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('Memuat halaman...', w / 2, h / 2);
+            return c.toDataURL('image/jpeg', 0.7);
+        }
+
+        function renderSinglePage(pageNum) {
+            return pdfDocRef.getPage(pageNum).then(function (page) {
+                const vp = page.getViewport({ scale: renderScale });
+                const canvas = document.createElement('canvas');
+                canvas.width = vp.width;
+                canvas.height = vp.height;
+                const ctx = canvas.getContext('2d');
+
+                const renderTask = page.render({ canvasContext: ctx, viewport: vp }).promise;
+                const textTask = page.getTextContent().then(function (tc) {
+                    pageTexts[pageNum - 1] = tc.items.map(function (it) { return it.str; }).join(' ').toLowerCase();
+                    pageItemsData[pageNum - 1] = { items: tc.items, viewport: vp };
+                });
+
+                return Promise.all([renderTask, textTask]).then(function () {
+                    return canvas.toDataURL('image/jpeg', 0.85);
+                });
+            });
+        }
+
+        function updatePageIndicator() {
+            const input = document.getElementById('help-flipbook-page-input');
+            if (!pageFlipInstance || !input) return;
+            input.value = pageFlipInstance.getCurrentPageIndex() + 1;
+        }
+
+        function updateLoadProgress() {
+            const el = document.getElementById('help-flipbook-load-progress');
+            if (!el) return;
+            el.textContent = loadedCount >= totalPages ? '' : ('Memuat: ' + loadedCount + '/' + totalPages);
+        }
+
+        function hideSearchHighlight() {
+            const hl = document.getElementById('help-flipbook-search-highlight');
+            if (!hl) return;
+            clearTimeout(hl._fadeTimer);
+            hl.classList.add('hidden');
+        }
+
+        function showSearchHighlight(pageIndex, rect, retriesLeft) {
+            if (retriesLeft === undefined) retriesLeft = 8;
+            const flipbookEl = document.getElementById('help-flipbook');
+            const targetSrc = pageImages[pageIndex];
+            const imgs = flipbookEl.querySelectorAll('img');
+            let targetImg = null, bestArea = 0;
+
+            imgs.forEach(function (img) {
+                if (img.src === targetSrc) {
+                    const r = img.getBoundingClientRect();
+                    const area = r.width * r.height;
+                    if (area > bestArea) {
+                        bestArea = area;
+                        targetImg = img;
+                    }
+                }
+            });
+
+            if (!targetImg || bestArea === 0) {
+                if (retriesLeft <= 0) return;
+                setTimeout(function () { showSearchHighlight(pageIndex, rect, retriesLeft - 1); }, 200);
+                return;
+            }
+
+            const ir = targetImg.getBoundingClientRect();
+            const scaleX = ir.width / rect.canvasWidth;
+            const scaleY = ir.height / rect.canvasHeight;
+            const hl = document.getElementById('help-flipbook-search-highlight');
+            clearTimeout(hl._fadeTimer);
+            hl.style.left = (ir.left + rect.left * scaleX) + 'px';
+            hl.style.top = (ir.top + rect.top * scaleY) + 'px';
+            hl.style.width = (rect.width * scaleX) + 'px';
+            hl.style.height = (rect.height * scaleY) + 'px';
+            hl.classList.remove('hidden');
+            hl.style.opacity = '1';
+        }
+
+        function findAllMatches(query) {
+            const matches = [];
+            for (let p = 0; p < pageItemsData.length; p++) {
+                const data = pageItemsData[p];
+                if (!data) continue;
+                for (let i = 0; i < data.items.length; i++) {
+                    const it = data.items[i];
+                    if (it.str && it.str.toLowerCase().indexOf(query) !== -1) {
+                        const tx = pdfjsLib.Util.transform(data.viewport.transform, it.transform);
+                        const fontHeight = Math.hypot(tx[2], tx[3]) || 12;
+                        const fontWidth = Math.hypot(tx[0], tx[1]) || 1;
+                        const width = (it.width || it.str.length * 5) * fontWidth;
+                        matches.push({
+                            pageIndex: p,
+                            rect: {
+                                left: tx[4],
+                                top: tx[5] - fontHeight,
+                                width: width,
+                                height: fontHeight * 1.3,
+                                canvasWidth: data.viewport.width,
+                                canvasHeight: data.viewport.height
+                            }
+                        });
+                    }
+                }
+            }
+            return matches;
+        }
+
+        function goToMatch(idx) {
+            if (!currentMatches.length) return;
+            if (idx < 0) idx = currentMatches.length - 1;
+            if (idx >= currentMatches.length) idx = 0;
+            currentMatchPos = idx;
+            const match = currentMatches[idx];
+            const statusEl = document.getElementById('help-flipbook-search-status');
+            if (statusEl) {
+                statusEl.textContent = (idx + 1) + '/' + currentMatches.length + ' (hal. ' + (match.pageIndex + 1) + ')';
+            }
+            hideSearchHighlight();
+            pageFlipInstance.flip(match.pageIndex);
+            setTimeout(function () { showSearchHighlight(match.pageIndex, match.rect); }, 450);
+        }
+
+        function doSearch() {
+            const input = document.getElementById('help-flipbook-search-input');
+            const statusEl = document.getElementById('help-flipbook-search-status');
+            if (!input || !pageFlipInstance) return;
+            const query = input.value.trim().toLowerCase();
+
+            if (query !== lastQuery) {
+                hideSearchHighlight();
+                lastQuery = query;
+
+                if (!query) {
+                    if (statusEl) statusEl.textContent = '';
+                    currentMatches = [];
+                    currentMatchPos = -1;
+                    return;
+                }
+
+                currentMatches = findAllMatches(query);
+                currentMatchPos = -1;
+
+                if (!currentMatches.length) {
+                    if (statusEl) {
+                        statusEl.textContent = loadedCount < totalPages
+                            ? 'Tidak ditemukan (masih memuat...)'
+                            : 'Tidak ditemukan';
+                    }
+                    return;
+                }
+
+                goToMatch(0);
+                return;
+            }
+
+            if (!currentMatches.length) {
+                if (statusEl) statusEl.textContent = 'Tidak ditemukan';
+                return;
+            }
+            goToMatch(currentMatchPos + 1);
+        }
+
+        function loadRemainingPagesInBackground() {
+            const CONCURRENCY = 3;
+            let nextPage = 2;
+            let activeCount = 0;
+            let updateScheduled = false;
+
+            updateLoadProgress();
+
+            function scheduleFlipbookUpdate() {
+                if (updateScheduled) return;
+                updateScheduled = true;
+                setTimeout(function () {
+                    updateScheduled = false;
+                    if (pageFlipInstance && typeof pageFlipInstance.updateFromImages === 'function') {
+                        pageFlipInstance.updateFromImages(pageImages);
+                    }
+                }, 250);
+            }
+
+            function startNext() {
+                while (activeCount < CONCURRENCY && nextPage <= totalPages) {
+                    (function (pn) {
+                        activeCount++;
+                        renderSinglePage(pn)
+                            .then(function (url) { pageImages[pn - 1] = url; })
+                            .catch(function (e) { console.error('Gagal merender halaman ' + pn, e); })
+                            .then(function () {
+                                loadedCount++;
+                                activeCount--;
+                                updateLoadProgress();
+                                scheduleFlipbookUpdate();
+                                startNext();
+                            });
+                    })(nextPage);
+                    nextPage++;
+                }
+            }
+
+            startNext();
+        }
+
+        async function initFlipbook() {
+            if (loaded || loading) return;
+            loading = true;
+
+            const loadingEl = document.getElementById('help-flipbook-loading');
+            const flipbookEl = document.getElementById('help-flipbook');
+            const controlsEl = document.getElementById('help-flipbook-controls');
+            const errorEl = document.getElementById('help-flipbook-error');
+            const wrapEl = document.getElementById('help-flipbook-wrap');
+
+            try {
+                if (typeof pdfjsLib === 'undefined') throw new Error('pdf.js gagal dimuat');
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+                pdfDocRef = await pdfjsLib.getDocument(PDF_URL).promise;
+                totalPages = pdfDocRef.numPages;
+                if (!totalPages) throw new Error('PDF tidak memiliki halaman');
+
+                // Dapatkan rasio dasar PDF dari halaman 1
+                const firstPage = await pdfDocRef.getPage(1);
+                const viewportRaw = firstPage.getViewport({ scale: 1 });
+                const baseWidth = viewportRaw.width;
+                const baseHeight = viewportRaw.height;
+
+                // Hitung ukuran TAMPIL buku dulu (berdasarkan ruang modal yang
+                // tersedia), sebelum merender halaman apa pun. Ini penting:
+                // skala render PDF di bawah diturunkan dari ukuran tampil ini,
+                // supaya resolusi gambar selalu cukup tinggi untuk ukuran
+                // sebesar apa pun buku ini ditampilkan (termasuk saat full-bleed
+                // di layar besar) — kalau urutannya dibalik, gambar hasil render
+                // beresolusi tetap akan di-upscale oleh browser untuk memenuhi
+                // ukuran tampil yang lebih besar, dan itulah yang bikin teksnya
+                // buram.
+                function computeSpreadSize() {
+                    const rect = wrapEl.getBoundingClientRect();
+                    const availW = Math.max(rect.width - 8, 280);
+                    const availH = Math.max(rect.height - 8, 360);
+
+                    const spreadRatio = (baseWidth * 2) / baseHeight;
+
+                    let spreadW = availW;
+                    let spreadH = spreadW / spreadRatio;
+
+                    if (spreadH > availH) {
+                        spreadH = availH;
+                        spreadW = spreadH * spreadRatio;
+                    }
+
+                    return {
+                        pageW: Math.max(Math.round(spreadW / 2), 140),
+                        pageH: Math.max(Math.round(spreadH), 200),
+                    };
+                }
+
+                const { pageW, pageH } = computeSpreadSize();
+
+                // Turunkan skala render PDF dari ukuran tampil x devicePixelRatio
+                // (supaya tajam di layar retina/HiDPI juga), dibatasi 1x–3x agar
+                // memori & waktu render tetap wajar untuk PDF yang panjang.
+                const dpr = window.devicePixelRatio || 1;
+                renderScale = Math.min(Math.max((pageW * dpr) / baseWidth, 1.2), 3);
+
+                const placeholderVp = firstPage.getViewport({ scale: renderScale });
+                pageImages = new Array(totalPages).fill(createPlaceholder(placeholderVp.width, placeholderVp.height));
+
+                // Render halaman pertama dulu (dengan skala yang sudah pas)
+                // supaya buku bisa langsung tampil, sisanya dimuat bertahap di
+                // latar belakang (lihat di bawah).
+                pageImages[0] = await renderSinglePage(1);
+                loadedCount = 1;
+
+                pageFlipInstance = new St.PageFlip(flipbookEl, {
+                    width: pageW,
+                    height: pageH,
+                    size: 'stretch',
+                    minWidth: Math.round(pageW * 0.5),
+                    maxWidth: pageW,
+                    minHeight: Math.round(pageH * 0.5),
+                    maxHeight: pageH,
+                    showCover: true,
+                    maxShadowOpacity: 0.25,
+                    showPageCorners: true,
+                    mobileScrollSupport: true,
+                });
+
+                pageFlipInstance.loadFromImages(pageImages);
+                pageFlipInstance.on('flip', function () {
+                    updatePageIndicator();
+                    hideSearchHighlight();
+                });
+
+                document.getElementById('help-flipbook-prev').addEventListener('click', function () {
+                    hideSearchHighlight();
+                    pageFlipInstance.flipPrev();
+                });
+                document.getElementById('help-flipbook-next').addEventListener('click', function () {
+                    hideSearchHighlight();
+                    pageFlipInstance.flipNext();
+                });
+
+                // Navigasi lewat input nomor halaman
+                const pageInputEl = document.getElementById('help-flipbook-page-input');
+                const pageTotalEl = document.getElementById('help-flipbook-page-total');
+                pageInputEl.max = totalPages;
+                pageTotalEl.textContent = totalPages;
+
+                function goToPage() {
+                    let t = parseInt(pageInputEl.value, 10);
+                    if (isNaN(t)) return;
+                    t = Math.max(1, Math.min(t, totalPages));
+                    pageInputEl.value = t;
+                    hideSearchHighlight();
+                    pageFlipInstance.flip(t - 1);
+                }
+                pageInputEl.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter') { e.preventDefault(); goToPage(); }
+                });
+                pageInputEl.addEventListener('blur', goToPage);
+
+                // Pencarian kata
+                document.getElementById('help-flipbook-search-btn').addEventListener('click', doSearch);
+                const searchInputEl = document.getElementById('help-flipbook-search-input');
+                searchInputEl.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter') { e.preventDefault(); doSearch(); }
+                });
+                searchInputEl.addEventListener('input', function () { lastQuery = null; });
+
+                // Navigasi keyboard (dinonaktifkan saat sedang mengetik di input)
+                document.addEventListener('keydown', function (e) {
+                    if (!pageFlipInstance) return;
+                    if (!flipbookEl || flipbookEl.classList.contains('hidden')) return;
+                    const active = document.activeElement;
+                    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
+                    if (e.key === 'ArrowLeft') pageFlipInstance.flipPrev();
+                    if (e.key === 'ArrowRight') pageFlipInstance.flipNext();
+                });
+
+                // Hitung ulang & terapkan ukuran saat jendela/modal berganti ukuran,
+                // supaya buku tetap proporsional di layar apa pun.
+                let resizeTimeout = null;
+                window.addEventListener('resize', function () {
+                    if (!pageFlipInstance) return;
+                    clearTimeout(resizeTimeout);
+                    resizeTimeout = setTimeout(function () {
+                        if (typeof pageFlipInstance.updateSize === 'function') {
+                            pageFlipInstance.updateSize();
+                        }
+                        hideSearchHighlight();
+                    }, 150);
+                });
+
+                loadingEl.classList.add('hidden');
+                flipbookEl.classList.remove('hidden');
+                controlsEl.classList.remove('hidden');
+                controlsEl.classList.add('flex'); // munculkan kontrol melayang
+
+                updatePageIndicator();
+                loaded = true;
+
+                // Muat sisa halaman secara bertahap di latar belakang, tidak
+                // memblokir tampilan buku yang sudah bisa dibuka dari halaman 1.
+                loadRemainingPagesInBackground();
+            } catch (err) {
+                console.error('Gagal memuat flipbook panduan:', err);
+                loadingEl.classList.add('hidden');
+                errorEl.classList.remove('hidden');
+            } finally {
+                loading = false;
+            }
+        }
+
+        window.addEventListener('help-flipbook-open', initFlipbook);
+    })();
+    </script>
+    {{-- ====== Akhir blok flipbook PDF ====== --}}
 
     @stack('scripts')
 </body>

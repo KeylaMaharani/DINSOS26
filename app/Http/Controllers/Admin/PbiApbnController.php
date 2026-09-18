@@ -249,18 +249,20 @@ class PbiApbnController extends Controller
 
     /**
      * User boleh bertindak (simpan/next/back/reject) kalau:
-     * - dia super_admin, ATAU
+     * - dia super_admin (menerima variasi penulisan: superadmin, super_admin, super-admin), ATAU
      * - role dia cocok dengan role yang berwenang di status saat ini
      */
     private function userCanActOn(PbiApbn $pbiApbn): bool
     {
         $user = Auth::user();
-        $roleSlug = $user->role->slug ?? null;
+        $roleSlug = strtolower(str_replace(['-', ' '], '_', $user->role->slug ?? ''));
 
-        if ($roleSlug === 'superadmin') {
+        if (in_array($roleSlug, ['superadmin', 'super_admin'])) {
             return true;
         }
 
-        return $roleSlug === $pbiApbn->currentStageRole();
+        $stageRole = strtolower(str_replace(['-', ' '], '_', $pbiApbn->currentStageRole() ?? ''));
+
+        return $roleSlug !== '' && $roleSlug === $stageRole;
     }
 }

@@ -18,8 +18,6 @@
         rel="stylesheet"
     />
 
-    <link href="{{ asset('css/style.css') }}" rel="stylesheet" />
-
     <script src="https://cdn.tailwindcss.com"></script>
     <script id="tailwind-config">
         tailwind.config = {
@@ -129,7 +127,11 @@
         };
     </script>
 
-    {{-- Tempat tiap halaman menambahkan <style>/meta/library tambahan (Leaflet, Highcharts, dll) --}}
+    {{-- style.css dimuat SETELAH Tailwind CDN supaya aturan custom tidak kalah --}}
+    <link href="{{ asset('css/style.css') }}" rel="stylesheet" />
+
+    {{-- Tempat tiap halaman menambahkan <style>/meta/library tambahan (Leaflet, Highcharts, dll).
+         Halaman WAJIB memakai @push('head') ... @endpush --}}
     @stack('head')
 </head>
 <body class="@yield('body_class', 'bg-surface font-body-md text-on-surface antialiased')">
@@ -138,12 +140,9 @@
         ============================================================
         NAVBAR — SATU-SATUNYA TEMPAT navbar didefinisikan.
         File halaman (home, cek-desil, tutorial-pendaftaran, dst) TIDAK
-        BOLEH lagi punya <header> atau <div class="mobile-nav-panel">
-        sendiri. Cukup @extends('layouts.app'), navbar ini otomatis
-        muncul di halaman manapun.
-
-        Status "aktif" dihitung otomatis dari nama route, tidak perlu
-        di-hardcode manual per halaman.
+        BOLEH lagi punya <header>, <div class="mobile-nav-panel">,
+        .social-fab, .wa-fab, .a11y-fab, #back-to-top, atau
+        <script src="js/script.js"> sendiri. Semua sudah di sini.
         ============================================================
     --}}
     @php
@@ -255,11 +254,11 @@
                     </button>
                     <div class="absolute right-0 top-full pt-2 w-36 opacity-0 invisible translate-y-1 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-150 z-50">
                         <div class="bg-surface-container-lowest rounded-xl shadow-md border border-outline-variant/30 py-space-xs overflow-hidden">
-                            <button class="lang-option w-full text-left px-space-md py-space-sm font-label-md text-label-md text-on-surface hover:bg-surface-container-low hover:text-secondary transition-colors inline-flex items-center gap-space-xs" data-lang="id" data-flag="assets/img/bendera/id.png" type="button">
+                            <button class="lang-option w-full text-left px-space-md py-space-sm font-label-md text-label-md text-on-surface hover:bg-surface-container-low hover:text-secondary transition-colors inline-flex items-center gap-space-xs" data-lang="id" data-flag="{{ asset('assets/img/bendera/id.png') }}" type="button">
                                 <img src="{{ asset('assets/img/bendera/id.png') }}" alt="Indonesia" class="w-4 h-4 rounded-full object-cover" />
                                 <span>Indonesia</span>
                             </button>
-                            <button class="lang-option w-full text-left px-space-md py-space-sm font-label-md text-label-md text-on-surface hover:bg-surface-container-low hover:text-secondary transition-colors inline-flex items-center gap-space-xs" data-lang="en" data-flag="assets/img/bendera/en.png" type="button">
+                            <button class="lang-option w-full text-left px-space-md py-space-sm font-label-md text-label-md text-on-surface hover:bg-surface-container-low hover:text-secondary transition-colors inline-flex items-center gap-space-xs" data-lang="en" data-flag="{{ asset('assets/img/bendera/en.png') }}" type="button">
                                 <img src="{{ asset('assets/img/bendera/en.png') }}" alt="English" class="w-4 h-4 rounded-full object-cover" />
                                 <span>English</span>
                             </button>
@@ -307,11 +306,11 @@
                         <span class="material-symbols-outlined text-[16px]">expand_more</span>
                     </button>
                     <div id="lang-mobile-menu" class="hidden absolute right-0 top-full mt-1 w-36 bg-surface-container-lowest rounded-xl shadow-md border border-outline-variant/30 py-space-xs overflow-hidden z-50">
-                        <button class="lang-option-mobile w-full text-left px-space-md py-space-sm font-label-md text-label-md text-on-surface hover:bg-surface-container-low inline-flex items-center gap-space-xs" data-lang="id" data-flag="assets/img/bendera/id.png" type="button">
+                        <button class="lang-option-mobile w-full text-left px-space-md py-space-sm font-label-md text-label-md text-on-surface hover:bg-surface-container-low inline-flex items-center gap-space-xs" data-lang="id" data-flag="{{ asset('assets/img/bendera/id.png') }}" type="button">
                             <img src="{{ asset('assets/img/bendera/id.png') }}" alt="Indonesia" class="w-4 h-4 rounded-full object-cover" />
                             <span>Indonesia</span>
                         </button>
-                        <button class="lang-option-mobile w-full text-left px-space-md py-space-sm font-label-md text-label-md text-on-surface hover:bg-surface-container-low inline-flex items-center gap-space-xs" data-lang="en" data-flag="assets/img/bendera/en.png" type="button">
+                        <button class="lang-option-mobile w-full text-left px-space-md py-space-sm font-label-md text-label-md text-on-surface hover:bg-surface-container-low inline-flex items-center gap-space-xs" data-lang="en" data-flag="{{ asset('assets/img/bendera/en.png') }}" type="button">
                             <img src="{{ asset('assets/img/bendera/en.png') }}" alt="English" class="w-4 h-4 rounded-full object-cover" />
                             <span>English</span>
                         </button>
@@ -376,12 +375,11 @@
             </a>
         </div>
     </div>
-    {{-- ============================================================ END NAVBAR ============================================================ --}}
+    {{-- ============================ END NAVBAR ============================ --}}
 
     <main class="w-full bg-surface">
         @yield('content')
     </main>
-
 
     <footer class="w-full bg-primary pt-space-2xl pb-space-lg text-on-primary">
         <div class="w-full max-w-[1400px] mx-auto px-margin-mobile md:px-margin-tablet lg:px-margin-desktop">
@@ -466,6 +464,7 @@
         </div>
     </footer>
 
+    {{-- ===================== FLOATING BUTTONS (hanya di sini!) ===================== --}}
     <div class="social-fab" id="social-fab">
         <button class="social-fab-toggle" id="social-fab-toggle" type="button" aria-label="Tampilkan Media Sosial" title="Media Sosial">
             <span class="material-symbols-outlined text-[18px]">chevron_left</span>
@@ -480,7 +479,7 @@
             <a class="social-icon tiktok" href="https://www.tiktok.com/@dinsoskotabogor" target="_blank" rel="noreferrer" title="TikTok">
                 <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M16.6 5.82c-.9-.99-1.4-2.29-1.4-3.65h-3.14v13.7c0 1.63-1.33 2.96-2.96 2.96a2.96 2.96 0 01-2.96-2.96 2.96 2.96 0 012.96-2.96c.27 0 .53.03.78.1v-3.2a6.1 6.1 0 00-.78-.05A6.14 6.14 0 003 15.87a6.14 6.14 0 006.1 6.13 6.14 6.14 0 006.1-6.13V9.02a8.65 8.65 0 004.8 1.46V7.34a5.3 5.3 0 01-3.4-1.52z"/></svg>
             </a>
-            <a class="social-icon web" href="#" target="_blank" rel="noreferrer" title="Website Resmi">
+            <a class="social-icon web" href="https://dinsos.kotabogor.go.id/" target="_blank" rel="noreferrer" title="Website Resmi">
                 <span class="material-symbols-outlined text-[22px]">language</span>
             </a>
         </div>
@@ -508,26 +507,31 @@
                     <span class="material-symbols-outlined text-[16px]">close</span>
                 </button>
             </div>
+
             <div class="flex items-center justify-between gap-space-xs bg-surface-container px-space-xs py-1.5 rounded-lg">
                 <span class="font-label-sm text-label-sm text-on-surface-variant">Ukuran Fon</span>
                 <div class="flex items-center gap-space-2xs">
-                    <button class="w-7 h-7 flex items-center justify-center rounded bg-surface-container-lowest text-primary font-bold hover:bg-primary hover:text-on-primary transition-colors" title="Perkecil" type="button">A-</button>
-                    <button class="w-7 h-7 flex items-center justify-center rounded bg-surface-container-lowest text-primary font-bold hover:bg-primary hover:text-on-primary transition-colors" title="Perbesar" type="button">A+</button>
+                    <button id="a11y-font-decrease" class="w-7 h-7 flex items-center justify-center rounded bg-surface-container-lowest text-primary font-bold hover:bg-primary hover:text-on-primary transition-colors" title="Perkecil" type="button">A-</button>
+                    <button id="a11y-font-increase" class="w-7 h-7 flex items-center justify-center rounded bg-surface-container-lowest text-primary font-bold hover:bg-primary hover:text-on-primary transition-colors" title="Perbesar" type="button">A+</button>
                 </div>
             </div>
-            <button class="w-full flex items-center gap-space-xs px-space-sm py-2 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm transition-colors" type="button">
+
+            <button id="a11y-contrast-toggle" class="w-full flex items-center gap-space-xs px-space-sm py-2 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm transition-colors" type="button">
                 <span class="material-symbols-outlined text-[18px] text-secondary">contrast</span>
                 <span>Mode Kontras Tinggi</span>
             </button>
-            <button class="w-full flex items-center gap-space-xs px-space-sm py-2 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm transition-colors" type="button">
+
+            <button id="a11y-motion-toggle" class="w-full flex items-center gap-space-xs px-space-sm py-2 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm transition-colors" type="button">
                 <span class="material-symbols-outlined text-[18px] text-secondary">motion_photos_off</span>
                 <span>Kurangi Animasi</span>
             </button>
+
             <div class="flex items-center gap-space-2xs text-on-surface-variant font-label-sm text-label-sm pt-space-2xs">
                 <span class="material-symbols-outlined text-[16px] text-tertiary">record_voice_over</span>
                 <span>Kompatibel NVDA/TalkBack</span>
             </div>
         </div>
+
         <button aria-label="Buka Menu Aksesibilitas" class="w-11 h-11 rounded-full bg-primary hover:bg-secondary text-on-primary flex items-center justify-center shadow-lg transition-colors" id="a11y-fab-toggle" type="button">
             <span class="material-symbols-outlined text-[20px]">accessibility_new</span>
         </button>
