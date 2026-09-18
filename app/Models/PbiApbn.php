@@ -18,6 +18,24 @@ class PbiApbn extends Model
         'sudah_diverifikasi_kelurahan' => 'boolean',
     ];
 
+    /**
+     * Pakai `no_registrasi` sebagai "slug" di URL (route model binding),
+     * bukan `id` numerik. Berlaku otomatis untuk SEMUA route yang punya
+     * parameter {pbiApbn} — baik di sisi admin maupun masyarakat —
+     * karena semua route() di Blade sudah pass objek model, bukan ->id.
+     *
+     * Contoh sebelum: /akun-saya/pbi-apbn/5/lengkapi
+     * Contoh sesudah : /akun-saya/pbi-apbn/PBI-APBN-2026-0001/lengkapi
+     *
+     * Aman dipakai karena kolom no_registrasi sudah unique() di migration.
+     * $this->id (primary key asli) tetap tidak berubah dan tetap dipakai
+     * normal untuk foreign key, relasi, dsb — ini HANYA mengubah tampilan URL.
+     */
+    public function getRouteKeyName(): string
+    {
+        return 'no_registrasi';
+    }
+
     // ==========================================================
     // ALUR STATUS INTERNAL DINSOS
     // Urutan linear: kelurahan -> operator_dinsos -> kabid -> kadis -> disetujui

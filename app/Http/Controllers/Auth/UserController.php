@@ -52,6 +52,10 @@ class UserController
         ], $this->userMessages());
 
         User::create([
+            // Form "Tambah Pengguna" tidak punya field nama terpisah, sedangkan
+            // kolom `name` di tabel users NOT NULL tanpa default -- jadi
+            // dipakaikan nilai username supaya insert tidak gagal.
+            'name' => $validated['username'],
             'username' => $validated['username'],
             'email' => $validated['email'],
             'role_id' => $validated['role_id'],
@@ -106,6 +110,22 @@ class UserController
             'name.required' => 'Nama hak akses wajib diisi.',
             'name.max' => 'Nama hak akses maksimal 255 karakter.',
             'description.max' => 'Deskripsi maksimal 255 karakter.',
+
+            'permissions.array' => 'Format hak akses modul tidak valid.',
+            'permissions.*.in' => 'Salah satu modul yang dipilih tidak valid.',
+        ];
+    }
+
+    /**
+     * Aturan validasi untuk checklist modul. Daftar modul valid diambil
+     * langsung dari Role::MODULES, jadi kalau ada modul baru ditambahkan
+     * di sana, validasi ini otomatis ikut menerimanya tanpa perlu diubah.
+     */
+    private function permissionsRules(): array
+    {
+        return [
+            'permissions' => ['nullable', 'array'],
+            'permissions.*' => ['string', Rule::in(array_keys(Role::MODULES))],
         ];
     }
 
@@ -114,9 +134,11 @@ class UserController
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:255'],
+            ...$this->permissionsRules(),
         ], $this->roleMessages());
 
         $validated['slug'] = $this->generateUniqueSlug($validated['name']);
+        $validated['permissions'] = $validated['permissions'] ?? [];
 
         Role::create($validated);
 
@@ -126,19 +148,30 @@ class UserController
 
     public function editRole(Role $role)
     {
-        return response()->json($role);
+        return response()->json($role->only(['id', 'name', 'slug', 'description', 'permissions']));
     }
 
     public function updateRole(Request $request, Role $role)
     {
+        // Super Admin tidak boleh diubah lewat request langsung (jaga-jaga,
+        // bukan cuma disembunyikan di UI) — dia selalu bypass semua modul
+        // lewat isSuperAdmin(), jadi checklist permissions tidak berlaku.
+        if ($role->isSuperAdmin()) {
+            return redirect()->route('akun.index', ['tab' => 'role'])
+                ->with('error', 'Hak Akses Super Admin tidak bisa diubah.');
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:255'],
+            ...$this->permissionsRules(),
         ], $this->roleMessages());
 
         if ($role->name !== $validated['name']) {
             $validated['slug'] = $this->generateUniqueSlug($validated['name'], $role->id);
         }
+
+        $validated['permissions'] = $validated['permissions'] ?? [];
 
         $role->update($validated);
 
@@ -148,6 +181,12 @@ class UserController
 
     public function destroyRole(Role $role)
     {
+        // Super Admin tidak boleh dihapus lewat request langsung.
+        if ($role->isSuperAdmin()) {
+            return redirect()->route('akun.index', ['tab' => 'role'])
+                ->with('error', 'Hak Akses Super Admin tidak bisa dihapus.');
+        }
+
         if ($role->users()->exists()) {
             return redirect()->route('akun.index', ['tab' => 'role'])
                 ->with('error', 'Hak Akses tidak bisa dihapus karena masih dipakai oleh user.');

@@ -53,21 +53,28 @@ Route::post('/reset-password', [ForgotPasswordController::class, 'reset'])->name
 // ADMIN / PROTECTED ROUTES
 // ==========================================
 Route::middleware(['auth', 'staff'])->group(function () {
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('module:beranda')->name('dashboard');
     Route::post('/logout', [LoginAdminController::class, 'destroy'])->name('logout');
 
     // Edit profil akun sendiri (dipakai di dropdown pojok kanan atas, tampil sebagai pop-up)
     Route::put('/profil', [ProfileController::class, 'update'])->name('profil.update');
 
     // Menu tunggal "Kelola User & Role" dengan tab: Pengguna | Hak Akses
-    Route::prefix('kelola-role-user')->name('akun.')->group(function () {
+    // 'kelola-akses' TIDAK ada di daftar checkbox Role::MODULES, jadi middleware
+    // ini otomatis HANYA meloloskan Super Admin (role lain tidak mungkin punya
+    // string 'kelola-akses' di kolom permissions-nya karena tidak pernah ditawarkan).
+    Route::prefix('kelola-role-user')->name('akun.')->middleware('module:kelola-akses')->group(function () {
         Route::get('/', [UserController::class, 'index'])->name('index');
 
         // Tab Pengguna
         Route::post('/', [UserController::class, 'store'])->name('store');
-        Route::get('/{akun}/edit', [UserController::class, 'edit'])->name('edit');
-        Route::put('/{akun}', [UserController::class, 'update'])->name('update');
-        Route::delete('/{akun}', [UserController::class, 'destroy'])->name('destroy');
+        // ':id' dipasang eksplisit supaya binding SELALU lewat kolom id,
+        // apa pun pengaturan getRouteKeyName() di model User -- ini yang
+        // dipakai $user->id di JS (openEdit, form update, tombol hapus),
+        // jadi harus konsisten dengan itu.
+        Route::get('/{akun:id}/edit', [UserController::class, 'edit'])->name('edit');
+        Route::put('/{akun:id}', [UserController::class, 'update'])->name('update');
+        Route::delete('/{akun:id}', [UserController::class, 'destroy'])->name('destroy');
 
         // Tab Hak Akses (Role)
         Route::post('/role', [UserController::class, 'storeRole'])->name('role.store');
@@ -91,7 +98,7 @@ Route::middleware(['auth', 'staff'])->group(function () {
     // ==========================================
     // 3. PBI APBN — sudah dibangun penuh
     // ==========================================
-    Route::prefix('pbi-apbn')->name('pbi-apbn.')->group(function () {
+    Route::prefix('pbi-apbn')->name('pbi-apbn.')->middleware('module:pbi-apbn')->group(function () {
         Route::get('/ajuan', [PbiApbnController::class, 'ajuanIndex'])->name('ajuan.index');
         Route::get('/ajuan/{pbiApbn}', [PbiApbnController::class, 'ajuanShow'])->name('ajuan.show');
         Route::post('/ajuan/{pbiApbn}/aksi', [PbiApbnController::class, 'ajuanAksi'])->name('ajuan.aksi');
@@ -109,7 +116,7 @@ Route::middleware(['auth', 'staff'])->group(function () {
     // sebelum rute wildcard /{permohonan}, agar tidak "ketangkap"
     // oleh wildcard tersebut.
     // ==========================================
-    Route::prefix('kartu-kks')->name('kartu-kks.')->group(function () {
+    Route::prefix('kartu-kks')->name('kartu-kks.')->middleware('module:kartu-kks')->group(function () {
         Route::get('/ajuan', [KartuKksController::class, 'ajuan'])->name('ajuan');
         Route::get('/arsip', [KartuKksController::class, 'arsip'])->name('arsip');
         Route::get('/monitoring', [KartuKksController::class, 'monitoring'])->name('monitoring');
@@ -124,7 +131,7 @@ Route::middleware(['auth', 'staff'])->group(function () {
     // ==========================================
     // 5. DTSEN — sudah dibangun penuh
     // ==========================================
-    Route::prefix('dtsen')->name('dtsen.')->group(function () {
+    Route::prefix('dtsen')->name('dtsen.')->middleware('module:dtsen')->group(function () {
         Route::get('/ajuan', [DtsenController::class, 'ajuan'])->name('ajuan');
         Route::get('/arsip', [DtsenController::class, 'arsip'])->name('arsip');
         Route::get('/monitoring', [DtsenController::class, 'monitoring'])->name('monitoring');
@@ -144,7 +151,7 @@ Route::middleware(['auth', 'staff'])->group(function () {
     // ==========================================
     $placeholderModules = ['asesmen-spmb', 'kedaruratan-medis'];
     foreach ($placeholderModules as $module) {
-        Route::prefix($module)->name(str_replace('-', '_', $module) . '.')->group(function () use ($module) {
+        Route::prefix($module)->name(str_replace('-', '_', $module) . '.')->middleware("module:{$module}")->group(function () use ($module) {
             foreach (['ajuan', 'arsip', 'monitoring', 'log'] as $tab) {
                 Route::get("/{$tab}", [PlaceholderController::class, 'tab'])
                     ->defaults('module', $module)
@@ -157,14 +164,11 @@ Route::middleware(['auth', 'staff'])->group(function () {
     // ==========================================
     // 7. Dokumen — template dokumen
     // ==========================================
-    Route::get('/dokumen', [PlaceholderController::class, 'dokumen'])->name('dokumen.index');
+    Route::get('/dokumen', [PlaceholderController::class, 'dokumen'])->middleware('module:dokumen')->name('dokumen.index');
 }); // <-- GRUP ADMIN DITUTUP DI SINI
 
 
-// ==========================================
-// AREA MASYARAKAT (setelah login) — DIPINDAH KE LUAR grup admin,
-// supaya TIDAK ikut kena middleware 'staff'.
-// ==========================================
+
 Route::middleware(['auth', 'role:masyarakat'])->prefix('akun-saya')->name('masyarakat.')->group(function () {
     Route::get('/', [MasyarakatController::class, 'dashboard'])->name('dashboard');
 

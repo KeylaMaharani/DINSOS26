@@ -177,6 +177,11 @@
             ],
         ];
 
+        // Role user yang sedang login, dipakai untuk menyaring menu sidebar
+        // sesuai kolom `permissions`-nya. Super Admin (isSuperAdmin()) selalu
+        // lolos semua pengecekan hasModule() di bawah.
+        $currentRole = auth()->user()->role ?? null;
+
         // URL file PDF panduan penggunaan yang akan ditampilkan sebagai flipbook.
         // Taruh file PDF-nya di public/assets/help/panduan-penggunaan.pdf,
         // atau ganti path di bawah ini sesuai lokasi file kamu.
@@ -202,15 +207,21 @@
             </div>
 
             <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-                <a href="{{ route('dashboard') }}"
-                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-                        {{ request()->routeIs('dashboard') ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
-                    <span class="material-symbols-outlined text-[20px]">dashboard</span>
-                    Beranda
-                </a>
+                @if ($currentRole && $currentRole->hasModule('beranda'))
+                    <a href="{{ route('dashboard') }}"
+                        class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
+                            {{ request()->routeIs('dashboard') ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
+                        <span class="material-symbols-outlined text-[20px]">dashboard</span>
+                        Beranda
+                    </a>
+                @endif
 
-                {{-- ========== Menu layanan (Asesmen SPMB, PBI APBN, Kedaruratan Medis, Kartu KKS, DTSEN) ========== --}}
+                {{-- ========== Menu layanan (Asesmen SPMB, PBI APBN, Kedaruratan Medis, Kartu KKS, DTSEN) ==========
+                     Setiap menu cuma dirender kalau role user yang sedang login punya
+                     izin ke modul itu ($currentRole->hasModule($menu['key'])). Super
+                     Admin otomatis lolos semua (lihat Role::hasModule()). --}}
                 @foreach ($sidebarMenus as $menu)
+                    @continue(! $currentRole || ! $currentRole->hasModule($menu['key']))
                     @php $isMenuActive = request()->routeIs($menu['route_prefix'] . '*'); @endphp
                     <div x-data="{ open: {{ $isMenuActive ? 'true' : 'false' }} }">
                         <button @click="open = !open" type="button"
@@ -252,21 +263,29 @@
                 @endforeach
 
                 {{-- ========== 7. Dokumen ========== --}}
-                <a href="{{ route('dokumen.index') }}"
-                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-                        {{ request()->routeIs('dokumen.*') ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
-                    <span class="material-symbols-outlined text-[20px]">description</span>
-                    Dokumen
-                </a>
+                @if ($currentRole && $currentRole->hasModule('dokumen'))
+                    <a href="{{ route('dokumen.index') }}"
+                        class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
+                            {{ request()->routeIs('dokumen.*') ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
+                        <span class="material-symbols-outlined text-[20px]">description</span>
+                        Dokumen
+                    </a>
+                @endif
 
-                <div class="pt-2 mt-2 border-t border-white/10"></div>
+                {{-- ========== Kelola Akses ==========
+                     Menu ini SENGAJA tidak ada di Role::MODULES, jadi cuma dicek
+                     lewat isSuperAdmin() -- role lain, meski dicentang semua modul
+                     yang ada, tidak akan pernah bisa melihat menu ini. --}}
+                @if ($currentRole && $currentRole->isSuperAdmin())
+                    <div class="pt-2 mt-2 border-t border-white/10"></div>
 
-                <a href="{{ route('akun.index') }}"
-                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-        {{ request()->routeIs('akun.*') ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
-                    <span class="material-symbols-outlined text-[20px]">manage_accounts</span>
-                    Kelola Akses
-                </a>
+                    <a href="{{ route('akun.index') }}"
+                        class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
+            {{ request()->routeIs('akun.*') ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
+                        <span class="material-symbols-outlined text-[20px]">manage_accounts</span>
+                        Kelola Akses
+                    </a>
+                @endif
             </nav>
 
         </aside>

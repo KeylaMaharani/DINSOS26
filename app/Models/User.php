@@ -40,6 +40,20 @@ class User extends Authenticatable
         ];
     }
 
+    /**
+     * Pakai `username` sebagai slug di URL (route model binding) untuk
+     * halaman "Kelola User & Role" di admin, bukan `id` numerik.
+     *
+     * PENTING: ini AMAN dipakai HANYA jika kolom `username` unique di
+     * database. Kalau migration users Anda belum punya unique constraint
+     * di kolom ini, tambahkan dulu (lihat catatan di chat) sebelum pasang
+     * method ini — supaya tidak ada 2 user beda ke-resolve ke username sama.
+     */
+    public function getRouteKeyName(): string
+    {
+        return 'username';
+    }
+
     public function role(): BelongsTo
     {
         return $this->belongsTo(Role::class);

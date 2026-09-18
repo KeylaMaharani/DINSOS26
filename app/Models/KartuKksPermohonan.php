@@ -13,6 +13,7 @@ class KartuKksPermohonan extends Model
 
     protected $fillable = [
         'user_id',
+        'no_permohonan',
         'nik',
         'nama_pemohon',
         'alamat',
@@ -42,6 +43,34 @@ class KartuKksPermohonan extends Model
     public const STATUS_DISETUJUI_KADIS = 'disetujui_kadis';
     public const STATUS_SELESAI = 'selesai';
     public const STATUS_DITOLAK = 'ditolak';
+
+    /**
+     * Auto-generate no_permohonan (format: KKS-2026-0001) setiap kali
+     * data baru dibuat, KECUALI sudah diisi manual sebelumnya.
+     * Ini dipasang di sini (bukan di controller) supaya controller
+     * yang sudah ada (mis. KartuKksAjuanController) TIDAK perlu diubah.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (self $permohonan) {
+            if (empty($permohonan->no_permohonan)) {
+                $year = now()->year;
+                $count = self::whereYear('created_at', $year)->count() + 1;
+                $permohonan->no_permohonan = 'KKS-' . $year . '-' . str_pad((string) $count, 4, '0', STR_PAD_LEFT);
+            }
+        });
+    }
+
+    /**
+     * Pakai `no_permohonan` sebagai slug di URL (route model binding),
+     * bukan `id` numerik. Berlaku otomatis untuk semua route dengan
+     * parameter {permohonan}, selama route() di Blade/redirect pass
+     * objek model (bukan ->id) — sesuai pola yang sudah dipakai di modul PBI APBN.
+     */
+    public function getRouteKeyName(): string
+    {
+        return 'no_permohonan';
+    }
 
     public static function statusLabels(): array
     {
@@ -86,6 +115,7 @@ class KartuKksPermohonan extends Model
     {
         return $this->belongsTo(User::class, 'created_by');
     }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

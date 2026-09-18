@@ -275,26 +275,33 @@
                     @foreach ($roles as $role)
                         <tr class="border-b border-outline-variant/20">
                             <td class="py-2">{{ $loop->iteration }}</td>
-                            <td class="py-2 font-medium">{{ $role->name }}</td>
+                            <td class="py-2 font-medium">
+                                {{ $role->name }}
+                                @if ($role->isSuperAdmin())
+                                    <span class="ml-1 text-[10px] uppercase tracking-wide text-on-surface-variant">(bawaan sistem)</span>
+                                @endif
+                            </td>
                             <td class="py-2 text-on-surface-variant">{{ $role->description ?? '-' }}</td>
                             <td class="py-2">{{ $role->users_count }}</td>
                             <td class="py-2 text-center">
                                 <div class="inline-flex items-center justify-center gap-2">
-                                    <button @click="openEdit({{ $role->id }})"
+                                    <button @click="openEdit('{{ $role->slug }}')"
                                         class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-100 text-amber-700 hover:bg-amber-200 transition">
                                         <span class="material-symbols-outlined text-[14px]">edit</span>
                                         Edit
                                     </button>
-                                    <form action="{{ route('akun.role.destroy', $role) }}?tab=role" method="POST"
-                                        class="inline" onsubmit="return confirm('Yakin hapus role ini?')">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit"
-                                            class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 transition">
-                                            <span class="material-symbols-outlined text-[14px]">delete</span>
-                                            Hapus
-                                        </button>
-                                    </form>
+                                    @unless ($role->isSuperAdmin())
+                                        <form action="{{ route('akun.role.destroy', $role) }}?tab=role" method="POST"
+                                            class="inline" onsubmit="return confirm('Yakin hapus role ini?')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit"
+                                                class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 transition">
+                                                <span class="material-symbols-outlined text-[14px]">delete</span>
+                                                Hapus
+                                            </button>
+                                        </form>
+                                    @endunless
                                 </div>
                             </td>
                         </tr>
@@ -327,13 +334,41 @@
                             <label class="block text-sm font-medium mb-1">Nama Hak Akses</label>
                             <input name="name" x-model="form.name" type="text"
                                 class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm"
-                                placeholder="Contoh: Super Admin" required />
+                                placeholder="Contoh: Admin PBI APBN" required />
                         </div>
 
                         <div>
                             <label class="block text-sm font-medium mb-1">Deskripsi</label>
                             <textarea name="description" x-model="form.description" rows="2"
                                 class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm" placeholder="Opsional"></textarea>
+                        </div>
+
+                        {{-- ===== Checklist modul (kolom permissions) =====
+                             Daftar checkbox diambil dari Role::MODULES, jadi kalau ada
+                             modul baru ditambahkan di sana, otomatis muncul di sini tanpa
+                             perlu ubah view ini lagi. --}}
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Hak Akses Modul</label>
+
+                            <template x-if="isSuperAdminEdit">
+                                <p class="text-xs text-on-surface-variant italic bg-surface-container rounded-lg px-3 py-2">
+                                    Super Admin otomatis memiliki akses ke seluruh modul dan tidak bisa diubah.
+                                </p>
+                            </template>
+
+                            <div x-show="!isSuperAdminEdit" class="grid grid-cols-2 gap-x-3 gap-y-2">
+                                @foreach (\App\Models\Role::MODULES as $key => $label)
+                                    <label class="flex items-center gap-2 text-sm text-on-surface">
+                                        <input type="checkbox" name="permissions[]" value="{{ $key }}"
+                                            x-model="form.permissions"
+                                            class="rounded border-outline-variant/50 text-primary focus:ring-primary" />
+                                        {{ $label }}
+                                    </label>
+                                @endforeach
+                            </div>
+                            @if (\App\Models\Role::MODULES === [])
+                                <p class="text-xs text-on-surface-variant italic">Belum ada modul yang bisa dipilih.</p>
+                            @endif
                         </div>
 
                         <div class="flex justify-end gap-2 pt-2">
@@ -397,31 +432,41 @@
                     modalOpen: false,
                     mode: 'create',
                     editUrl: '',
+                    // true kalau role yang sedang dibuka di modal edit adalah Super Admin
+                    // (checklist modul disembunyikan karena tidak berlaku untuknya).
+                    isSuperAdminEdit: false,
                     form: {
                         name: '',
-                        description: ''
+                        description: '',
+                        permissions: [],
                     },
                     openCreate() {
                         this.mode = 'create';
+                        this.isSuperAdminEdit = false;
                         this.form = {
                             name: '',
-                            description: ''
+                            description: '',
+                            permissions: [],
                         };
                         this.modalOpen = true;
                     },
-                    async openEdit(roleId) {
+                    async openEdit(roleSlug) {
                         this.mode = 'edit';
-                        this.editUrl = `{{ url('kelola-role-user/role') }}/${roleId}?tab=role`;
+                        this.editUrl = `{{ url('kelola-role-user/role') }}/${roleSlug}?tab=role`;
+                        this.isSuperAdminEdit = false;
                         try {
-                            const res = await fetch(`{{ url('kelola-role-user/role') }}/${roleId}/edit`, {
+                            const res = await fetch(`{{ url('kelola-role-user/role') }}/${roleSlug}/edit`, {
                                 headers: {
                                     'Accept': 'application/json'
                                 }
                             });
                             const data = await res.json();
+                            const normalizedSlug = String(data.slug ?? '').toLowerCase().replace(/[-\s]/g, '_');
+                            this.isSuperAdminEdit = normalizedSlug === 'superadmin' || normalizedSlug === 'super_admin';
                             this.form = {
                                 name: data.name,
                                 description: data.description ?? '',
+                                permissions: data.permissions ?? [],
                             };
                         } catch (e) {
                             console.error('Gagal memuat data role', e);
