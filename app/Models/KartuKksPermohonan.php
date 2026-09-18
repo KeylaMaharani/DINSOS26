@@ -12,6 +12,7 @@ class KartuKksPermohonan extends Model
     protected $table = 'kartu_kks_permohonan';
 
     protected $fillable = [
+        'user_id',
         'nik',
         'nama_pemohon',
         'alamat',
@@ -84,5 +85,9 @@ class KartuKksPermohonan extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 }

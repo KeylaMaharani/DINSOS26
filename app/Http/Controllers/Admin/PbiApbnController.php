@@ -41,7 +41,7 @@ class PbiApbnController extends Controller
 
     public function ajuanShow(PbiApbn $pbiApbn)
     {
-        $pbiApbn->load(['anggotaKeluarga', 'logs.user']);
+        $pbiApbn->load(['anggotaKeluarga', 'logs.user', 'diagnosaLogs.user']);
 
         $canAct = $this->userCanActOn($pbiApbn);
         $faskesOptions = $this->faskesOptions($pbiApbn);
@@ -54,8 +54,8 @@ class PbiApbnController extends Controller
     }
 
     /**
-     * Update Diagnosa & Nama Faskes (field yang bisa diedit admin,
-     * terpisah dari alur simpan/next/back/reject).
+     * Update Nama Faskes (field overwrite, bukan riwayat).
+     * Diagnosa TIDAK lagi ditangani di sini — lihat ajuanTambahDiagnosa().
      */
     public function ajuanUpdateTambahan(Request $request, PbiApbn $pbiApbn)
     {
@@ -64,13 +64,43 @@ class PbiApbnController extends Controller
         }
 
         $validated = $request->validate([
-            'diagnosa' => ['nullable', 'string', 'max:2000'],
             'nama_faskes' => ['nullable', 'string', 'max:150'],
         ]);
 
         $pbiApbn->update($validated);
 
         return back()->with('success', 'Data berhasil diperbarui.');
+    }
+
+    /**
+     * Tambah entri baru ke riwayat Diagnosa (bisa diisi berulang kali,
+     * tidak menghapus/menimpa entri sebelumnya).
+     */
+    public function ajuanTambahDiagnosa(Request $request, PbiApbn $pbiApbn)
+    {
+        if (!$this->userCanActOn($pbiApbn)) {
+            return back()->with('error', 'Anda tidak berwenang mengedit data ini.');
+        }
+
+        $validated = $request->validate([
+            'diagnosa' => ['required', 'string', 'max:2000'],
+        ], [
+            'diagnosa.required' => 'Diagnosa tidak boleh kosong.',
+        ]);
+
+        $user = Auth::user();
+
+        $pbiApbn->diagnosaLogs()->create([
+            'user_id' => $user->id,
+            'username' => $user->name,
+            'role_name' => $user->role->name ?? '-',
+            'diagnosa' => $validated['diagnosa'],
+        ]);
+
+        // Simpan juga nilai terakhir di kolom utama untuk tampilan ringkas/cepat
+        $pbiApbn->update(['diagnosa' => $validated['diagnosa']]);
+
+        return back()->with('success', 'Diagnosa baru berhasil ditambahkan.');
     }
 
     /**
@@ -197,7 +227,6 @@ class PbiApbnController extends Controller
      */
     public function monitoringIndex(Request $request)
     {
-        // [PERUBAHAN] Menarik riwayat LOG secara berurutan persis DTSEN
         $query = PbiApbn::with(['logs' => fn($q) => $q->orderBy('created_at')]);
 
         if ($request->filled('tanggal_awal')) {

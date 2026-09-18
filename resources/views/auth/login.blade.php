@@ -555,6 +555,13 @@
             font-size: 10px;
           }
 
+          .auth-field-error {
+            color: #93000a;
+            font-size: 11px;
+            margin-top: 0.3rem;
+            padding-left: 0.3rem;
+          }
+
           /* ===== Responsif =====
              Breakpoint diturunkan dari 860px -> 700px supaya tampilan
              dua-panel (seperti versi desktop) tetap dipertahankan lebih lama
@@ -694,11 +701,44 @@
           </div>
 
           <!-- Panel kanan: form login -->
-          <form class="auth-card-body" id="login-form">
+          {{--
+            PERBAIKAN:
+            - action() diarahkan ke route login store (sesuaikan nama route-nya
+              kalau di routes/web.php kamu bukan 'login.store').
+            - @csrf wajib ada, kalau tidak Laravel akan menolak POST (419).
+            - name="username" (bukan "nik") supaya cocok dengan
+              PageController::loginStore() yang validasi 'username'.
+            - name="captcha" tetap, tapi teks soal sekarang dinamis dari
+              $captchaA / $captchaB yang dikirim controller->login(), bukan
+              hardcode "4 + 3".
+            - name="remember" ditambahkan supaya $request->boolean('remember')
+              di controller kebaca.
+            - Tampilkan error validasi + old('username') supaya user tahu
+              kenapa gagal & tidak perlu ketik ulang.
+          --}}
+          <form
+            class="auth-card-body"
+            id="login-form"
+            method="POST"
+            action="{{ route('login.store') }}"
+          >
+            @csrf
+
             <div class="auth-form-heading">
               <h2>Silakan masuk dengan akun Anda</h2>
               <p>Gunakan NIK / Nomor KK dan kata sandi yang telah terdaftar.</p>
             </div>
+
+            @if ($errors->any())
+              <div class="auth-warning">
+                <span class="material-symbols-outlined text-[17px] shrink-0">error</span>
+                <span>
+                  @foreach ($errors->all() as $error)
+                    {{ $error }}@if (!$loop->last)<br>@endif
+                  @endforeach
+                </span>
+              </div>
+            @endif
 
             <div class="auth-field">
               <label for="jenis-akun">Jenis Akun</label>
@@ -716,21 +756,25 @@
             </div>
 
             <div class="auth-field">
-              <label for="nik">NIK / No. KK</label>
+              <label for="username">NIK / No. KK</label>
               <div class="auth-field-icon-wrap">
                 <span
                   class="auth-input-icon material-symbols-outlined text-[17px]"
                   >credit_card</span
                 >
                 <input
-                  id="nik"
-                  name="nik"
+                  id="username"
+                  name="username"
                   type="text"
                   inputmode="numeric"
                   placeholder="Masukan NIK / No. KK Anda"
-                  autocomplete="off"
+                  autocomplete="username"
+                  value="{{ old('username') }}"
                 />
               </div>
+              @error('username')
+                <p class="auth-field-error">{{ $message }}</p>
+              @enderror
             </div>
 
             <div class="auth-field">
@@ -758,10 +802,13 @@
                   >
                 </button>
               </div>
+              @error('password')
+                <p class="auth-field-error">{{ $message }}</p>
+              @enderror
             </div>
 
             <div class="auth-field">
-              <label for="captcha">Berapa 4 + 3 ?</label>
+              <label for="captcha">Berapa {{ $captchaA }} + {{ $captchaB }} ?</label>
               <div class="auth-field-icon-wrap">
                 <span
                   class="auth-input-icon material-symbols-outlined text-[17px]"
@@ -775,11 +822,14 @@
                   placeholder="Jawaban captcha"
                 />
               </div>
+              @error('captcha')
+                <p class="auth-field-error">{{ $message }}</p>
+              @enderror
             </div>
 
             <div class="auth-row-between">
               <label>
-                <input type="checkbox" class="rounded" />
+                <input type="checkbox" name="remember" class="rounded" />
                 Ingat saya
               </label>
               <a href="#">Lupa kata sandi?</a>
@@ -835,22 +885,7 @@
               isHidden ? "visibility_off" : "visibility";
           });
         }
-
-        var form = document.getElementById("login-form");
-        var registerBpjsBtn = document.getElementById("register-bpjs-btn");
-        if (form) {
-          form.addEventListener("submit", function (e) {
-            e.preventDefault();
-            // Simulasi: login gagal -> tuntun user ke Register BPJS PBI
-            if (registerBpjsBtn) {
-              registerBpjsBtn.classList.add("is-highlighted");
-              registerBpjsBtn.scrollIntoView({
-                behavior: "smooth",
-                block: "center",
-              });
-            }
-          });
-        }
+      
       })();
     </script>
 

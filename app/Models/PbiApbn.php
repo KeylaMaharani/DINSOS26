@@ -26,7 +26,6 @@ class PbiApbn extends Model
     public const OPERATOR_ROLE = 'dayasos';
 
     public const STAGES = [
-        // TAMBAHKAN TAHAP KELURAHAN DI SINI SEBAGAI INDEX 0 (Tahap Pertama)
         'kelurahan' => [
             'label' => 'Kelurahan',
             'role' => 'kelurahan', // role yang bertanggung jawab
@@ -46,7 +45,7 @@ class PbiApbn extends Model
     ];
 
     public const STATUS_LABELS = [
-        'kelurahan' => 'Di Kelurahan', // TAMBAHKAN LABELNYA JUGA DI SINI
+        'kelurahan' => 'Di Kelurahan',
         'operator_dinsos' => 'Di Operator Dinsos',
         'kabid' => 'Di Kepala Bidang',
         'kadis' => 'Di Kepala Dinas',
@@ -59,9 +58,23 @@ class PbiApbn extends Model
         return $this->hasMany(PbiApbnAnggotaKeluarga::class);
     }
 
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
     public function logs()
     {
         return $this->hasMany(PbiApbnLog::class)->latest();
+    }
+
+    /**
+     * Riwayat diagnosa yang pernah diinput petugas (bisa berulang kali,
+     * setiap entri tersimpan sebagai baris baru, tidak menimpa entri lama).
+     */
+    public function diagnosaLogs()
+    {
+        return $this->hasMany(PbiApbnDiagnosaLog::class)->latest();
     }
 
     public function statusLabel(): string
@@ -113,5 +126,36 @@ class PbiApbn extends Model
     public function currentStageLabel(): ?string
     {
         return self::STAGES[$this->status]['label'] ?? null;
+    }
+
+    /**
+     * Bangun urutan progress untuk ditampilkan sebagai stepper di halaman masyarakat.
+     * Tidak dipakai untuk status 'ditolak' — status itu ditampilkan sebagai banner terpisah.
+     */
+    public function progressSteps(): array
+    {
+        $allKeys = array_merge(self::stageKeys(), ['disetujui']);
+        $currentIdx = array_search($this->status, $allKeys, true);
+
+        $steps = [];
+        foreach ($allKeys as $i => $key) {
+            $label = $key === 'disetujui'
+                ? 'Disetujui'
+                : (self::STAGES[$key]['label'] ?? $key);
+
+            if ($currentIdx === false) {
+                $state = 'pending';
+            } elseif ($i < $currentIdx) {
+                $state = 'done';
+            } elseif ($i === $currentIdx) {
+                $state = 'current';
+            } else {
+                $state = 'pending';
+            }
+
+            $steps[] = ['key' => $key, 'label' => $label, 'state' => $state];
+        }
+
+        return $steps;
     }
 }

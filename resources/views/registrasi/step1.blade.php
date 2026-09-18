@@ -80,11 +80,6 @@
           };
         </script>
         <style>
-          /* ============================================================
-             CSS di bawah ini SAMA dengan login.html (kelas .auth-card,
-             .auth-side, .auth-card-body dst.) supaya ukuran & proporsi
-             kartu login dan register identik.
-             ============================================================ */
           html,
           body {
             height: 100%;
@@ -138,7 +133,6 @@
             border-color: rgba(255, 255, 255, 0.08);
           }
 
-          /* ===== KARTU STANDAR — identik dengan login.html ===== */
           .auth-card {
             position: relative;
             z-index: 10;
@@ -355,8 +349,6 @@
             box-shadow: 0 0 0 4px rgba(19, 98, 153, 0.12);
           }
 
-          /* ===== Tombol "Next" — disamakan dengan tombol "Masuk" di login.html
-             (fit-content, centered, tidak full width). ===== */
           .auth-submit {
             width: fit-content;
             min-width: 9.5rem;
@@ -431,8 +423,6 @@
             background: #e4e9f0;
           }
 
-          /* Tombol Login di bawah form register — setara tombol submit,
-             rounded penuh dan centered, bukan teks polos. */
           .auth-login-btn {
             display: flex;
             align-items: center;
@@ -531,6 +521,15 @@
             font-size: 10px;
           }
 
+          .auth-hint-text {
+            margin-top: 0.4rem;
+            font-size: 11px;
+            font-weight: 600;
+            color: #ba1a1a;
+            line-height: 1.5;
+            padding: 0 0.3rem;
+          }
+
           @media (max-width: 700px) {
             .auth-page {
               height: auto;
@@ -588,8 +587,6 @@
             .auth-outer-wrap {
               align-items: center;
             }
-            /* Tombol "Next" — di layar sempit kembali full width, sama seperti
-               perilaku tombol "Masuk" di login.html. */
             .auth-submit {
               width: 100%;
               margin: 0;
@@ -606,7 +603,7 @@
     <div class="auth-page">
       <div class="auth-outer-wrap">
         <div class="auth-card">
-          <!-- Panel kiri: sama seperti login -->
+          <!-- Panel kiri -->
           <div class="auth-side">
             <div
               class="auth-brand-row"
@@ -661,8 +658,16 @@
             </div>
           </div>
 
-          <!-- Panel kanan: form Step 1 -->
-          <form class="auth-card-body" id="cek-kk-form" novalidate>
+          <!-- Panel kanan: form Step 1 (terhubung ke server) -->
+          <form
+            class="auth-card-body"
+            id="cek-kk-form"
+            method="POST"
+            action="{{ route('registrasi.step1.store') }}"
+            novalidate
+          >
+            @csrf
+
             <div class="auth-warning">
               <span class="material-symbols-outlined text-[17px] shrink-0"
                 >error</span
@@ -678,6 +683,15 @@
               <p>Cek Nomor KK Anda untuk memulai pendaftaran BPJS PBI.</p>
             </div>
 
+            @if ($errors->any())
+              <div class="auth-warning">
+                <span class="material-symbols-outlined text-[17px] shrink-0"
+                  >error</span
+                >
+                <span>{{ $errors->first() }}</span>
+              </div>
+            @endif
+
             <div class="auth-field">
               <label for="no-kk">No KK (Kartu Keluarga)</label>
               <div class="auth-field-icon-wrap">
@@ -692,14 +706,19 @@
                   inputmode="numeric"
                   placeholder="Masukan No KK (Kartu Keluarga) Anda"
                   autocomplete="off"
+                  value="{{ old('no_kk') }}"
+                  maxlength="16"
                 />
               </div>
+              @error('no_kk')
+                <p class="auth-hint-text">{{ $message }}</p>
+              @enderror
             </div>
 
             <div class="auth-field">
               <label for="captcha"
-                >Berapa <span id="captcha-a">8</span> +
-                <span id="captcha-b">8</span> ?</label
+                >Berapa <span>{{ $captchaA }}</span> +
+                <span>{{ $captchaB }}</span> ?</label
               >
               <div class="auth-field-icon-wrap">
                 <span
@@ -711,18 +730,23 @@
                   name="captcha"
                   type="text"
                   inputmode="numeric"
-                  placeholder="Jawaban captcha (boleh dikosongkan)"
+                  placeholder="Jawaban captcha"
                   autocomplete="off"
+                  value="{{ old('captcha') }}"
                 />
               </div>
+              @error('captcha')
+                <p class="auth-hint-text">{{ $message }}</p>
+              @enderror
             </div>
 
-            <a href="{{ route('registrasi.step2') }}" class="auth-submit">
+            <button type="submit" class="auth-submit">
               Next
               <span class="material-symbols-outlined text-[18px]"
                 >arrow_forward</span
               >
-            </a>
+            </button>
+
             <div class="auth-hint">
               <span class="material-symbols-outlined text-[17px] shrink-0"
                 >help</span

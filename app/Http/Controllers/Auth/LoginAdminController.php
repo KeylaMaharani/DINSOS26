@@ -55,6 +55,21 @@ class LoginAdminController
         $remember = $request->boolean('remember');
 
         if (Auth::attempt($credentials, $remember)) {
+            $user = Auth::user();
+            $roleSlug = $user->role->slug ?? null;
+
+            // Halaman /admin-login ini KHUSUS petugas (kelurahan, kabid,
+            // kadis, operator_dinsos, superadmin, dll). Akun masyarakat
+            // wajib login lewat halaman utama (/login).
+            if ($roleSlug === 'masyarakat') {
+                Auth::logout();
+                $request->session()->invalidate();
+
+                throw ValidationException::withMessages([
+                    'username' => 'Akun ini adalah akun masyarakat. Silakan login lewat halaman utama pendaftaran.',
+                ]);
+            }
+
             $request->session()->regenerate();
 
             return redirect()->intended('/dashboard');

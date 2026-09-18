@@ -12,6 +12,7 @@ class DtsenPermohonan extends Model
     protected $table = 'dtsen_permohonan';
 
     protected $fillable = [
+        'user_id',
         'nik',
         'nama_pemohon',
         'alamat',
@@ -85,5 +86,10 @@ class DtsenPermohonan extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 }

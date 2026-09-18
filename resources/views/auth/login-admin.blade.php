@@ -8,7 +8,7 @@
             <div class="auth-card">
 
                 <!-- Body: form login (single card, no split header) -->
-                <form class="auth-card-body" id="login-form" method="POST" action="{{ route('login') }}">
+                <form class="auth-card-body" id="login-form" method="POST" action="{{ route('admin.login.store') }}">
                     @csrf
 
                     <div style="display:flex; justify-content:center; margin-bottom: 0.75rem;">
