@@ -5,6 +5,9 @@
    REVISI 2: label Akses Cepat selalu tampil kecil di bawah ikon
    REVISI 3: CSS tracking/captcha dipindah ke sini (tidak lagi
    inline di home.blade.php) supaya tidak tergantung @stack/@section
+   REVISI 4: gap kiri-kanan konten dibuat simetris & lebih lebar
+   (variabel --site-max / --site-pad-l / --site-pad-r di bagian
+   "Lebar & gap kiri-kanan konten"), navbar dirapatkan di 1024-1535px
    ========================================================= */
 
 @layer base {
@@ -15,6 +18,36 @@
 }
 
 ::-webkit-scrollbar { display: none; }
+
+/* =========================================================
+   Lebar & gap kiri-kanan konten
+   Berlaku seragam untuk header, footer, dan semua halaman yang
+   memakai wrapper max-w-[1400px] / max-w-[1450px].
+   Ubah angka di :root untuk mengatur gap.
+   ========================================================= */
+:root {
+  --site-max: 1500px;     /* lebar maksimum kotak konten (sudah termasuk gap) */
+  --site-pad-l: 1rem;     /* gap kiri  - HP */
+  --site-pad-r: 3.75rem;  /* gap kanan - HP (menyisakan tempat bar sosmed) */
+}
+@media (min-width: 768px) {
+  :root { --site-pad-l: 1.5rem; --site-pad-r: 4.5rem; }
+}
+@media (min-width: 1024px) {
+  :root { --site-pad-l: 2rem; }
+}
+/* Layar >= 1280px: gap kiri = gap kanan = 5rem (80px).
+   80px lebih lebar dari bar sosmed (+-63px), jadi tidak perlu ruang aman ekstra. */
+@media (min-width: 1280px) {
+  :root { --site-pad-l: 4rem; --site-pad-r: 4rem; }
+}
+
+.max-w-\[1400px\],
+.max-w-\[1450px\] {
+  max-width: var(--site-max) !important;
+  padding-left: var(--site-pad-l) !important;
+  padding-right: var(--site-pad-r) !important;
+}
 
 /* =========================================================
    Header: transparan menimpa hero di posisi paling atas,
@@ -96,27 +129,23 @@ header.header-scrolled .bg-surface-container-low {
   border-bottom-color: rgba(194, 199, 207, 0.2) !important;
 }
 
-/* Navbar — cegah teks menu wrap di layar 1280-1535px */
-@media (min-width: 1280px) and (max-width: 1535px) {
-  header nav.xl\:flex .nav-link {
-    font-size: 13px;
+/* Navbar - dirapatkan di layar 1024-1535px supaya menu tetap muat
+   satu baris di dalam gap kiri-kanan yang lebih lebar.
+   (Selector lama nav.xl\:flex tidak pernah cocok karena navbar memakai lg:flex.) */
+@media (min-width: 1024px) and (max-width: 1535px) {
+  header nav.lg\:flex {
+    gap: 0;
+  }
+  header nav.lg\:flex .nav-link {
     padding-left: 0.4rem;
     padding-right: 0.4rem;
   }
-  header nav.xl\:flex #nav-search {
-    padding-left: 0.5rem;
-    margin-left: 0.25rem;
-  }
-  header nav.xl\:flex .nav-search-input {
-    display: none;
-  }
-  header nav.xl\:flex #nav-search-toggle {
-    width: 2rem;
-    height: 2rem;
+  header > div > a:first-child {
+    margin-right: 1rem;
   }
 }
 
-/* Navbar — underline tumbuh dari tengah untuk item aktif/hover */
+/* Navbar - underline tumbuh dari tengah untuk item aktif/hover */
 .nav-link {
   position: relative;
   display: inline-flex;
@@ -145,7 +174,7 @@ header.header-scrolled .nav-link::after {
   background: #0f4c75;
 }
 
-/* Navbar — search yang expand saat diklik */
+/* Navbar - search yang expand saat diklik */
 #nav-search {
   position: relative;
   border-radius: 9999px;
@@ -197,7 +226,7 @@ header.header-scrolled #nav-search.open #nav-search-toggle {
   background: rgba(0, 59, 98, 0.1);
 }
 
-/* Akses Cepat — bulatan ikon dengan label muncul saat hover (desktop) */
+/* Akses Cepat - bulatan ikon dengan label muncul saat hover (desktop) */
 .quick-action-circle {
   position: relative;
   display: flex;
@@ -263,11 +292,12 @@ header.header-scrolled #nav-search.open #nav-search-toggle {
 }
 
 /* =========================================================
-   AKSES CEPAT LAYANAN — 6 ikon di dalam hero carousel
+   AKSES CEPAT LAYANAN - 6 ikon di dalam hero carousel
    ========================================================= */
 .fab-radial {
   position: absolute;
-  left: max(1rem, calc((100% - 1400px) / 2 + 1rem));
+  /* sejajar dengan tepi kiri konten (mengikuti --site-max & --site-pad-l) */
+  left: max(var(--site-pad-l), calc((100% - var(--site-max)) / 2 + var(--site-pad-l)));
   bottom: 6.5rem;
   z-index: 30;
   display: flex;
@@ -338,17 +368,6 @@ header.header-scrolled #nav-search.open #nav-search-toggle {
 }
 .fab-radial-item-label::after {
   display: none;
-}
-
-@media (min-width: 768px) {
-  .fab-radial {
-    left: max(1.5rem, calc((100% - 1400px) / 2 + 1.5rem));
-  }
-}
-@media (min-width: 1024px) {
-  .fab-radial {
-    left: max(2rem, calc((100% - 1400px) / 2 + 2rem));
-  }
 }
 
 @media (max-width: 1024px) {
@@ -440,7 +459,7 @@ header.header-scrolled #nav-search.open #nav-search-toggle {
 }
 
 /* =========================================================
-   Sambutan Kepala Dinas — mobile
+   Sambutan Kepala Dinas - mobile
    ========================================================= */
 @media (max-width: 640px) {
   #hero-carousel + section .p-space-xl,
@@ -455,7 +474,7 @@ header.header-scrolled #nav-search.open #nav-search-toggle {
 }
 
 /* =========================================================
-   Berita — kartu grid ala kategori
+   Berita - kartu grid ala kategori
    ========================================================= */
 .berita-card {
   display: flex;
@@ -530,7 +549,7 @@ header.header-scrolled #nav-search.open #nav-search-toggle {
 }
 
 /* =========================================================
-   Kolaborasi & Integrasi — carousel logo mitra
+   Kolaborasi & Integrasi - carousel logo mitra
    ========================================================= */
 .mitra-carousel { position: relative; width: 100%; overflow: hidden; }
 .mitra-track {
@@ -927,7 +946,7 @@ body.mobile-nav-locked .back-to-top {
 }
 
 /* =========================================================
-   Footer — responsive mobile
+   Footer - responsive mobile
    ========================================================= */
 @media (max-width: 767px) {
   footer .grid.lg\:grid-cols-6 {
@@ -980,7 +999,7 @@ body.mobile-nav-locked .back-to-top {
 }
 
 /* =========================================================
-   PETA SEBARAN — Leaflet
+   PETA SEBARAN - Leaflet
    ========================================================= */
 #peta-leaflet {
   width: 100%;
@@ -1056,7 +1075,7 @@ body.mobile-nav-locked .back-to-top {
 }
 
 /* =========================================================
-   Input — cegah auto-zoom Safari iOS
+   Input - cegah auto-zoom Safari iOS
    ========================================================= */
 @media (max-width: 640px) {
   .nav-search-input,
@@ -1066,7 +1085,7 @@ body.mobile-nav-locked .back-to-top {
 }
 
 /* =========================================================
-   Sambutan Kepala Dinas — collapse/expand teks
+   Sambutan Kepala Dinas - collapse/expand teks
    ========================================================= */
 .sambutan-body {
   overflow: hidden;
@@ -1091,7 +1110,7 @@ body.mobile-nav-locked .back-to-top {
 }
 
 /* =========================================================
-   TRACKING PERMOHONAN — captcha huruf kode + badge status
+   TRACKING PERMOHONAN - captcha huruf kode + badge status
    (dipindah dari <style> inline home.blade.php)
    ========================================================= */
 .tr-captcha {
@@ -1177,29 +1196,7 @@ body.mobile-nav-locked .back-to-top {
 }
 
 /* =========================================================
-   Ruang aman kanan biar konten tidak ketutup ikon sosmed
-   ========================================================= */
-.max-w-\[1400px\],
-.max-w-\[1450px\] {
-  padding-right: 4.5rem !important;
-}
-
-@media (max-width: 767px) {
-  .max-w-\[1400px\],
-  .max-w-\[1450px\] {
-    padding-right: 3.75rem !important;
-  }
-}
-
-@media (min-width: 1024px) {
-  main .max-w-\[1400px\],
-  main .max-w-\[1450px\] {
-    padding-right: 4.5rem !important;
-  }
-}
-
-/* =========================================================
-   AUTH PAGES — Login (user & admin)
+   AUTH PAGES - Login (user & admin)
    ========================================================= */
 .auth-page {
   min-height: 100vh;

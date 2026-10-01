@@ -441,6 +441,36 @@
             line-height: 1.4;
           }
 
+          /* ===== Alert info yang hilang otomatis (tanpa klik, tanpa JS) =====
+             Murni CSS animation: tampil 5 detik -> memudar & mengecil -> hilang.
+             margin-bottom negatif = mengimbangi "gap" flex parent (0.75rem)
+             supaya layout tidak loncat saat alert menghilang.
+             Dipakai untuk pesan informasi saja, bukan error validasi. */
+          .auth-warning-text {
+            flex: 1 1 auto;
+            min-width: 0;
+          }
+          .auth-warning--auto-hide {
+            max-height: 8rem;
+            overflow: hidden;
+            animation: alert-autohide 0.4s ease 5s forwards;
+          }
+          @keyframes alert-autohide {
+            from {
+              opacity: 1;
+              max-height: 8rem;
+            }
+            to {
+              opacity: 0;
+              max-height: 0;
+              padding-top: 0;
+              padding-bottom: 0;
+              margin-bottom: -0.75rem;
+              border-width: 0;
+              visibility: hidden;
+            }
+          }
+
           .auth-divider {
             display: flex;
             align-items: center;
