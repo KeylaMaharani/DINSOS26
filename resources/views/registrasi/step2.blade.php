@@ -88,7 +88,7 @@
             height: 100%;
             margin: 0;
             padding: 0;
-            overflow-x: hidden;
+            overflow: hidden; /* Mengunci halaman utama */
           }
           * {
             box-sizing: border-box;
@@ -312,6 +312,7 @@
 
           .auth-field {
             margin-bottom: 0;
+            min-width: 0; /* Mencegah Grid Blowout */
           }
           .auth-field label {
             display: block;
@@ -322,6 +323,8 @@
           }
           .auth-field-icon-wrap {
             position: relative;
+            min-width: 0;
+            width: 100%;
           }
           .auth-field-icon-wrap .auth-input-icon {
             position: absolute;
@@ -336,12 +339,15 @@
           .auth-field select,
           .auth-field textarea {
             width: 100%;
+            min-width: 0; /* Mengizinkan form mengecil di bawah default browser */
+            max-width: 100%;
             border: 1.5px solid #e4e9f0;
             background: #f7f9ff;
             border-radius: 9999px;
             padding: 0.55rem 1rem 0.55rem 2.7rem;
             font-size: 13.5px;
             color: #121d26;
+            box-sizing: border-box;
             transition:
               border-color 0.2s ease,
               box-shadow 0.2s ease,
@@ -359,10 +365,14 @@
             background-repeat: no-repeat;
             background-position: right 1.1rem center;
           }
+
+          /* STANDAR UKURAN PLACEHOLDER */
           .auth-field input::placeholder,
           .auth-field textarea::placeholder {
             color: #9aa2ab;
+            font-size: 14px;
           }
+
           .auth-field input:focus,
           .auth-field select:focus,
           .auth-field textarea:focus {
@@ -526,8 +536,8 @@
             font-style: italic;
             white-space: normal !important;
           }
-          .reg-family-remove {
-            color: #ba1a1a;
+          /* Tombol Edit dan Hapus Keluarga */
+          .reg-family-edit, .reg-family-remove {
             cursor: pointer;
             background: none;
             border: none;
@@ -535,6 +545,13 @@
             font-weight: 700;
             white-space: nowrap;
           }
+          .reg-family-edit {
+            color: #136299;
+          }
+          .reg-family-remove {
+            color: #ba1a1a;
+          }
+
           .reg-family-scroll-hint {
             display: none;
             align-items: center;
@@ -718,7 +735,7 @@
             gap: 0.3rem;
             color: #ffffff;
             opacity: 0.85;
-            font-size: 11.5px;
+            font-size: 12px;
             font-weight: 600;
             text-decoration: none;
             white-space: nowrap;
@@ -727,7 +744,7 @@
             opacity: 1;
           }
           .auth-back .material-symbols-outlined {
-            font-size: 15px;
+            font-size: 16px;
           }
           .auth-footnote {
             color: rgba(255, 255, 255, 0.6);
@@ -739,126 +756,376 @@
             font-size: 10px;
           }
 
-          @media (max-width: 980px) {
-            .auth-card {
-              flex-direction: column;
+          /* ==========================================================
+             FORM WIZARD (Mode Wizard aktif)
+             ========================================================== */
+          html.wz-active,
+          html.wz-active body {
+            overflow: hidden;
+          }
+          .wz-active .auth-page {
+            height: 100vh;
+            height: 100dvh;
+            min-height: 0;
+            padding: 0.75rem 1rem;
+            align-items: center;
+          }
+          .wz-active .auth-outer-wrap {
+            max-height: 100%;
+          }
+          .wz-active .auth-bottom-row {
+            margin-top: 0.6rem;
+          }
+
+          /* Tinggi kartu tetap di Desktop */
+          .wz-active .auth-card {
+            height: min(40rem, calc(100vh - 3.5rem));
+            height: min(40rem, calc(100dvh - 3.5rem));
+          }
+          .wz-active .auth-card-body {
+            flex: 1 1 0;
+            min-width: 0;
+            min-height: 0;
+            max-height: none;
+            overflow: hidden;
+            padding: 1.4rem 2rem 1.2rem;
+          }
+
+          .wz-on {
+            display: flex;
+            flex-direction: column;
+            flex: 1 1 auto;
+            min-height: 0;
+            gap: 1.25rem;
+          }
+          .wz-on .auth-form-heading {
+            margin: 0;
+          }
+          .wz-on .auth-form-heading h2 {
+            font-size: 17px;
+          }
+          .wz-on .auth-warning {
+            padding: 0.45rem 0.8rem;
+            font-size: 11.5px;
+          }
+
+          .wz {
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+            flex: 1 1 auto;
+            min-height: 0;
+          }
+
+          /* Stepper */
+          .wz-stepper {
+            display: flex;
+            align-items: center;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+          }
+          .wz-stepper li {
+            display: flex;
+            align-items: center;
+            flex: 1 1 0;
+            min-width: 0;
+          }
+          .wz-stepper li:last-child {
+            flex: 0 0 auto;
+          }
+          .wz-stepper li:not(:last-child)::after {
+            content: "";
+            flex: 1 1 auto;
+            height: 2px;
+            margin: 0 0.5rem;
+            background: #e4e9f0;
+            border-radius: 9999px;
+          }
+          .wz-stepper li.is-done::after {
+            background: #2e7d32;
+          }
+          .wz-dot {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0;
+            border: none;
+            background: none;
+            font: inherit;
+            cursor: default;
+            pointer-events: none;
+          }
+          .wz-num {
+            width: 1.6rem;
+            height: 1.6rem;
+            border-radius: 9999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11.5px;
+            font-weight: 700;
+            background: #e4effd;
+            color: #42474e;
+            flex-shrink: 0;
+          }
+          .wz-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #72777f;
+            white-space: nowrap;
+          }
+          .wz-stepper li.is-done .wz-num {
+            background: #2e7d32;
+            color: #ffffff;
+          }
+          .wz-stepper li.is-current .wz-num {
+            background: #003b62;
+            color: #ffffff;
+            box-shadow: 0 0 0 3px rgba(19, 98, 153, 0.18);
+          }
+          .wz-stepper li.is-current .wz-label {
+            color: #003b62;
+            font-weight: 700;
+          }
+          .wz-stepper li.has-error .wz-num {
+            background: #ba1a1a;
+            color: #ffffff;
+          }
+          .wz-stepper li.has-error .wz-label {
+            color: #ba1a1a;
+          }
+
+          /* Isi Langkah */
+          .wz-panels {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-x: hidden;
+            overflow-y: auto;
+            padding: 4px;
+            margin: -4px;
+          }
+          .wz-step {
+            display: none;
+          }
+          .wz-step.is-active {
+            display: block;
+          }
+
+          .wz-fields {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.75rem 0.9rem;
+            align-content: start;
+          }
+          .wz-fields > * {
+            grid-column: 1 / -1;
+          }
+          .wz-fields > .wz-half {
+            grid-column: auto;
+            min-width: 0; /* Mencegah overflow grid form setengah ukuran */
+          }
+          .wz-fields .auth-field label {
+            margin-bottom: 0.2rem;
+          }
+          .wz-fields .auth-field input,
+          .wz-fields .auth-field select {
+            padding-top: 0.5rem;
+            padding-bottom: 0.5rem;
+          }
+          .wz-fields textarea {
+            height: 3.6rem;
+            min-height: 3.6rem;
+            resize: none;
+          }
+          .wz-fields .auth-field select {
+            padding-right: 2.2rem;
+          }
+          .wz-fields .reg-rtrw {
+            grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
+          }
+
+          /* Tabel anggota keluarga (Wizard Mode) */
+          .wz-active .reg-family-card {
+            margin-top: 1rem;
+          }
+          .wz-active .reg-family-table-wrap {
+            max-height: 9rem;
+            overflow-y: auto;
+          }
+          .wz-active .reg-family-table th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+          }
+          .wz-active .reg-family-scroll-hint {
+            display: none;
+          }
+          /* Sembunyikan section title agar Alamat dan Keluarga terlihat menyambung */
+          .wz-active .reg-section-title {
+            display: none;
+          }
+
+          /* Navigasi Bawah Wizard */
+          .wz-nav {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding-top: 0.2rem;
+          }
+          .wz-spacer {
+            flex: 1 1 auto;
+          }
+          .wz-prev {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            padding: 0.5rem 1.2rem;
+            border-radius: 9999px;
+            border: 1.5px solid #e4e9f0;
+            background: #ffffff;
+            color: #42474e;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+          }
+          .wz-prev:hover {
+            border-color: #136299;
+            color: #003b62;
+          }
+          .wz-nav .auth-submit {
+            width: auto;
+            min-width: 8rem;
+            padding: 0.5rem 1.4rem;
+          }
+          .wz-nav .reg-cancel-btn {
+            width: auto;
+            padding: 0.5rem 1.2rem;
+          }
+
+          @media (min-width: 981px) {
+            .wz-fields > * {
+              grid-column: auto;
             }
-            .auth-side {
-              flex: 0 0 auto;
-              padding: 1.5rem 1.5rem 2rem;
-            }
-            .auth-badge-wrap {
-              flex: 0 0 auto;
-              margin: 1rem 0;
-            }
-            .auth-card-body {
-              max-height: none;
-              overflow-y: visible;
+            .wz-fields > .wz-wide {
+              grid-column: 1 / -1;
             }
           }
-          @media (max-width: 860px) {
-            .auth-card {
-              max-width: 30rem;
+
+          /* ==========================================================
+             OPTIMASI MOBILE FRIENDLY (MAX-WIDTH: 700px)
+             ========================================================== */
+          @media (max-width: 700px) {
+            .wz-active .auth-page {
+              padding: 0;
+              align-items: flex-start;
             }
-            .auth-bottom-row {
-              max-width: 30rem;
+
+            .wz-active .auth-card {
+              height: 100dvh;
+              max-height: 100dvh;
+              max-width: 100%;
+              border-radius: 0;
+              display: flex;
               flex-direction: column;
-              gap: 0.35rem;
             }
-            .auth-bottom-dot {
+            .wz-active .auth-side {
+              flex: 0 0 auto;
+              padding: 1.25rem 1.5rem; /* disamakan padding dengan step 1 */
+            }
+
+            /* SESUAIKAN DENGAN STEP 1 HEADER DI MOBILE */
+            .wz-active .auth-brand-row {
+              flex-direction: row !important;
+              align-items: center !important;
+              justify-content: space-between;
+              gap: 0.5rem !important;
+            }
+
+            .wz-active .auth-badge-wrap,
+            .wz-active .auth-info-stack,
+            .wz-active .auth-bottom-row {
               display: none;
             }
-            .auth-footnote {
-              white-space: normal;
-            }
-            .auth-submit {
-              width: 100%;
-            }
-            .reg-cancel-btn {
-              width: 100%;
-            }
-            .reg-actions {
-              flex-direction: column-reverse;
-            }
-          }
-          @media (max-width: 640px) {
-            .auth-page {
-              padding: 0.75rem 0.6rem;
-              align-items: flex-start;
-            }
-            .auth-card {
-              border-radius: 0.9rem;
-            }
-            .auth-side {
-              padding: 1.1rem 1.1rem 1.4rem;
-            }
-            .auth-badge {
-              width: 6rem;
-              height: 6rem;
-            }
-            .auth-badge img {
-              width: 4.2rem;
-              height: 4.2rem;
-            }
-            .auth-info-box {
-              padding: 0.6rem 0.7rem;
-            }
-            .auth-card-body {
-              padding: 1.25rem 1.1rem 1.5rem;
-              gap: 0.8rem;
-            }
-            .auth-form-heading h2 {
-              font-size: 16.5px;
-            }
-            .auth-form-heading p {
-              font-size: 11.5px;
-            }
-            .reg-grid {
-              gap: 0.85rem 0;
-            }
-            .auth-field input,
-            .auth-field select,
-            .auth-field textarea {
-              font-size: 16px;
-              padding: 0.6rem 0.9rem 0.6rem 2.6rem;
-            }
-            .reg-rtrw {
-              grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-              row-gap: 0.6rem;
-              column-gap: 0.6rem;
-            }
-            .reg-add-family {
-              flex-direction: column;
-              align-items: flex-start;
-              gap: 0.5rem;
-            }
-            .reg-add-btn {
-              width: 100%;
-              justify-content: center;
-            }
-            .reg-modal {
-              padding: 1.1rem;
-            }
-            .reg-family-table {
-              min-width: 380px;
-              font-size: 12px;
-            }
-            .reg-family-table th,
-            .reg-family-table td {
-              padding: 0.5rem 0.6rem;
-            }
-            .reg-family-scroll-hint {
+
+            .wz-active .auth-card-body {
+              flex: 1 1 auto;
+              padding: 1.5rem 1.1rem 1rem;
               display: flex;
+              flex-direction: column;
+            }
+            .wz-active .wz-panels {
+              flex: 1 1 auto;
+              overflow-y: auto;
+              -webkit-overflow-scrolling: touch;
+            }
+
+            .wz-active .wz-nav {
+              padding-top: 0.75rem;
+              padding-bottom: max(1rem, env(safe-area-inset-bottom));
+            }
+            .wz-active .wz-nav .auth-submit {
+              flex: 1 1 auto;
+            }
+
+            .wz-label {
+              display: none;
+            }
+            .wz-stepper li.is-current .wz-label {
+              display: inline;
+            }
+            .wz-nav .reg-cancel-btn {
+              display: none !important;
+            }
+
+            .wz-fields input,
+            .wz-fields select,
+            .wz-fields textarea {
+              font-size: 16px;
+            }
+            .wz-half .auth-input-icon {
+              display: none;
+            }
+            .wz-active .wz-half input,
+            .wz-active .wz-half select {
+              padding-left: 0.75rem;
+              padding-right: 0.75rem; /* Override padding agar tidak melebihi kolom */
+              width: 100%;
+              min-width: 0; /* Penting untuk menghentikan overflow grid */
+              box-sizing: border-box;
+            }
+
+            /* Penyesuaian khusus form date di mobile supaya format text panjang tidak keluar form */
+            .wz-active .wz-half input[type="date"] {
+              padding-left: 0.4rem;
+              padding-right: 0.4rem;
+              font-size: 14.5px;
+            }
+
+            /* PLACEHOLDER MOBILE MATCHING STEP 1 */
+            .auth-field input::placeholder,
+            .auth-field textarea::placeholder {
+               font-size: 13.5px;
+            }
+
+            .wz-active .auth-brand-row > div > span {
+              display: block; /* kembalikan ke block untuk samakan dengan step 1 */
             }
           }
-          @media (max-width: 380px) {
-            .auth-badge {
-              width: 5rem;
-              height: 5rem;
+
+          @media (max-height: 720px) {
+            .wz-active .auth-form-heading p {
+              display: none;
             }
-            .auth-badge img {
-              width: 3.4rem;
-              height: 3.4rem;
+            .wz-fields {
+              gap: 0.55rem 0.9rem;
+            }
+          }
+          @media (max-height: 640px) {
+            .wz-active .auth-card-body {
+              padding-top: 0.9rem;
+              padding-bottom: 0.8rem;
             }
           }
         </style>
@@ -874,19 +1141,20 @@
         <div class="auth-card">
           <!-- Panel kiri -->
           <div class="auth-side">
+            <!-- HEADER LOGO SAMA DENGAN STEP 1 -->
             <div
               class="auth-brand-row"
               style="
                 flex-direction: column;
                 align-items: flex-start;
-                gap: 0.5rem;
+                gap: 0.75rem;
               "
             >
               <a href="{{ route('registrasi.step1') }}" class="auth-back">
                 <span class="material-symbols-outlined">arrow_back</span>
                 Kembali
               </a>
-              <div style="display: flex; align-items: center; gap: 0.6rem">
+              <div style="display: flex; align-items: center; gap: 0.75rem">
                 <img
                   alt="Logo Dinas Sosial Kota Bogor"
                   src="{{ asset('assets/img/logo/bogor.png') }}"
@@ -937,16 +1205,6 @@
             >
               @csrf
 
-              <div class="auth-warning">
-                <span class="material-symbols-outlined text-[17px] shrink-0"
-                  >error</span
-                >
-                <span>
-                  Pendaftaran BPJS PBI hanya diperuntukan bagi masyarakat yang
-                  berasal dari keluarga tidak mampu.
-                </span>
-              </div>
-
               <div class="auth-form-heading">
                 <h2>Lengkapi Data Diri Anda</h2>
                 <p>
@@ -956,7 +1214,7 @@
               </div>
 
               @if ($errors->any())
-                <div class="auth-warning">
+                <div class="auth-warning" style="margin-bottom: 0.5rem">
                   <span class="material-symbols-outlined text-[17px] shrink-0"
                     >error</span
                   >
@@ -997,7 +1255,7 @@
                         class="auth-input-icon material-symbols-outlined text-[17px]"
                         >diversity_1</span
                       >
-                      <select id="status-hubungan" name="status_hubungan">
+                      <select id="status-hubungan" name="status_hubungan" required>
                         <option value="">-Pilih-</option>
                         <option value="kepala_keluarga" @selected(old('status_hubungan') == 'kepala_keluarga')>Kepala Keluarga</option>
                         <option value="suami" @selected(old('status_hubungan') == 'suami')>Suami</option>
@@ -1024,6 +1282,7 @@
                         maxlength="16"
                         placeholder="Masukan No KTP Anda"
                         value="{{ old('nik') }}"
+                        required
                       />
                     </div>
                     @error('nik') <p class="auth-hint-text">{{ $message }}</p> @enderror
@@ -1042,6 +1301,7 @@
                         type="password"
                         placeholder="Masukan password Anda"
                         autocomplete="new-password"
+                        required
                       />
                       <button
                         class="auth-toggle-eye"
@@ -1070,6 +1330,7 @@
                         type="password"
                         placeholder="Ulangi password Anda"
                         autocomplete="new-password"
+                        required
                       />
                       <button
                         class="auth-toggle-eye"
@@ -1105,6 +1366,7 @@
                         id="alamat"
                         name="alamat"
                         placeholder="Masukan Alamat Anda"
+                        required
                       >{{ old('alamat') }}</textarea>
                     </div>
                     @error('alamat') <p class="auth-hint-text">{{ $message }}</p> @enderror
@@ -1119,6 +1381,7 @@
                       inputmode="numeric"
                       placeholder="01"
                       value="{{ old('rt') }}"
+                      required
                       style="
                         border-radius: 9999px;
                         border: 1.5px solid #e4e9f0;
@@ -1133,6 +1396,7 @@
                       inputmode="numeric"
                       placeholder="01"
                       value="{{ old('rw') }}"
+                      required
                       style="
                         border-radius: 9999px;
                         border: 1.5px solid #e4e9f0;
@@ -1148,7 +1412,7 @@
                         class="auth-input-icon material-symbols-outlined text-[17px]"
                         >map</span
                       >
-                      <select id="provinsi" name="provinsi">
+                      <select id="provinsi" name="provinsi" required>
                         <option value="Jawa Barat" selected>Jawa Barat</option>
                       </select>
                     </div>
@@ -1161,7 +1425,7 @@
                         class="auth-input-icon material-symbols-outlined text-[17px]"
                         >location_city</span
                       >
-                      <select id="kab-kota" name="kab_kota">
+                      <select id="kab-kota" name="kab_kota" required>
                         <option value="Kota Bogor" selected>Kota Bogor</option>
                       </select>
                     </div>
@@ -1174,7 +1438,7 @@
                         class="auth-input-icon material-symbols-outlined text-[17px]"
                         >signpost</span
                       >
-                      <select id="kecamatan" name="kecamatan">
+                      <select id="kecamatan" name="kecamatan" required>
                         <option value="">-Pilih-</option>
                         <option value="Bogor Selatan" @selected(old('kecamatan') == 'Bogor Selatan')>Bogor Selatan</option>
                         <option value="Bogor Timur" @selected(old('kecamatan') == 'Bogor Timur')>Bogor Timur</option>
@@ -1200,6 +1464,7 @@
                         type="text"
                         placeholder="Masukan Desa/Kelurahan Anda"
                         value="{{ old('desa_kelurahan') }}"
+                        required
                       />
                     </div>
                     @error('desa_kelurahan') <p class="auth-hint-text">{{ $message }}</p> @enderror
@@ -1226,6 +1491,7 @@
                         type="text"
                         placeholder="Masukan Nama Anda"
                         value="{{ old('nama_lengkap') }}"
+                        required
                       />
                     </div>
                     @error('nama_lengkap') <p class="auth-hint-text">{{ $message }}</p> @enderror
@@ -1244,6 +1510,7 @@
                         type="email"
                         placeholder="Masukan Email Anda"
                         value="{{ old('email') }}"
+                        required
                       />
                     </div>
                     @error('email') <p class="auth-hint-text">{{ $message }}</p> @enderror
@@ -1263,6 +1530,7 @@
                         inputmode="numeric"
                         placeholder="Masukan Telp Anda"
                         value="{{ old('telp') }}"
+                        required
                       />
                     </div>
                     @error('telp') <p class="auth-hint-text">{{ $message }}</p> @enderror
@@ -1275,7 +1543,7 @@
                         class="auth-input-icon material-symbols-outlined text-[17px]"
                         >mosque</span
                       >
-                      <select id="agama" name="agama">
+                      <select id="agama" name="agama" required>
                         <option value="">-Pilih-</option>
                         <option value="islam" @selected(old('agama') == 'islam')>Islam</option>
                         <option value="kristen" @selected(old('agama') == 'kristen')>Kristen</option>
@@ -1301,6 +1569,7 @@
                         type="text"
                         placeholder="Masukan Pekerjaan Anda Sesuai KTP"
                         value="{{ old('pekerjaan') }}"
+                        required
                       />
                     </div>
                     @error('pekerjaan') <p class="auth-hint-text">{{ $message }}</p> @enderror
@@ -1317,8 +1586,9 @@
                         id="tempat-lahir"
                         name="tempat_lahir"
                         type="text"
-                        placeholder="Masukan Tempat Lahir Anda"
+                        placeholder="Masukan Tempat Lahir"
                         value="{{ old('tempat_lahir') }}"
+                        required
                       />
                     </div>
                     @error('tempat_lahir') <p class="auth-hint-text">{{ $message }}</p> @enderror
@@ -1331,7 +1601,7 @@
                         class="auth-input-icon material-symbols-outlined text-[17px]"
                         >calendar_month</span
                       >
-                      <input id="tgl-lahir" name="tgl_lahir" type="date" value="{{ old('tgl_lahir') }}" />
+                      <input id="tgl-lahir" name="tgl_lahir" type="date" value="{{ old('tgl_lahir') }}" required />
                     </div>
                     @error('tgl_lahir') <p class="auth-hint-text">{{ $message }}</p> @enderror
                   </div>
@@ -1343,7 +1613,7 @@
                         class="auth-input-icon material-symbols-outlined text-[17px]"
                         >wc</span
                       >
-                      <select id="jenis-kelamin" name="jenis_kelamin">
+                      <select id="jenis-kelamin" name="jenis_kelamin" required>
                         <option value="">-Pilih-</option>
                         <option value="L" @selected(old('jenis_kelamin') == 'L')>Laki-laki</option>
                         <option value="P" @selected(old('jenis_kelamin') == 'P')>Perempuan</option>
@@ -1379,7 +1649,7 @@
                             <th>Nama</th>
                             <th>NIK</th>
                             <th>Status</th>
-                            <th></th>
+                            <th>Aksi</th>
                           </tr>
                         </thead>
                         <tbody id="family-table-body">
@@ -1426,14 +1696,11 @@
     </div>
 
     <!-- ============================================================
-         MODAL — Tambah Anggota Keluarga
-         Setiap "Simpan" menambahkan hidden input ke <form> utama
-         (anggota[i][nama], anggota[i][nik], anggota[i][status]),
-         supaya benar-benar ikut ter-submit ke server.
+         MODAL — Tambah / Edit Anggota Keluarga
          ============================================================ -->
     <div class="reg-modal-backdrop" id="modal-tambah-anggota">
       <div class="reg-modal">
-        <h3>
+        <h3 id="modal-title">
           <span class="material-symbols-outlined">group_add</span>
           Tambah Anggota Keluarga
         </h3>
@@ -1489,7 +1756,7 @@
 
     <script>
       (function () {
-        // 1) Toggle show/hide password
+        // Toggle show/hide password
         document.querySelectorAll(".auth-toggle-eye").forEach(function (btn) {
           btn.addEventListener("click", function () {
             var targetId = btn.getAttribute("data-toggle-target");
@@ -1502,22 +1769,34 @@
           });
         });
 
-        // 2) Modal tambah anggota keluarga -> hidden input beneran di form utama
+        // Modal anggota keluarga (Tambah / Edit)
         var modal = document.getElementById("modal-tambah-anggota");
+        var modalTitle = document.getElementById("modal-title");
         var btnOpen = document.getElementById("btn-tambah-anggota");
         var btnCancel = document.getElementById("modal-batal");
         var btnSave = document.getElementById("modal-simpan");
         var tableBody = document.getElementById("family-table-body");
         var emptyRow = document.getElementById("family-empty-row");
-        var mainForm = document.getElementById("register-step2-form");
         var familyIndex = 0;
+        var editingRowId = null; // Penanda jika sedang dalam mode edit
 
-        function openModal() {
-          document.getElementById("modal-nama").value = "";
-          document.getElementById("modal-nik").value = "";
-          document.getElementById("modal-status").value = "";
+        function openModal(editData = null) {
+          if (editData) {
+            document.getElementById("modal-nama").value = editData.nama;
+            document.getElementById("modal-nik").value = editData.nik;
+            document.getElementById("modal-status").value = editData.status;
+            modalTitle.innerHTML = '<span class="material-symbols-outlined">edit</span> Edit Anggota Keluarga';
+            editingRowId = editData.id;
+          } else {
+            document.getElementById("modal-nama").value = "";
+            document.getElementById("modal-nik").value = "";
+            document.getElementById("modal-status").value = "";
+            modalTitle.innerHTML = '<span class="material-symbols-outlined">group_add</span> Tambah Anggota Keluarga';
+            editingRowId = null;
+          }
           modal.classList.add("is-open");
         }
+
         function closeModal() {
           modal.classList.remove("is-open");
         }
@@ -1528,36 +1807,46 @@
             emptyRow = null;
           }
           var idx = familyIndex++;
+          var rowId = "family-row-" + idx;
 
           var row = document.createElement("tr");
+          row.id = rowId;
           row.innerHTML =
-            "<td>" + nama + "</td>" +
-            "<td>" + nik + "</td>" +
-            "<td>" + statusLabel + "</td>" +
-            '<td><button type="button" class="reg-family-remove">Hapus</button></td>';
+            "<td class='td-nama'>" + nama + "</td>" +
+            "<td class='td-nik'>" + nik + "</td>" +
+            "<td class='td-status'>" + statusLabel + "</td>" +
+            "<td>" +
+               "<div style='display:flex; gap:0.5rem;'>" +
+                 "<button type='button' class='reg-family-edit'>Edit</button>" +
+                 "<button type='button' class='reg-family-remove'>Hapus</button>" +
+               "</div>" +
+            "</td>";
 
+          // Hidden input agar ikut disubmit PHP
           var inputNama = document.createElement("input");
           inputNama.type = "hidden";
           inputNama.name = "anggota[" + idx + "][nama]";
           inputNama.value = nama;
+          inputNama.className = "input-nama";
 
           var inputNik = document.createElement("input");
           inputNik.type = "hidden";
           inputNik.name = "anggota[" + idx + "][nik]";
           inputNik.value = nik;
+          inputNik.className = "input-nik";
 
           var inputStatus = document.createElement("input");
           inputStatus.type = "hidden";
           inputStatus.name = "anggota[" + idx + "][status]";
           inputStatus.value = statusValue;
+          inputStatus.className = "input-status";
 
           row.appendChild(inputNama);
           row.appendChild(inputNik);
           row.appendChild(inputStatus);
 
-          row
-            .querySelector(".reg-family-remove")
-            .addEventListener("click", function () {
+          // Event Delete
+          row.querySelector(".reg-family-remove").addEventListener("click", function () {
               row.remove();
               if (!tableBody.querySelector("tr")) {
                 var newEmptyRow = document.createElement("tr");
@@ -1569,10 +1858,33 @@
               }
             });
 
+          // Event Edit
+          row.querySelector(".reg-family-edit").addEventListener("click", function () {
+              openModal({
+                 id: rowId,
+                 nama: row.querySelector(".input-nama").value,
+                 nik: row.querySelector(".input-nik").value,
+                 status: row.querySelector(".input-status").value
+              });
+          });
+
           tableBody.appendChild(row);
         }
 
-        if (btnOpen) btnOpen.addEventListener("click", openModal);
+        function updateFamilyRow(rowId, nama, nik, statusValue, statusLabel) {
+            var row = document.getElementById(rowId);
+            if(!row) return;
+
+            row.querySelector(".td-nama").textContent = nama;
+            row.querySelector(".td-nik").textContent = nik;
+            row.querySelector(".td-status").textContent = statusLabel;
+
+            row.querySelector(".input-nama").value = nama;
+            row.querySelector(".input-nik").value = nik;
+            row.querySelector(".input-status").value = statusValue;
+        }
+
+        if (btnOpen) btnOpen.addEventListener("click", function() { openModal(null); });
         if (btnCancel) btnCancel.addEventListener("click", closeModal);
         modal.addEventListener("click", function (e) {
           if (e.target === modal) closeModal();
@@ -1592,10 +1904,233 @@
               alert("Nama, NIK, dan Status wajib diisi.");
               return;
             }
-            addFamilyRow(nama, nik, statusValue, statusLabel);
+
+            if(editingRowId !== null) {
+              updateFamilyRow(editingRowId, nama, nik, statusValue, statusLabel);
+            } else {
+              addFamilyRow(nama, nik, statusValue, statusLabel);
+            }
+
             closeModal();
           });
         }
+      })();
+    </script>
+
+    {{-- Wizard 3 langkah --}}
+    <script>
+      (function () {
+        var form = document.getElementById("register-step2-form");
+        var grid = form && form.querySelector(".reg-grid");
+        if (!form || !grid) return;
+
+        var groups = [];
+        Array.prototype.forEach.call(grid.querySelectorAll(".reg-col"), function (col) {
+          var current = null;
+          Array.prototype.slice.call(col.children).forEach(function (el) {
+            if (el.classList.contains("reg-section-title")) {
+              // Simpan elemen title ini ke dalam grup (agar ikut tersembunyi nantinya)
+              current = { els: [el] };
+              groups.push(current);
+            } else if (current) {
+              current.els.push(el);
+            }
+          });
+        });
+
+        // Kita memastikan ada 4 section asli: Akun, Alamat, Pribadi, Keluarga
+        if (groups.length !== 4) return;
+
+        // GABUNGKAN LANGKAH:
+        // 0: Akun
+        // 1: Alamat
+        // 2: Data Pribadi
+        // 3: Keluarga
+        // Jadinya -> 1. Akun, 2. Data Pribadi, 3. Alamat & Keluarga
+        var steps = [
+            { els: [].concat(groups[0].els) }, // Akun
+            { els: [].concat(groups[2].els) }, // Data Pribadi
+            { els: [].concat(groups[1].els, groups[3].els) } // Alamat disambung Keluarga
+        ];
+        var labels = ["Akun", "Data Pribadi", "Alamat & Keluarga"];
+
+        function reorder(group, ids) {
+          var byId = {};
+          group.els.forEach(function (el) {
+            var input = el.querySelector("input, select, textarea");
+            if (input && input.id) byId[input.id] = el;
+          });
+          var out = [];
+          ids.forEach(function (id) {
+            if (byId[id]) out.push(byId[id]);
+          });
+          group.els.forEach(function (el) {
+            if (out.indexOf(el) === -1) out.push(el);
+          });
+          group.els = out;
+        }
+
+        // Urut ulang form step Data Pribadi (indeks 1 sekarang)
+        reorder(steps[1], [
+          "nama-lengkap", "email", "telp", "pekerjaan",
+          "agama", "jenis-kelamin", "tempat-lahir", "tgl-lahir",
+        ]);
+
+        [
+          "agama", "jenis-kelamin", "tempat-lahir", "tgl-lahir",
+          "provinsi", "kab-kota", "kecamatan", "desa-kelurahan",
+        ].forEach(function (id) {
+          var input = document.getElementById(id);
+          var box = input && input.closest(".auth-field");
+          if (box) box.classList.add("wz-half");
+        });
+        var alamat = document.getElementById("alamat");
+        var alamatBox = alamat && alamat.closest(".auth-field");
+        if (alamatBox) alamatBox.classList.add("wz-wide");
+        var familyCard = form.querySelector(".reg-family-card");
+        if (familyCard) familyCard.classList.add("wz-wide");
+
+        var wz = document.createElement("div");
+        wz.className = "wz";
+        var stepper = document.createElement("ol");
+        stepper.className = "wz-stepper";
+        var panels = document.createElement("div");
+        panels.className = "wz-panels";
+
+        var sections = [];
+        var dots = [];
+        var errs = [];
+
+        steps.forEach(function (g, i) {
+          var sec = document.createElement("section");
+          sec.className = "wz-step";
+          var fields = document.createElement("div");
+          fields.className = "wz-fields";
+          g.els.forEach(function (el) {
+            fields.appendChild(el);
+          });
+          sec.appendChild(fields);
+          panels.appendChild(sec);
+          sections.push(sec);
+
+          errs.push(
+            Array.prototype.some.call(sec.querySelectorAll(".auth-hint-text"), function (p) {
+              return p.textContent.trim().indexOf("(*") !== 0;
+            })
+          );
+
+          var li = document.createElement("li");
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "wz-dot";
+          btn.innerHTML =
+            '<span class="wz-num">' + (i + 1) + '</span><span class="wz-label">' + labels[i] + "</span>";
+
+          // Event click pada stepper dimatikan karena pointer-events: none (via CSS)
+
+          li.appendChild(btn);
+          stepper.appendChild(li);
+          dots.push(li);
+        });
+
+        wz.appendChild(stepper);
+        wz.appendChild(panels);
+        grid.parentNode.replaceChild(wz, grid);
+
+        var actions = form.querySelector(".reg-actions");
+        var submitBtn = actions && actions.querySelector(".auth-submit");
+        var cancelBtn = actions && actions.querySelector(".reg-cancel-btn");
+
+        var nav = document.createElement("div");
+        nav.className = "wz-nav";
+
+        var prev = document.createElement("button");
+        prev.type = "button";
+        prev.className = "wz-prev";
+        prev.innerHTML =
+          '<span class="material-symbols-outlined text-[16px]">arrow_back</span> Sebelumnya';
+
+        var spacer = document.createElement("span");
+        spacer.className = "wz-spacer";
+
+        var next = document.createElement("button");
+        next.type = "button";
+        next.className = "auth-submit wz-next";
+        next.innerHTML =
+          'Lanjut <span class="material-symbols-outlined text-[16px]">arrow_forward</span>';
+
+        nav.appendChild(prev);
+        nav.appendChild(spacer);
+        if (cancelBtn) nav.appendChild(cancelBtn);
+        nav.appendChild(next);
+        if (submitBtn) nav.appendChild(submitBtn);
+
+        wz.parentNode.insertBefore(nav, wz.nextSibling);
+        if (actions && actions.parentNode) actions.parentNode.removeChild(actions);
+
+        var warnings = form.querySelectorAll(".auth-warning");
+        var errWarn = warnings[0]; // Hanya ada 1 warning pop up ketika error
+        var cur = 0;
+
+        function show(i) {
+          cur = Math.max(0, Math.min(sections.length - 1, i));
+          var last = cur === sections.length - 1;
+
+          sections.forEach(function (s, k) {
+            s.classList.toggle("is-active", k === cur);
+          });
+          dots.forEach(function (d, k) {
+            d.classList.toggle("is-current", k === cur);
+            d.classList.toggle("is-done", k < cur && !errs[k]);
+            d.classList.toggle("has-error", !!errs[k]);
+            var b = d.firstChild;
+            if (k === cur) b.setAttribute("aria-current", "step");
+            else b.removeAttribute("aria-current");
+          });
+
+          prev.style.visibility = cur === 0 ? "hidden" : "visible";
+          next.style.display = last ? "none" : "";
+          if (submitBtn) submitBtn.style.display = last ? "" : "none";
+          if (cancelBtn) cancelBtn.style.display = last ? "" : "none";
+
+          if (errWarn) errWarn.style.display = errs[cur] ? "" : "none";
+        }
+
+        prev.addEventListener("click", function () {
+          show(cur - 1);
+        });
+
+        // Validasi HTML5 saat menekan tombol Lanjut
+        next.addEventListener("click", function () {
+          var currentSection = sections[cur];
+          var inputs = Array.from(currentSection.querySelectorAll("input[required], select[required], textarea[required]"));
+          var isValid = true;
+
+          for (var i = 0; i < inputs.length; i++) {
+            if (!inputs[i].checkValidity()) {
+              inputs[i].reportValidity(); // Memunculkan tooltip peringatan native browser
+              isValid = false;
+              break;
+            }
+          }
+
+          if (isValid) {
+            show(cur + 1);
+          }
+        });
+
+        // Validasi dan Next pakai tombol Enter
+        form.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" && (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") && cur < sections.length - 1) {
+            e.preventDefault();
+            next.click(); // Trigger validasi yang sama dengan klik Lanjut
+          }
+        });
+
+        document.documentElement.classList.add("wz-active");
+        form.classList.add("wz-on");
+        var firstErr = errs.indexOf(true);
+        show(firstErr >= 0 ? firstErr : 0);
       })();
     </script>
 

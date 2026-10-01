@@ -2,8 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\PbiApbn;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 
@@ -33,6 +39,7 @@ class PageController extends Controller
 
     /**
      * Proses login user biasa.
+     * Field "username" boleh berisi NIK (No KTP) ATAU No KK.
      */
     public function loginStore(Request $request)
     {
@@ -53,37 +60,80 @@ class PageController extends Controller
 
         $request->session()->forget(['captcha_a', 'captcha_b']);
 
-        $credentials = [
-            'username' => $validated['username'],
-            'password' => $validated['password'],
-        ];
+        $identifier = trim($validated['username']);
+
+        // Batasi percobaan login agar No KK / NIK tidak mudah ditebak.
+        $throttleKey = Str::lower($identifier) . '|' . $request->ip();
+
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+
+            throw ValidationException::withMessages([
+                'username' => "Terlalu banyak percobaan login. Coba lagi dalam {$seconds} detik.",
+            ]);
+        }
 
         $remember = $request->boolean('remember');
 
-        if (Auth::attempt($credentials, $remember)) {
-            $user = Auth::user();
+        foreach ($this->resolveLoginCandidates($identifier) as $user) {
+            if (! Hash::check($validated['password'], $user->password)) {
+                continue;
+            }
+
             $roleSlug = $user->role->slug ?? null;
 
             // Halaman /login ini KHUSUS masyarakat. Role apapun selain
             // masyarakat (admin, kelurahan, kabid, kadis, operator_dinsos, dll)
             // wajib login lewat /admin-login.
             if ($roleSlug !== 'masyarakat') {
-                Auth::logout();
-                $request->session()->invalidate();
-
                 throw ValidationException::withMessages([
                     'username' => 'Akun ini bukan akun masyarakat. Silakan login lewat halaman khusus petugas.',
                 ]);
             }
 
+            RateLimiter::clear($throttleKey);
+
+            Auth::login($user, $remember);
             $request->session()->regenerate();
 
             return redirect()->intended(route('masyarakat.dashboard'));
         }
 
+        RateLimiter::hit($throttleKey);
+
         throw ValidationException::withMessages([
-            'username' => 'Username atau kata sandi salah.',
+            'username' => 'No KK / NIK atau kata sandi salah.',
         ]);
+    }
+
+    /**
+     * Cari kandidat user dari input login:
+     *  1. NIK   -> users.username (diisi NIK saat registrasi)
+     *  2. No KK -> pbi_apbns.no_kk -> pbi_apbns.user_id
+     *
+     * Satu KK bisa punya lebih dari satu pendaftaran, jadi hasilnya
+     * Collection dan password dicek ke tiap kandidat.
+     */
+    private function resolveLoginCandidates(string $identifier): Collection
+    {
+        $candidates = User::with('role')
+            ->where('username', $identifier)
+            ->get();
+
+        if (preg_match('/^\d{16}$/', $identifier)) {
+            $userIds = PbiApbn::where('no_kk', $identifier)
+                ->whereNotNull('user_id')
+                ->pluck('user_id');
+
+            if ($userIds->isNotEmpty()) {
+                $candidates = $candidates
+                    ->merge(User::with('role')->whereIn('id', $userIds)->get())
+                    ->unique('id')
+                    ->values();
+            }
+        }
+
+        return $candidates;
     }
 
     public function registrasiStep1()

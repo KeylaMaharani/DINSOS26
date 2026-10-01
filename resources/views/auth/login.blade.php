@@ -5,7 +5,7 @@
 @push('head')
         <meta charset="utf-8" />
         <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-    <link href="https://fonts.googleapis.com" rel="preconnect" />
+        <link href="https://fonts.googleapis.com" rel="preconnect" />
         <link rel="icon" type="image/png" href="{{ asset('assets/img/logo/logo.png') }}" />
         <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
         <link
@@ -80,23 +80,26 @@
           };
         </script>
         <style>
+          /* MENGUNCI SCROLL HALAMAN SECARA GLOBAL */
           html,
           body {
             height: 100%;
             margin: 0;
             padding: 0;
+            overflow: hidden;
+            overscroll-behavior: none;
           }
           * {
             box-sizing: border-box;
           }
 
-          /* ===== Background halaman ===== */
           .auth-page {
             height: 100vh;
+            height: 100dvh;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 0.6rem 1rem;
+            padding: 1rem;
             position: relative;
             overflow: hidden;
             background:
@@ -134,22 +137,20 @@
             border-color: rgba(255, 255, 255, 0.08);
           }
 
-          /* ===== Card split: panel kiri (branding/gambar) + panel kanan (form) ===== */
           .auth-card {
             position: relative;
             z-index: 10;
             width: 100%;
             max-width: 58rem;
-            max-height: calc(100vh - 3.5rem);
+            max-height: calc(100vh - 2.5rem);
+            max-height: calc(100dvh - 2.5rem);
             background: #ffffff;
             border-radius: 1.1rem;
             box-shadow: 0 24px 60px rgba(0, 20, 40, 0.35);
             overflow: hidden;
             display: flex;
-            min-height: 0;
           }
 
-          /* ---- Panel kiri: brand & ilustrasi ---- */
           .auth-side {
             flex: 1 1 40%;
             background: linear-gradient(
@@ -158,7 +159,7 @@
               #0c527f 55%,
               #136299 100%
             );
-            padding: 1.75rem 1.75rem;
+            padding: 2rem;
             display: flex;
             flex-direction: column;
             position: relative;
@@ -205,7 +206,6 @@
             white-space: nowrap;
           }
 
-          /* Badge/gambar: diam di tengah ruang kosong, tidak ikut terdorong turun */
           .auth-badge-wrap {
             position: relative;
             z-index: 2;
@@ -213,7 +213,7 @@
             justify-content: center;
             align-items: center;
             flex: 1 1 auto;
-            margin: 0.5rem 0;
+            margin: 1rem 0;
           }
           .auth-badge {
             width: 8rem;
@@ -231,35 +231,33 @@
             object-fit: contain;
           }
 
-          /* Stack info box: didorong ke bawah panel, gambar di atas tetap diam */
           .auth-info-stack {
             position: relative;
             z-index: 2;
             display: flex;
             flex-direction: column;
-            gap: 0.6rem;
+            gap: 0.65rem;
             width: 100%;
             margin-top: auto;
           }
 
-          /* ---- Info box di panel kiri (transparan di atas background gelap) ---- */
           .auth-info-box {
             width: 100%;
             display: flex;
-            gap: 0.65rem;
+            gap: 0.75rem;
             align-items: center;
             text-align: left;
             background: rgba(255, 255, 255, 0.08);
             border: 1px solid rgba(255, 255, 255, 0.16);
             border-radius: 0.85rem;
-            padding: 0.7rem 0.85rem;
+            padding: 0.75rem 1rem;
             backdrop-filter: blur(6px);
           }
           .auth-info-box .material-symbols-outlined {
             color: #ffffff;
             background: rgba(255, 255, 255, 0.14);
             border-radius: 9999px;
-            padding: 0.3rem;
+            padding: 0.4rem;
             font-size: 18px !important;
             flex-shrink: 0;
           }
@@ -267,7 +265,7 @@
             color: #ffffff;
             font-size: 12.5px;
             font-weight: 700;
-            margin: 0 0 0.1rem;
+            margin: 0 0 0.2rem;
           }
           .auth-info-box .auth-info-text {
             color: rgba(255, 255, 255, 0.75);
@@ -288,16 +286,17 @@
             text-decoration: underline;
           }
 
-          /* ---- Panel kanan: form ---- */
+          /* PANEL KANAN: Form Login */
           .auth-card-body {
             flex: 1 1 60%;
-            padding: 1.6rem 2rem 1.6rem;
+            padding: 1.6rem 2.2rem;
             display: flex;
             flex-direction: column;
             gap: 0.75rem;
             justify-content: center;
-            overflow-y: auto;
+            overflow: hidden; /* Mengunci scroll */
           }
+
           .auth-form-heading h2 {
             color: #121d26;
             font-size: 18px;
@@ -306,19 +305,18 @@
           .auth-form-heading p {
             margin-top: 0.2rem;
             color: #42474e;
-            font-size: 12px;
+            font-size: 12.5px;
           }
           .auth-form-heading {
-            margin-bottom: 0.2rem;
+            margin-bottom: 0.25rem;
           }
 
-          /* ===== Field kekinian: rounded penuh, ikon kiri ===== */
           .auth-field label {
             display: block;
             font-size: 12px;
             font-weight: 600;
             color: #121d26;
-            margin-bottom: 0.3rem;
+            margin-bottom: 0.25rem;
           }
           .auth-field-icon-wrap {
             position: relative;
@@ -355,6 +353,7 @@
           }
           .auth-field input::placeholder {
             color: #9aa2ab;
+            font-size: 13px;
           }
           .auth-field input:focus,
           .auth-field select:focus {
@@ -401,7 +400,6 @@
             text-decoration: underline;
           }
 
-          /* ===== Button "Masuk" ===== */
           .auth-submit {
             width: fit-content;
             min-width: 9.5rem;
@@ -410,7 +408,7 @@
             align-items: center;
             justify-content: center;
             gap: 0.4rem;
-            padding: 0.45rem 1.4rem;
+            padding: 0.5rem 1.4rem;
             border-radius: 9999px;
             background: linear-gradient(135deg, #003b62 0%, #136299 100%);
             color: #ffffff;
@@ -437,7 +435,7 @@
             border-radius: 0.85rem;
             border: 1px solid #f6c9c9;
             background: #fdecec;
-            padding: 0.55rem 0.9rem;
+            padding: 0.5rem 0.85rem;
             color: #93000a;
             font-size: 11.5px;
             line-height: 1.4;
@@ -468,9 +466,8 @@
             align-items: center;
             justify-content: center;
             text-align: center;
-            padding: 0.5rem 0.5rem;
+            padding: 0.5rem;
             border-radius: 0.75rem;
-            /* border lebih gelap supaya tetap kelihatan jelas walau layar sempit/di-scale */
             border: 1.5px solid #c9d3e0;
             background: #ffffff;
             color: #003b62;
@@ -485,32 +482,14 @@
             background: #f7f9ff;
             border-color: #136299;
           }
-          .auth-register-btn.is-highlighted {
-            animation: register-glow 1.2s ease-in-out infinite;
-          }
-          @keyframes register-glow {
-            0%,
-            100% {
-              box-shadow: 0 0 0 0 rgba(19, 98, 153, 0.55);
-              background: #eaf3ff;
-              border-color: #136299;
-              color: #003b62;
-            }
-            50% {
-              box-shadow: 0 0 0 8px rgba(19, 98, 153, 0);
-              background: #136299;
-              border-color: #003b62;
-              color: #ffffff;
-            }
-          }
 
           .auth-back {
             display: inline-flex;
             align-items: center;
-            gap: 0.3rem;
+            gap: 0.4rem;
             color: #ffffff;
             opacity: 0.85;
-            font-size: 11.5px;
+            font-size: 12px;
             font-weight: 600;
             text-decoration: none;
             white-space: nowrap;
@@ -519,7 +498,7 @@
             opacity: 1;
           }
           .auth-back .material-symbols-outlined {
-            font-size: 15px;
+            font-size: 16px;
           }
 
           .auth-bottom-row {
@@ -531,7 +510,6 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 1.25rem;
             margin-top: 0.6rem;
           }
 
@@ -542,98 +520,97 @@
             max-width: 64rem;
             display: flex;
             flex-direction: column;
-            align-items: flex-start;
+            align-items: center;
           }
 
           .auth-footnote {
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 10px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 11px;
             white-space: nowrap;
           }
-          .auth-bottom-dot {
-            color: rgba(255, 255, 255, 0.4);
-            font-size: 10px;
-          }
-
           .auth-field-error {
             color: #93000a;
             font-size: 11px;
-            margin-top: 0.3rem;
+            margin-top: 0.25rem;
             padding-left: 0.3rem;
           }
 
-          /* ===== Responsif =====
-             Breakpoint diturunkan dari 860px -> 700px supaya tampilan
-             dua-panel (seperti versi desktop) tetap dipertahankan lebih lama
-             dan tidak cepat "tumpuk" saat dilihat di jendela/preview sempit. */
+          /* ==========================================================
+             PENGATURAN MOBILE: Adaptasi persis seperti halaman registrasi
+             ========================================================== */
           @media (max-width: 700px) {
             .auth-page {
-              height: auto;
-              min-height: 100vh;
-              align-items: flex-start;
+              padding: 0;
             }
             .auth-card {
               flex-direction: column;
-              max-width: 26rem;
-              max-height: none;
+              max-width: 100%;
+              height: 100dvh;
+              max-height: 100dvh;
+              border-radius: 0;
             }
             .auth-side {
-              padding: 1.5rem 1.5rem 2rem;
-            }
-            .auth-badge-wrap {
+              padding: 1.1rem 1.4rem;
               flex: 0 0 auto;
-              margin: 1rem 0;
             }
-            .auth-badge {
-              width: 6.5rem;
-              height: 6.5rem;
+            .auth-brand-row {
+              flex-direction: row !important;
+              align-items: center !important;
+              justify-content: space-between;
+              gap: 0.5rem !important;
             }
-            .auth-badge img {
-              width: 4.6rem;
-              height: 4.6rem;
-            }
+            /* Sembunyikan elemen dekoratif agar layout 1 layar utuh */
+            .auth-badge-wrap,
             .auth-info-stack {
-              margin-top: 0.5rem;
-            }
-            .auth-info-box {
-              padding: 0.6rem 0.75rem;
-            }
-            .auth-info-box .auth-info-text {
-              font-size: 10.5px;
-            }
-            .auth-card-body {
-              padding: 1.25rem 1.5rem 1.5rem;
-              max-height: none;
-              overflow-y: visible;
-            }
-            .auth-bottom-row {
-              max-width: 26rem;
-              flex-direction: column;
-              align-items: center;
-              text-align: center;
-              gap: 0.35rem;
-            }
-            .auth-bottom-dot {
               display: none;
             }
-            .auth-footnote {
-              white-space: normal;
+            .auth-card-body {
+              flex: 1 1 auto;
+              padding: 1.25rem 1.4rem 1.5rem;
+              gap: 0.65rem;
+              justify-content: center;
+              overflow: hidden; /* MENGUNCI SCROLL TOTAL */
             }
-            .auth-outer-wrap {
-              align-items: center;
+            .auth-form-heading h2 {
+              font-size: 16px;
+            }
+            .auth-form-heading p {
+              font-size: 11px;
+            }
+            .auth-field label {
+              font-size: 11.5px;
+              margin-bottom: 0.2rem;
+            }
+            .auth-field input,
+            .auth-field select {
+              font-size: 16px; /* 16px mencegah auto-zoom di browser iOS / Safari */
+              padding: 0.5rem 1rem 0.5rem 2.6rem;
+            }
+            .auth-field-icon-wrap .auth-input-icon {
+              left: 0.85rem;
+              font-size: 17px !important;
             }
             .auth-submit {
               width: 100%;
-              margin: 0;
+              padding: 0.6rem;
+              margin-top: 0.25rem;
             }
-          }
-          @media (max-width: 380px) {
             .auth-register-grid {
-              grid-template-columns: 1fr;
+              gap: 0.4rem;
+            }
+            .auth-register-btn {
+              padding: 0.45rem 0.25rem;
+              font-size: 10.5px;
+            }
+            /* Sembunyikan alert auto-hide & footnote bawah di mobile agar ruang tetap pas */
+            .auth-warning--auto-hide {
+              display: none;
+            }
+            .auth-bottom-row {
+              display: none;
             }
           }
         </style>
-
 @endpush
 
 @section('body_class', 'bg-surface font-body-md text-on-surface antialiased')
@@ -643,21 +620,21 @@
     <div class="auth-page">
       <div class="auth-outer-wrap">
         <div class="auth-card">
-          <!-- Panel kiri: gambar / branding -->
+          <!-- Panel kiri: header / brand -->
           <div class="auth-side">
             <div
               class="auth-brand-row"
               style="
                 flex-direction: column;
                 align-items: flex-start;
-                gap: 0.5rem;
+                gap: 0.75rem;
               "
             >
               <a href="{{ route('home') }}" class="auth-back">
                 <span class="material-symbols-outlined">arrow_back</span>
                 Kembali ke Home
               </a>
-              <div style="display: flex; align-items: center; gap: 0.6rem">
+              <div style="display: flex; align-items: center; gap: 0.75rem">
                 <img
                   alt="Logo Dinas Sosial Kota Bogor"
                   src="{{ asset('assets/img/logo/bogor.png') }}"
@@ -666,14 +643,14 @@
               </div>
             </div>
 
-            <!-- Badge/gambar: posisinya tetap, tidak ikut terdorong -->
+            <!-- Disembunyikan di layar mobile -->
             <div class="auth-badge-wrap">
               <div class="auth-badge">
                 <img alt="Logo SOLID" src="{{ asset('assets/img/logo/logo.png') }}" />
               </div>
             </div>
 
-            <!-- Info box: didorong ke bagian bawah panel kiri -->
+            <!-- Disembunyikan di layar mobile -->
             <div class="auth-info-stack">
               <div class="auth-info-box">
                 <span class="material-symbols-outlined">support_agent</span>
@@ -701,21 +678,6 @@
           </div>
 
           <!-- Panel kanan: form login -->
-          {{--
-            PERBAIKAN:
-            - action() diarahkan ke route login store (sesuaikan nama route-nya
-              kalau di routes/web.php kamu bukan 'login.store').
-            - @csrf wajib ada, kalau tidak Laravel akan menolak POST (419).
-            - name="username" (bukan "nik") supaya cocok dengan
-              PageController::loginStore() yang validasi 'username'.
-            - name="captcha" tetap, tapi teks soal sekarang dinamis dari
-              $captchaA / $captchaB yang dikirim controller->login(), bukan
-              hardcode "4 + 3".
-            - name="remember" ditambahkan supaya $request->boolean('remember')
-              di controller kebaca.
-            - Tampilkan error validasi + old('username') supaya user tahu
-              kenapa gagal & tidak perlu ketik ulang.
-          --}}
           <form
             class="auth-card-body"
             id="login-form"
@@ -726,27 +688,20 @@
 
             <div class="auth-form-heading">
               <h2>Silakan masuk dengan akun Anda</h2>
-              <p>Gunakan NIK / Nomor KK dan kata sandi yang telah terdaftar.</p>
+              <p>Gunakan NIK (No. KTP) atau No. KK dan kata sandi yang telah terdaftar.</p>
             </div>
 
             @if ($errors->any())
               <div class="auth-warning">
                 <span class="material-symbols-outlined text-[17px] shrink-0">error</span>
-                <span>
-                  @foreach ($errors->all() as $error)
-                    {{ $error }}@if (!$loop->last)<br>@endif
-                  @endforeach
-                </span>
+                <span>{{ $errors->first() }}</span>
               </div>
             @endif
 
             <div class="auth-field">
               <label for="jenis-akun">Jenis Akun</label>
               <div class="auth-field-icon-wrap">
-                <span
-                  class="auth-input-icon material-symbols-outlined text-[17px]"
-                  >badge</span
-                >
+                <span class="auth-input-icon material-symbols-outlined text-[17px]">badge</span>
                 <select id="jenis-akun" name="jenis_akun">
                   <option value="pbi">PBI / SPMB</option>
                   <option value="yayasan">YAYASAN</option>
@@ -758,16 +713,14 @@
             <div class="auth-field">
               <label for="username">NIK / No. KK</label>
               <div class="auth-field-icon-wrap">
-                <span
-                  class="auth-input-icon material-symbols-outlined text-[17px]"
-                  >credit_card</span
-                >
+                <span class="auth-input-icon material-symbols-outlined text-[17px]">credit_card</span>
                 <input
                   id="username"
                   name="username"
                   type="text"
                   inputmode="numeric"
-                  placeholder="Masukan NIK / No. KK Anda"
+                  maxlength="16"
+                  placeholder="Masukan NIK atau No. KK Anda"
                   autocomplete="username"
                   value="{{ old('username') }}"
                 />
@@ -780,10 +733,7 @@
             <div class="auth-field">
               <label for="password">Kata Sandi</label>
               <div class="auth-field-icon-wrap">
-                <span
-                  class="auth-input-icon material-symbols-outlined text-[17px]"
-                  >lock</span
-                >
+                <span class="auth-input-icon material-symbols-outlined text-[17px]">lock</span>
                 <input
                   id="password"
                   name="password"
@@ -797,9 +747,7 @@
                   type="button"
                   aria-label="Tampilkan kata sandi"
                 >
-                  <span class="material-symbols-outlined text-[17px]"
-                    >visibility</span
-                  >
+                  <span class="material-symbols-outlined text-[17px]">visibility</span>
                 </button>
               </div>
               @error('password')
@@ -808,18 +756,16 @@
             </div>
 
             <div class="auth-field">
-              <label for="captcha">Berapa {{ $captchaA }} + {{ $captchaB }} ?</label>
+              <label for="captcha">Berapa {{ $captchaA ?? '3' }} + {{ $captchaB ?? '3' }} ?</label>
               <div class="auth-field-icon-wrap">
-                <span
-                  class="auth-input-icon material-symbols-outlined text-[17px]"
-                  >quiz</span
-                >
+                <span class="auth-input-icon material-symbols-outlined text-[17px]">quiz</span>
                 <input
                   id="captcha"
                   name="captcha"
                   type="text"
                   inputmode="numeric"
                   placeholder="Jawaban captcha"
+                  autocomplete="off"
                 />
               </div>
               @error('captcha')
@@ -840,16 +786,6 @@
               Masuk
             </button>
 
-            <div class="auth-warning">
-              <span class="material-symbols-outlined text-[17px] shrink-0"
-                >error</span
-              >
-              <span>
-                Pendaftaran BPJS PBI hanya diperuntukan bagi masyarakat yang
-                berasal dari keluarga tidak mampu.
-              </span>
-            </div>
-
             <div class="auth-divider">Belum mempunyai akun?</div>
 
             <div class="auth-register-grid">
@@ -857,8 +793,7 @@
                 href="{{ route('registrasi.step1') }}"
                 class="auth-register-btn"
                 id="register-bpjs-btn"
-                >Register BPJS PBI</a
-              >
+              >Register BPJS PBI</a>
               <a href="#" class="auth-register-btn">Register SPMB</a>
               <a href="#" class="auth-register-btn">Register Yayasan</a>
             </div>
@@ -875,17 +810,34 @@
 
     <script>
       (function () {
+        // Toggle show/hide password
         var toggleBtn = document.getElementById("toggle-password");
         var passwordInput = document.getElementById("password");
         if (toggleBtn && passwordInput) {
-          toggleBtn.addEventListener("click", function () {
+          toggleBtn.addEventListener("click", function (e) {
+            e.preventDefault();
             var isHidden = passwordInput.type === "password";
             passwordInput.type = isHidden ? "text" : "password";
             toggleBtn.querySelector(".material-symbols-outlined").textContent =
               isHidden ? "visibility_off" : "visibility";
           });
         }
-      
+
+        // NIK / No. KK: hanya angka, maksimal 16 digit
+        var usernameInput = document.getElementById("username");
+        if (usernameInput) {
+          usernameInput.addEventListener("input", function () {
+            usernameInput.value = usernameInput.value.replace(/\D/g, "").slice(0, 16);
+          });
+        }
+
+        // Captcha: hanya angka
+        var captchaInput = document.getElementById("captcha");
+        if (captchaInput) {
+          captchaInput.addEventListener("input", function () {
+            captchaInput.value = captchaInput.value.replace(/\D/g, "");
+          });
+        }
       })();
     </script>
 
