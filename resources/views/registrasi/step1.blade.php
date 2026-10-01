@@ -80,22 +80,25 @@
           };
         </script>
         <style>
+          /* MENGUNCI SCROLL HALAMAN SECARA GLOBAL */
           html,
           body {
             height: 100%;
             margin: 0;
             padding: 0;
+            overflow: hidden;
           }
           * {
             box-sizing: border-box;
           }
 
           .auth-page {
-            min-height: 100vh;
+            height: 100vh;
+            height: 100dvh;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 0.6rem 1rem;
+            padding: 1rem;
             position: relative;
             overflow: hidden;
             background:
@@ -138,8 +141,8 @@
             z-index: 10;
             width: 100%;
             max-width: 58rem;
-            min-height: 34rem;
-            max-height: calc(100vh - 3.5rem);
+            max-height: calc(100vh - 2.5rem);
+            max-height: calc(100dvh - 2.5rem);
             background: #ffffff;
             border-radius: 1.1rem;
             box-shadow: 0 24px 60px rgba(0, 20, 40, 0.35);
@@ -155,7 +158,7 @@
               #0c527f 55%,
               #136299 100%
             );
-            padding: 1.75rem 1.75rem;
+            padding: 2rem;
             display: flex;
             flex-direction: column;
             position: relative;
@@ -209,7 +212,7 @@
             justify-content: center;
             align-items: center;
             flex: 1 1 auto;
-            margin: 0.5rem 0;
+            margin: 1rem 0;
           }
           .auth-badge {
             width: 8rem;
@@ -232,7 +235,7 @@
             z-index: 2;
             display: flex;
             flex-direction: column;
-            gap: 0.6rem;
+            gap: 0.65rem;
             width: 100%;
             margin-top: auto;
           }
@@ -240,20 +243,20 @@
           .auth-info-box {
             width: 100%;
             display: flex;
-            gap: 0.65rem;
+            gap: 0.75rem;
             align-items: center;
             text-align: left;
             background: rgba(255, 255, 255, 0.08);
             border: 1px solid rgba(255, 255, 255, 0.16);
             border-radius: 0.85rem;
-            padding: 0.7rem 0.85rem;
+            padding: 0.75rem 1rem;
             backdrop-filter: blur(6px);
           }
           .auth-info-box .material-symbols-outlined {
             color: #ffffff;
             background: rgba(255, 255, 255, 0.14);
             border-radius: 9999px;
-            padding: 0.3rem;
+            padding: 0.4rem;
             font-size: 18px !important;
             flex-shrink: 0;
           }
@@ -261,7 +264,7 @@
             color: #ffffff;
             font-size: 12.5px;
             font-weight: 700;
-            margin: 0 0 0.1rem;
+            margin: 0 0 0.2rem;
           }
           .auth-info-box .auth-info-text {
             color: rgba(255, 255, 255, 0.75);
@@ -282,15 +285,17 @@
             text-decoration: underline;
           }
 
+          /* PANEL KANAN: Jarak diperlebar agar elemen mengisi ruang */
           .auth-card-body {
             flex: 1 1 60%;
-            padding: 1.6rem 2rem 1.6rem;
+            padding: 2rem 2.5rem; /* Padding atas bawah ditambah */
             display: flex;
             flex-direction: column;
-            gap: 0.75rem;
+            gap: 1.25rem; /* Jarak antar elemen diperbesar dari 0.75rem */
             justify-content: center;
-            overflow-y: auto;
+            overflow: hidden; /* Mengunci scroll */
           }
+
           .auth-form-heading h2 {
             color: #121d26;
             font-size: 18px;
@@ -299,25 +304,25 @@
           .auth-form-heading p {
             margin-top: 0.2rem;
             color: #42474e;
-            font-size: 12px;
+            font-size: 12.5px;
           }
           .auth-form-heading {
-            margin-bottom: 0.2rem;
+            margin-bottom: 0.5rem; /* Jarak ke elemen bawah diperbesar */
           }
 
           .auth-field label {
             display: block;
-            font-size: 12px;
+            font-size: 12.5px;
             font-weight: 600;
             color: #121d26;
-            margin-bottom: 0.3rem;
+            margin-bottom: 0.5rem; /* Jarak antara label dan input ditambah */
           }
           .auth-field-icon-wrap {
             position: relative;
           }
           .auth-field-icon-wrap .auth-input-icon {
             position: absolute;
-            left: 0.9rem;
+            left: 1rem;
             top: 50%;
             transform: translateY(-50%);
             color: #72777f;
@@ -330,7 +335,7 @@
             border: 1.5px solid #e4e9f0;
             background: #f7f9ff;
             border-radius: 9999px;
-            padding: 0.55rem 1rem 0.55rem 2.7rem;
+            padding: 0.6rem 1rem 0.6rem 2.8rem; /* Padding input sedikit dilebarkan */
             font-size: 13.5px;
             color: #121d26;
             transition:
@@ -338,8 +343,14 @@
               box-shadow 0.2s ease,
               background 0.2s ease;
           }
+
+          #no-kk::placeholder {
+            font-size: 11.5px;
+          }
+
           .auth-field input::placeholder {
             color: #9aa2ab;
+            font-size: 14px;
           }
           .auth-field input:focus,
           .auth-field select:focus {
@@ -351,13 +362,13 @@
 
           .auth-submit {
             width: fit-content;
-            min-width: 9.5rem;
-            margin: 0 auto;
+            min-width: 9rem;
+            margin: 0.5rem auto 0; /* Tambahan margin atas */
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 0.4rem;
-            padding: 0.45rem 1.4rem;
+            gap: 0.5rem;
+            padding: 0.65rem 1.4rem; /* Tombol dibuat sedikit lebih tinggi */
             border-radius: 9999px;
             background: linear-gradient(135deg, #003b62 0%, #136299 100%);
             color: #ffffff;
@@ -379,27 +390,27 @@
 
           .auth-warning {
             display: flex;
-            gap: 0.5rem;
+            gap: 0.6rem;
             align-items: flex-start;
             border-radius: 0.85rem;
             border: 1px solid #f6c9c9;
             background: #fdecec;
-            padding: 0.55rem 0.9rem;
+            padding: 0.6rem 0.85rem;
             color: #93000a;
-            font-size: 11.5px;
+            font-size: 12px;
             line-height: 1.4;
           }
 
           .auth-hint {
             display: flex;
-            gap: 0.5rem;
+            gap: 0.6rem;
             align-items: flex-start;
             border-radius: 0.85rem;
             border: 1px solid #a8d5f7;
             background: #eaf4fd;
-            padding: 0.55rem 0.9rem;
+            padding: 0.6rem 0.85rem;
             color: #0c527f;
-            font-size: 11.5px;
+            font-size: 12px;
             line-height: 1.4;
           }
           .auth-hint a {
@@ -411,9 +422,9 @@
           .auth-divider {
             display: flex;
             align-items: center;
-            gap: 0.6rem;
+            gap: 0.75rem;
             color: #72777f;
-            font-size: 10.5px;
+            font-size: 11.5px;
           }
           .auth-divider::before,
           .auth-divider::after {
@@ -427,11 +438,11 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 0.4rem;
+            gap: 0.5rem;
             width: fit-content;
             min-width: 8rem;
             margin: 0 auto;
-            padding: 0.45rem 1.2rem;
+            padding: 0.55rem 1.2rem;
             border-radius: 9999px;
             border: 1.5px solid #136299;
             color: #003b62;
@@ -455,10 +466,10 @@
           .auth-back {
             display: inline-flex;
             align-items: center;
-            gap: 0.3rem;
+            gap: 0.4rem;
             color: #ffffff;
             opacity: 0.85;
-            font-size: 11.5px;
+            font-size: 12px;
             font-weight: 600;
             text-decoration: none;
             white-space: nowrap;
@@ -467,24 +478,6 @@
             opacity: 1;
           }
           .auth-back .material-symbols-outlined {
-            font-size: 15px;
-          }
-
-          .auth-back-form {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.3rem;
-            color: #42474e;
-            font-size: 12px;
-            font-weight: 600;
-            text-decoration: none;
-            margin-bottom: 0.1rem;
-            transition: color 0.15s ease;
-          }
-          .auth-back-form:hover {
-            color: #003b62;
-          }
-          .auth-back-form .material-symbols-outlined {
             font-size: 16px;
           }
 
@@ -497,7 +490,6 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 1.25rem;
             margin-top: 0.6rem;
           }
 
@@ -512,88 +504,81 @@
           }
 
           .auth-footnote {
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 10px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 11px;
             white-space: nowrap;
-          }
-          .auth-bottom-dot {
-            color: rgba(255, 255, 255, 0.4);
-            font-size: 10px;
           }
 
           .auth-hint-text {
-            margin-top: 0.4rem;
-            font-size: 11px;
+            margin-top: 0.3rem;
+            font-size: 11.5px;
             font-weight: 600;
             color: #ba1a1a;
-            line-height: 1.5;
+            line-height: 1.4;
             padding: 0 0.3rem;
           }
 
+          /* ==========================================================
+             PENGATURAN MOBILE: Spacing diperbesar agar mengisi area
+             ========================================================== */
           @media (max-width: 700px) {
             .auth-page {
-              height: auto;
-              min-height: 100vh;
-              align-items: flex-start;
+              padding: 0;
             }
             .auth-card {
               flex-direction: column;
-              max-width: 26rem;
-              max-height: none;
-              min-height: 0;
+              max-width: 100%;
+              height: 100dvh;
+              max-height: 100dvh;
+              border-radius: 0;
             }
             .auth-side {
-              padding: 1.5rem 1.5rem 2rem;
-            }
-            .auth-badge-wrap {
+              padding: 1.25rem 1.5rem;
               flex: 0 0 auto;
-              margin: 1rem 0;
             }
-            .auth-badge {
-              width: 6.5rem;
-              height: 6.5rem;
+            .auth-brand-row {
+              flex-direction: row !important;
+              align-items: center !important;
+              justify-content: space-between;
+              gap: 0.5rem !important;
             }
-            .auth-badge img {
-              width: 4.6rem;
-              height: 4.6rem;
-            }
+            .auth-badge-wrap,
             .auth-info-stack {
-              margin-top: 0.5rem;
-            }
-            .auth-info-box {
-              padding: 0.6rem 0.75rem;
-            }
-            .auth-info-box .auth-info-text {
-              font-size: 10.5px;
-            }
-            .auth-card-body {
-              padding: 1.25rem 1.5rem 1.5rem;
-              max-height: none;
-              overflow-y: visible;
-            }
-            .auth-bottom-row {
-              max-width: 26rem;
-              flex-direction: column;
-              align-items: center;
-              text-align: center;
-              gap: 0.35rem;
-            }
-            .auth-bottom-dot {
               display: none;
             }
-            .auth-footnote {
-              white-space: normal;
+            .auth-card-body {
+              flex: 1 1 auto;
+              padding: 2rem 1.5rem 2.5rem; /* Padding bawah lebih besar */
+              gap: 1.75rem; /* GAP DIPERBESAR DARI 1rem KE 1.75rem */
             }
-            .auth-outer-wrap {
-              align-items: center;
+            .auth-field input {
+              font-size: 16px; /* Cegah zoom otomatis di iOS */
+              padding: 0.75rem 1rem 0.75rem 2.8rem;
             }
+
+            #no-kk::placeholder {
+              font-size: 13.5px;
+            }
+
             .auth-submit {
               width: 100%;
-              margin: 0;
+              padding: 0.85rem;
+              margin-top: 0.5rem;
+            }
+
+            .auth-login-btn {
+              padding: 0.7rem 1.2rem;
+            }
+
+            /* Sembunyikan elemen kurang krusial di HP agar sisa elemen lega */
+            .auth-hint {
+              display: none;
+            }
+            .auth-bottom-row {
+              display: none;
             }
           }
         </style>
-
 @endpush
 
 @section('body_class', 'bg-surface font-body-md text-on-surface antialiased')
@@ -610,14 +595,14 @@
               style="
                 flex-direction: column;
                 align-items: flex-start;
-                gap: 0.5rem;
+                gap: 0.75rem;
               "
             >
               <a href="{{ route('home') }}" class="auth-back">
                 <span class="material-symbols-outlined">arrow_back</span>
                 Kembali ke Home
               </a>
-              <div style="display: flex; align-items: center; gap: 0.6rem">
+              <div style="display: flex; align-items: center; gap: 0.75rem">
                 <img
                   alt="Logo Dinas Sosial Kota Bogor"
                   src="{{ asset('assets/img/logo/bogor.png') }}"
@@ -658,7 +643,7 @@
             </div>
           </div>
 
-          <!-- Panel kanan: form Step 1 (terhubung ke server) -->
+          <!-- Panel kanan: form Step 1 -->
           <form
             class="auth-card-body"
             id="cek-kk-form"
@@ -668,16 +653,6 @@
           >
             @csrf
 
-            <div class="auth-warning">
-              <span class="material-symbols-outlined text-[17px] shrink-0"
-                >error</span
-              >
-              <span>
-                Pendaftaran hanya diperuntukan bagi masyarakat yang berasal dari
-                keluarga tidak mampu.
-              </span>
-            </div>
-
             <div class="auth-form-heading">
               <h2>Silahkan Masukan Data Diri Anda</h2>
               <p>Cek Nomor KK Anda untuk memulai pendaftaran BPJS PBI.</p>
@@ -685,7 +660,7 @@
 
             @if ($errors->any())
               <div class="auth-warning">
-                <span class="material-symbols-outlined text-[17px] shrink-0"
+                <span class="material-symbols-outlined text-[18px] shrink-0"
                   >error</span
                 >
                 <span>{{ $errors->first() }}</span>
@@ -696,7 +671,7 @@
               <label for="no-kk">No KK (Kartu Keluarga)</label>
               <div class="auth-field-icon-wrap">
                 <span
-                  class="auth-input-icon material-symbols-outlined text-[17px]"
+                  class="auth-input-icon material-symbols-outlined text-[18px]"
                   >credit_card</span
                 >
                 <input
@@ -717,12 +692,12 @@
 
             <div class="auth-field">
               <label for="captcha"
-                >Berapa <span>{{ $captchaA }}</span> +
-                <span>{{ $captchaB }}</span> ?</label
+                >Berapa <span>{{ $captchaA ?? '3' }}</span> +
+                <span>{{ $captchaB ?? '3' }}</span> ?</label
               >
               <div class="auth-field-icon-wrap">
                 <span
-                  class="auth-input-icon material-symbols-outlined text-[17px]"
+                  class="auth-input-icon material-symbols-outlined text-[18px]"
                   >quiz</span
                 >
                 <input
@@ -730,7 +705,7 @@
                   name="captcha"
                   type="text"
                   inputmode="numeric"
-                  placeholder="Jawaban captcha"
+                  placeholder="Masukan jawaban"
                   autocomplete="off"
                   value="{{ old('captcha') }}"
                 />
@@ -748,7 +723,7 @@
             </button>
 
             <div class="auth-hint">
-              <span class="material-symbols-outlined text-[17px] shrink-0"
+              <span class="material-symbols-outlined text-[18px] shrink-0"
                 >help</span
               >
               <span>

@@ -443,6 +443,36 @@
             line-height: 1.4;
           }
 
+          /* ===== Alert info yang hilang otomatis (tanpa klik, tanpa JS) =====
+             Murni CSS animation: tampil 5 detik -> memudar & mengecil -> hilang.
+             margin-bottom negatif = mengimbangi "gap" flex parent (0.75rem)
+             supaya layout tidak loncat saat alert menghilang.
+             Dipakai untuk pesan informasi saja, bukan error validasi. */
+          .auth-warning-text {
+            flex: 1 1 auto;
+            min-width: 0;
+          }
+          .auth-warning--auto-hide {
+            max-height: 8rem;
+            overflow: hidden;
+            animation: alert-autohide 0.4s ease 5s forwards;
+          }
+          @keyframes alert-autohide {
+            from {
+              opacity: 1;
+              max-height: 8rem;
+            }
+            to {
+              opacity: 0;
+              max-height: 0;
+              padding-top: 0;
+              padding-bottom: 0;
+              margin-bottom: -0.75rem;
+              border-width: 0;
+              visibility: hidden;
+            }
+          }
+
           .auth-divider {
             display: flex;
             align-items: center;
@@ -715,6 +745,8 @@
               di controller kebaca.
             - Tampilkan error validasi + old('username') supaya user tahu
               kenapa gagal & tidak perlu ketik ulang.
+            - Alert info "Pendaftaran BPJS PBI hanya diperuntukan..." sekarang
+              hilang otomatis setelah 5 detik (CSS animation), tidak nempel terus.
           --}}
           <form
             class="auth-card-body"
@@ -840,11 +872,15 @@
               Masuk
             </button>
 
-            <div class="auth-warning">
+            {{-- Alert info: hilang sendiri setelah 5 detik (CSS animation, tanpa klik) --}}
+            <div
+              class="auth-warning auth-warning--auto-hide"
+              role="status"
+            >
               <span class="material-symbols-outlined text-[17px] shrink-0"
                 >error</span
               >
-              <span>
+              <span class="auth-warning-text">
                 Pendaftaran BPJS PBI hanya diperuntukan bagi masyarakat yang
                 berasal dari keluarga tidak mampu.
               </span>
@@ -875,6 +911,7 @@
 
     <script>
       (function () {
+        // Toggle show/hide kata sandi
         var toggleBtn = document.getElementById("toggle-password");
         var passwordInput = document.getElementById("password");
         if (toggleBtn && passwordInput) {
@@ -885,7 +922,7 @@
               isHidden ? "visibility_off" : "visibility";
           });
         }
-      
+
       })();
     </script>
 

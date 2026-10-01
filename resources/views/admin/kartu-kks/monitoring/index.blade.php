@@ -13,6 +13,7 @@
             </div>
         @endif
 
+        <!-- BAGIAN FILTER (TIDAK DIUBAH) -->
         <form method="GET" action="{{ route('kartu-kks.monitoring') }}"
             class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-4 flex flex-wrap items-end gap-3">
             <div>
@@ -61,97 +62,116 @@
                 data
             </div>
         </form>
+        <!-- AKHIR BAGIAN FILTER -->
 
         <div class="flex items-center justify-between">
             <h2 class="text-sm font-semibold text-on-surface">Permohonan Berjalan</h2>
             <span class="text-xs text-on-surface-variant">{{ $monitoringList->total() }} permohonan</span>
         </div>
 
-        @forelse ($monitoringList as $item)
-            @php
-                $isFinalItem = in_array($item->status, [
-                    \App\Models\KartuKksPermohonan::STATUS_SELESAI,
-                    \App\Models\KartuKksPermohonan::STATUS_DITOLAK,
-                ], true);
-                $isRejected = $item->status === \App\Models\KartuKksPermohonan::STATUS_DITOLAK;
-                $pendingLabel = $statusLabels[$item->status] ?? $item->status;
-                $pendingRole = $item->currentRole?->name;
-                $logCount = $item->logs->count();
-            @endphp
-
-            <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden">
-                <div class="flex flex-wrap gap-x-8 gap-y-1 px-4 py-2.5 border-b border-outline-variant/40 text-xs">
-                    <span><span class="text-on-surface-variant">NIK:</span> <span class="font-medium text-primary">{{ $item->nik }}</span></span>
-                    <span><span class="text-on-surface-variant">Nama Pemohon:</span> <span class="font-medium">{{ $item->nama_pemohon }}</span></span>
-                    <span><span class="text-on-surface-variant">Jenis Layanan:</span> <span class="font-medium">Kartu KKS - {{ $item->masalah_kartu }}</span></span>
-                    <a href="{{ route('kartu-kks.show', $item) }}" class="ml-auto inline-flex items-center gap-1 text-primary hover:underline font-medium">
-                        <span class="material-symbols-outlined text-[14px]">visibility</span>
-                        Lihat Detail
-                    </a>
-                </div>
-
-                <table class="w-full text-[11px] table-fixed">
-                    <colgroup>
-                        <col style="width: 14%">
-                        <col style="width: 26%">
-                        <col style="width: 16%">
-                        <col style="width: 32%">
-                        <col style="width: 12%">
-                    </colgroup>
-                    <thead class="bg-surface-container text-on-surface-variant uppercase">
+        <!-- STRUKTUR TABEL BARU -->
+        <div class="overflow-x-auto bg-surface-container-lowest border border-outline-variant/40 text-on-surface">
+            <table class="w-full text-xs text-left align-top">
+                <thead class="bg-surface-container/50 border-b border-outline-variant/40 text-on-surface-variant">
+                    <tr>
+                        <th class="px-3 py-3 w-10 text-center border-r border-outline-variant/40 font-medium">No</th>
+                        <th class="px-3 py-3 w-56 border-r border-outline-variant/40 font-medium">NIK<br>Nama Pemohon</th>
+                        <th class="px-3 py-3 w-40 border-r border-outline-variant/40 font-medium">Jenis Proses Layanan</th>
+                        <th class="p-0 border-r border-outline-variant/40 font-medium align-bottom">
+                            <div class="px-3 py-2 border-b border-outline-variant/40">Proses Layanan</div>
+                            <table class="w-full text-[11px] bg-white">
+                                <thead>
+                                    <tr>
+                                        <th class="px-3 py-2 w-1/4 text-left border-r border-outline-variant/40 font-medium">Tanggal</th>
+                                        <th class="px-3 py-2 w-1/3 text-left border-r border-outline-variant/40 font-medium">Proses</th>
+                                        <th class="px-3 py-2 w-1/6 text-left border-r border-outline-variant/40 font-medium">User</th>
+                                        <th class="px-3 py-2 text-left font-medium">Catatan</th>
+                                    </tr>
+                                </thead>
+                            </table>
+                        </th>
+                        <th class="px-3 py-3 w-24 text-center font-medium">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant/40">
+                    @forelse ($monitoringList as $index => $item)
+                        @php
+                            $isFinalItem = in_array($item->status, [
+                                \App\Models\KartuKksPermohonan::STATUS_SELESAI,
+                                \App\Models\KartuKksPermohonan::STATUS_DITOLAK,
+                            ], true);
+                            $isRejected = $item->status === \App\Models\KartuKksPermohonan::STATUS_DITOLAK;
+                            $pendingLabel = $statusLabels[$item->status] ?? $item->status;
+                            $pendingRole = $item->currentRole?->name;
+                        @endphp
                         <tr>
-                            <th class="text-left px-3 py-2">Tanggal</th>
-                            <th class="text-left px-3 py-2">Proses</th>
-                            <th class="text-left px-3 py-2">User</th>
-                            <th class="text-left px-3 py-2">Catatan</th>
-                            <th class="text-center px-3 py-2">Status</th>
+                            <td class="px-3 py-3 text-center border-r border-outline-variant/40">{{ $monitoringList->firstItem() + $index }}.</td>
+                            <td class="px-3 py-3 border-r border-outline-variant/40">
+                                <div class="text-on-surface-variant">{{ $item->nik }}</div>
+                                <div class="font-medium mt-1">{{ $item->nama_pemohon }}</div>
+                            </td>
+                            <td class="px-3 py-3 border-r border-outline-variant/40">
+                                Kartu KKS - {{ $item->masalah_kartu }}
+                            </td>
+                            <td class="p-0 border-r border-outline-variant/40">
+                                <!-- Tabel Nesting Riwayat Log -->
+                                <table class="w-full text-[11px]">
+                                    <tbody class="divide-y border-outline-variant/40">
+                                        {{-- Baris Status Berjalan Saat Ini --}}
+                                        @if (! $isFinalItem)
+                                            <tr class="bg-yellow-50 text-yellow-800 border-b border-outline-variant/40">
+                                                <td class="px-3 py-2 w-1/4 border-r border-outline-variant/40">-</td>
+                                                <td class="px-3 py-2 w-1/3 border-r border-outline-variant/40 font-medium">
+                                                    {{ $pendingLabel }}<br><span class="opacity-75">({{ strtolower($pendingRole ?? '') }})</span>
+                                                </td>
+                                                <td class="px-3 py-2 w-1/6 border-r border-outline-variant/40">-</td>
+                                                <td class="px-3 py-2">-</td>
+                                            </tr>
+                                        @endif
+
+                                        {{-- Baris Riwayat Selesai/Ditolak --}}
+                                        @foreach ($item->logs as $log)
+                                            <tr class="{{ $isRejected ? 'bg-red-50 text-red-800' : 'bg-green-500 text-white' }} border-b border-outline-variant/40 last:border-b-0">
+                                                <td class="px-3 py-2 w-1/4 border-r {{ $isRejected ? 'border-outline-variant/40' : 'border-green-600' }} whitespace-nowrap">
+                                                    {{ \Carbon\Carbon::parse($log->tanggal_proses)->format('Y-m-d H:i:s') }}
+                                                </td>
+                                                <td class="px-3 py-2 w-1/3 border-r {{ $isRejected ? 'border-outline-variant/40' : 'border-green-600' }}">
+                                                    {{ $log->taskname }}<br>
+                                                    <span class="opacity-80">({{ strtolower($log->rolename) }})</span>
+                                                </td>
+                                                <td class="px-3 py-2 w-1/6 border-r {{ $isRejected ? 'border-outline-variant/40' : 'border-green-600' }}">{{ $log->username }}</td>
+                                                <td class="px-3 py-2">{{ $log->catatan ?: '-' }}</td>
+                                            </tr>
+                                        @endforeach
+
+                                        @if($item->logs->isEmpty() && $isFinalItem)
+                                            <tr>
+                                                <td colspan="4" class="px-3 py-3 text-center text-on-surface-variant">Belum ada riwayat proses.</td>
+                                            </tr>
+                                        @endif
+                                    </tbody>
+                                </table>
+                            </td>
+                            <td class="px-3 py-3 text-center align-middle">
+                                <span class="font-medium {{ $isFinalItem ? ($isRejected ? 'text-red-600' : 'text-green-600') : 'text-yellow-600' }}">
+                                    {{ $isFinalItem ? ($isRejected ? 'Ditolak' : 'Selesai') : 'Proses' }}
+                                </span>
+                            </td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        @if (! $isFinalItem)
-                            <tr class="bg-warning-container text-on-warning-container">
-                                <td class="px-3 py-2">-</td>
-                                <td class="px-3 py-2 font-medium">
-                                    {{ $pendingLabel }}{{ $pendingRole ? ' (' . strtolower($pendingRole) . ')' : '' }}
-                                </td>
-                                <td class="px-3 py-2">-</td>
-                                <td class="px-3 py-2">-</td>
-                                <td class="px-3 py-2 text-center font-semibold">Proses</td>
-                            </tr>
-                        @endif
+                    @empty
+                        <tr>
+                            <td colspan="5" class="px-3 py-10 text-center text-on-surface-variant bg-surface-container-lowest">
+                                <span class="material-symbols-outlined text-[28px] block mb-2 opacity-40">inbox</span>
+                                Tidak ada permohonan berjalan.
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+        <!-- AKHIR STRUKTUR TABEL BARU -->
 
-                        @forelse ($item->logs as $i => $log)
-                            <tr class="{{ $isRejected ? 'bg-error-container text-on-error-container' : 'bg-success-container text-on-success-container' }}">
-                                <td class="px-3 py-2 whitespace-nowrap">{{ \Carbon\Carbon::parse($log->tanggal_proses)->format('d-m-Y H:i') }}</td>
-                                <td class="px-3 py-2 truncate" title="{{ $log->taskname }} ({{ $log->rolename }})">
-                                    {{ $log->taskname }} ({{ strtolower($log->rolename) }})
-                                </td>
-                                <td class="px-3 py-2 truncate" title="{{ $log->username }}">{{ $log->username }}</td>
-                                <td class="px-3 py-2 truncate" title="{{ $log->catatan }}">{{ $log->catatan ?: '-' }}</td>
-                                @if ($i === 0)
-                                    <td class="px-3 py-2 text-center font-semibold" rowspan="{{ $logCount }}">
-                                        {{ $isRejected ? 'Ditolak' : 'Selesai' }}
-                                    </td>
-                                @endif
-                            </tr>
-                        @empty
-                            @if ($isFinalItem)
-                                <tr>
-                                    <td colspan="5" class="px-3 py-3 text-center text-on-surface-variant">Belum ada riwayat proses.</td>
-                                </tr>
-                            @endif
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        @empty
-            <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl px-4 py-10 text-center text-on-surface-variant">
-                <span class="material-symbols-outlined text-[28px] block mb-2 opacity-40">inbox</span>
-                Tidak ada permohonan berjalan.
-            </div>
-        @endforelse
-
-        <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl px-4 py-3">
+        <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl px-4 py-3 mt-4">
             {{ $monitoringList->links() }}
         </div>
 
