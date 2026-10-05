@@ -12,22 +12,33 @@
 
     $detail = $data->detail;
     $bansos = $data->bansos;
+
+    $inputFileClass =
+        'mt-2 block w-full text-[10px] text-on-surface-variant file:mr-2 file:rounded file:border-0 file:bg-brand/10 file:px-2 file:py-1 file:text-brand';
 @endphp
 
 @section('content')
     <div class="space-y-5 max-w-5xl">
 
         <a href="{{ route('dtsen.ajuan') }}"
-            class="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary">
+            class="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-brand">
             <span class="material-symbols-outlined text-[18px]">arrow_back</span> Kembali ke daftar Ajuan
         </a>
 
+        @if ($errors->any())
+            <div class="flex flex-col gap-1 px-4 py-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700">
+                @foreach ($errors->all() as $error)
+                    <span>{{ $error }}</span>
+                @endforeach
+            </div>
+        @endif
+
         {{-- Header ringkas --}}
         <div
-            class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] p-5 flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div>
                 <p class="text-xs text-on-surface-variant">NIK</p>
-                <h2 class="text-lg font-bold text-primary">{{ $data->nik }}</h2>
+                <h2 class="text-lg font-extrabold text-brand">{{ $data->nik }}</h2>
                 <p class="text-sm text-on-surface-variant mt-1">{{ $data->nama_pemohon }}</p>
             </div>
             <span class="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold {{ $statusColor }}">
@@ -36,16 +47,16 @@
         </div>
 
         {{-- 1. Keterangan Penerima BANSOS (editable) --}}
-        <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden">
+        <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden">
             <div class="px-4 py-3 border-b border-outline-variant/40 flex items-center justify-between">
                 <h3 class="text-sm font-semibold flex items-center gap-2">
-                    <span class="material-symbols-outlined text-[18px] text-secondary">volunteer_activism</span>
+                    <span class="material-symbols-outlined text-[18px] text-brand">volunteer_activism</span>
                     Keterangan Penerima BANSOS
                 </h3>
                 <div class="flex items-center gap-3">
                     @if ($canAct)
                         <span class="text-[11px] text-on-surface-variant"><span class="text-error">*</span> wajib diisi</span>
-                        <span class="text-xs text-primary">Dapat diedit</span>
+                        <span class="text-xs text-brand">Dapat diedit</span>
                     @endif
                 </div>
             </div>
@@ -62,7 +73,7 @@
                         @else
                             <input type="text" name="peringkat_kesejahteraan_keluarga" required
                                 value="{{ old('peringkat_kesejahteraan_keluarga', $bansos->peringkat_kesejahteraan_keluarga ?? '') }}"
-                                class="w-full px-3 py-2 rounded-lg border border-outline-variant/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                                class="w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30" />
                         @endif
                     </div>
 
@@ -73,7 +84,7 @@
                         @else
                             <input type="text" name="dicetak_oleh" required
                                 value="{{ old('dicetak_oleh', $bansos->dicetak_oleh ?? '') }}"
-                                class="w-full px-3 py-2 rounded-lg border border-outline-variant/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                                class="w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30" />
                         @endif
                     </div>
 
@@ -84,7 +95,7 @@
                                 <p class="font-medium text-sm px-1 py-1.5">{{ ($bansos->$field ?? false) ? 'Ya' : 'Tidak' }}</p>
                             @else
                                 <select name="{{ $field }}" required
-                                    class="w-full px-3 py-2 rounded-lg border border-outline-variant/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+                                    class="w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30">
                                     <option value="1" @selected(old($field, $bansos->$field ?? false))>Ya</option>
                                     <option value="0" @selected(!old($field, $bansos->$field ?? false))>Tidak</option>
                                 </select>
@@ -100,7 +111,7 @@
                         @else
                             <input type="date" name="tanggal_cetak" required
                                 value="{{ old('tanggal_cetak', optional($bansos->tanggal_cetak ?? null)->format('Y-m-d')) }}"
-                                class="w-full px-3 py-2 rounded-lg border border-outline-variant/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                                class="w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30" />
                         @endif
                     </div>
 
@@ -116,7 +127,7 @@
                         @else
                             <input type="date" name="berlaku_sampai" required
                                 value="{{ old('berlaku_sampai', optional($bansos->berlaku_sampai ?? null)->format('Y-m-d')) }}"
-                                class="w-full px-3 py-2 rounded-lg border border-outline-variant/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                                class="w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30" />
                         @endif
                     </div>
                 </div>
@@ -126,7 +137,7 @@
                     <label class="block text-xs text-on-surface-variant mb-1">Upload Lainnya</label>
                     @php $uploadLainnya = $bansos->upload_lainnya ?? null; @endphp
                     <a @if ($uploadLainnya) href="{{ asset('storage/' . $uploadLainnya) }}" target="_blank" @endif
-                        class="inline-flex items-center gap-2 border border-outline-variant/40 rounded-lg px-3 py-2 text-sm hover:border-primary transition-colors w-fit">
+                        class="inline-flex items-center gap-2 border border-outline-variant/40 rounded-lg px-3 py-2 text-sm hover:border-brand transition-colors w-fit">
                         <span class="material-symbols-outlined text-[18px] text-on-surface-variant">upload_file</span>
                         Dokumen Tambahan
                         @unless ($uploadLainnya)
@@ -138,7 +149,7 @@
                 @if ($canAct)
                     <div class="pt-4">
                         <button type="submit"
-                            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-secondary text-sm font-medium transition-colors">
+                            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand text-white hover:bg-primary text-sm font-medium transition-colors">
                             <span class="material-symbols-outlined text-[18px]">save</span>
                             Simpan Keterangan BANSOS
                         </button>
@@ -148,16 +159,16 @@
         </div>
 
         {{-- 2. Data Detail (editable) --}}
-        <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden">
+        <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden">
             <div class="px-4 py-3 border-b border-outline-variant/40 flex items-center justify-between">
                 <h3 class="text-sm font-semibold flex items-center gap-2">
-                    <span class="material-symbols-outlined text-[18px] text-secondary">badge</span>
+                    <span class="material-symbols-outlined text-[18px] text-brand">badge</span>
                     Data Detail
                 </h3>
                 <div class="flex items-center gap-3">
                     @if ($canAct)
                         <span class="text-[11px] text-on-surface-variant"><span class="text-error">*</span> wajib diisi</span>
-                        <span class="text-xs text-primary">Dapat diedit</span>
+                        <span class="text-xs text-brand">Dapat diedit</span>
                     @endif
                 </div>
             </div>
@@ -197,11 +208,11 @@
                                 </p>
                             @elseif ($config['type'] === 'textarea')
                                 <textarea name="{{ $field }}" rows="2" @required($config['required'] ?? false)
-                                    class="w-full px-3 py-2 rounded-lg border border-outline-variant/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">{{ old($field, $detail->$field ?? '') }}</textarea>
+                                    class="w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30">{{ old($field, $detail->$field ?? '') }}</textarea>
                             @else
                                 <input type="{{ $config['type'] }}" name="{{ $field }}" @required($config['required'] ?? false)
                                     value="{{ old($field, $config['type'] === 'date' ? optional($detail->$field ?? null)->format('Y-m-d') : $detail->$field ?? '') }}"
-                                    class="w-full px-3 py-2 rounded-lg border border-outline-variant/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                                    class="w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30" />
                             @endif
                         </div>
                     @endforeach
@@ -210,7 +221,7 @@
                 @if ($canAct)
                     <div class="pt-4">
                         <button type="submit"
-                            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-secondary text-sm font-medium transition-colors">
+                            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand text-white hover:bg-primary text-sm font-medium transition-colors">
                             <span class="material-symbols-outlined text-[18px]">save</span>
                             Simpan Data Detail
                         </button>
@@ -219,75 +230,87 @@
             </form>
         </div>
 
-        {{-- 3. Lampiran --}}
-        <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden">
-            <div class="px-4 py-3 border-b border-outline-variant/40">
-                <h3 class="text-sm font-semibold flex items-center gap-2">
-                    <span class="material-symbols-outlined text-[18px] text-secondary">attach_file</span>
-                    Lampiran
-                </h3>
-            </div>
-            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 p-4">
-                @foreach ([
-            'scan_ktp' => ['label' => 'Scan KTP', 'required' => false],
-            'screenshot_dtsen' => ['label' => 'Screenshot DTSEN', 'required' => true],
-        ] as $field => $config)
-                    @php $file = $data->lampiran->$field ?? null; @endphp
-                    <a @if ($file) href="{{ asset('storage/' . $file) }}" target="_blank" @endif
-                        class="block border border-outline-variant/40 rounded-lg overflow-hidden hover:border-primary transition-colors">
-                        <div class="aspect-square bg-surface-container flex items-center justify-center">
-                            @if ($file)
-                                <img src="{{ asset('storage/' . $file) }}" class="w-full h-full object-cover"
-                                    alt="{{ $config['label'] }}">
-                            @else
-                                <span
-                                    class="material-symbols-outlined text-[28px] text-on-surface-variant/50">image_not_supported</span>
-                            @endif
+        {{-- 3. Lampiran (form upload terpisah) --}}
+        <form method="POST" action="{{ route('dtsen.lampiran.update', $data) }}" enctype="multipart/form-data"
+            class="space-y-5">
+            @csrf
+            @method('PUT')
+
+            <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden">
+                <div class="px-4 py-3 border-b border-outline-variant/40 flex items-center justify-between">
+                    <h3 class="text-sm font-semibold flex items-center gap-2">
+                        <span class="material-symbols-outlined text-[18px] text-brand">attach_file</span>
+                        Lampiran
+                    </h3>
+                    @if ($canUploadLampiran)
+                        <span class="text-[11px] text-on-surface-variant">Pilih file untuk mengunggah / mengganti
+                            (JPG, PNG, PDF, maks. 2 MB)</span>
+                    @endif
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 p-4">
+                    @foreach ([
+                        'scan_ktp' => ['label' => 'Scan KTP', 'required' => false],
+                        'screenshot_dtsen' => ['label' => 'Screenshot DTSEN', 'required' => true],
+                    ] as $field => $config)
+                        @php
+                            $file = $data->lampiran->$field ?? null;
+                            $isPdf = $file && strtolower(pathinfo($file, PATHINFO_EXTENSION)) === 'pdf';
+                        @endphp
+                        <div class="border border-outline-variant/40 rounded-lg overflow-hidden hover:border-brand transition-colors">
+                            <a @if ($file) href="{{ asset('storage/' . $file) }}" target="_blank" @endif
+                                class="block">
+                                <div class="aspect-square bg-surface-container flex items-center justify-center">
+                                    @if ($file && !$isPdf)
+                                        <img src="{{ asset('storage/' . $file) }}" class="w-full h-full object-cover"
+                                            alt="{{ $config['label'] }}">
+                                    @elseif ($file && $isPdf)
+                                        <span class="material-symbols-outlined text-[40px] text-error/70">picture_as_pdf</span>
+                                    @else
+                                        <span
+                                            class="material-symbols-outlined text-[28px] text-on-surface-variant/50">image_not_supported</span>
+                                    @endif
+                                </div>
+                            </a>
+                            <div class="px-1 py-1.5">
+                                <p class="text-[11px] text-center text-on-surface-variant">
+                                    {{ $config['label'] }}
+                                    @if ($config['required'])
+                                        <span class="text-error">*</span>
+                                    @endif
+                                </p>
+                                @if ($canUploadLampiran)
+                                    <input type="file" name="{{ $field }}" accept=".jpg,.jpeg,.png,.pdf"
+                                        class="{{ $inputFileClass }}" />
+                                @endif
+                            </div>
                         </div>
-                        <p class="text-[11px] text-center px-1 py-1.5 text-on-surface-variant">
-                            {{ $config['label'] }}
-                            @if ($config['required'])
-                                <span class="text-error">*</span>
-                            @endif
-                        </p>
-                    </a>
-                @endforeach
+                    @endforeach
+                </div>
             </div>
-        </div>
 
-        {{-- 4. Surat Pengantar DTSEN Kelurahan Digital --}}
-        <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden">
+            @if ($canUploadLampiran)
+                <div>
+                    <button type="submit"
+                        class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand text-white hover:bg-primary text-sm font-medium transition-colors">
+                        <span class="material-symbols-outlined text-[18px]">save</span>
+                        Simpan Lampiran
+                    </button>
+                </div>
+            @endif
+        </form>
+
+        {{-- 4. Surat Keterangan DTSEN Dinas Sosial --}}
+        <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden">
             <div class="px-4 py-3 border-b border-outline-variant/40">
                 <h3 class="text-sm font-semibold flex items-center gap-2">
-                    <span class="material-symbols-outlined text-[18px] text-secondary">description</span>
-                    Surat Pengantar DTSEN Kelurahan Digital
-                </h3>
-            </div>
-            <div class="p-4">
-                @php $suratKelurahan = $data->surat->surat_pengantar_dtsen_kelurahan_digital ?? null; @endphp
-                <a @if ($suratKelurahan) href="{{ asset('storage/' . $suratKelurahan) }}" target="_blank" @endif
-                    class="flex items-center gap-2 border border-outline-variant/40 rounded-lg px-3 py-2 text-sm hover:border-primary transition-colors w-fit">
-                    <span class="material-symbols-outlined text-[18px] text-on-surface-variant">description</span>
-                    Surat Pengantar DTSEN Kelurahan Digital
-                    @unless ($suratKelurahan)
-                        <span class="text-xs text-on-surface-variant">(belum ada)</span>
-                    @endunless
-                </a>
-            </div>
-        </div>
-
-        {{-- 5. Surat Keterangan DTSEN Dinas Sosial --}}
-        <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden">
-            <div class="px-4 py-3 border-b border-outline-variant/40">
-                <h3 class="text-sm font-semibold flex items-center gap-2">
-                    <span class="material-symbols-outlined text-[18px] text-secondary">verified</span>
+                    <span class="material-symbols-outlined text-[18px] text-brand">verified</span>
                     Surat Keterangan DTSEN Dinas Sosial
                 </h3>
             </div>
             <div class="p-4">
                 @php $suratDinsos = $data->surat->surat_keterangan_dtsen_digital ?? null; @endphp
                 <a @if ($suratDinsos) href="{{ asset('storage/' . $suratDinsos) }}" target="_blank" @endif
-                    class="flex items-center gap-2 border border-outline-variant/40 rounded-lg px-3 py-2 text-sm hover:border-primary transition-colors w-fit">
+                    class="flex items-center gap-2 border border-outline-variant/40 rounded-lg px-3 py-2 text-sm hover:border-brand transition-colors w-fit">
                     <span class="material-symbols-outlined text-[18px] text-on-surface-variant">description</span>
                     Surat Keterangan DTSEN Digital
                     @unless ($suratDinsos)
@@ -297,17 +320,17 @@
             </div>
         </div>
 
-        {{-- 6. Log Proses (disamakan gaya dengan PBI APBN) --}}
-        <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
+        {{-- 5. Log Proses --}}
+        <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden">
             <div class="px-5 py-4 border-b border-outline-variant/40">
                 <h3 class="text-sm font-bold flex items-center gap-2">
-                    <span class="material-symbols-outlined text-[20px] text-secondary">history</span>
+                    <span class="material-symbols-outlined text-[20px] text-brand">history</span>
                     Log Proses
                 </h3>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-sm text-left">
-                    <thead class="bg-surface-container/50 text-on-surface-variant text-xs uppercase tracking-wider">
+                    <thead class="bg-[#e6edf8] text-on-surface-variant text-xs uppercase tracking-wider">
                         <tr>
                             <th class="px-5 py-3 font-medium">Tanggal Proses</th>
                             <th class="px-5 py-3 font-medium">Username</th>
@@ -336,11 +359,11 @@
             </div>
         </div>
 
-        {{-- 7. Aksi & Catatan — gaya disamakan dengan Kartu KKS / PBI APBN --}}
-        <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm mb-10">
-            <div class="px-5 py-4 border-b border-outline-variant/40 bg-surface-container/20">
+        {{-- 6. Aksi & Catatan --}}
+        <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden mb-10">
+            <div class="px-5 py-4 border-b border-outline-variant/40 bg-[#eef4fd]">
                 <h3 class="text-sm font-bold flex items-center gap-2">
-                    <span class="material-symbols-outlined text-[20px] text-secondary">alt_route</span>
+                    <span class="material-symbols-outlined text-[20px] text-brand">alt_route</span>
                     Proses Permohonan
                 </h3>
             </div>
@@ -375,7 +398,7 @@
                     <div class="mb-5">
                         <label class="block text-sm font-bold text-on-surface mb-2">Catatan Proses <span class="text-error">*</span></label>
                         <textarea name="catatan" rows="3" required placeholder="Tulis catatan (wajib diisi untuk semua aksi)..."
-                            class="w-full px-4 py-3 rounded-lg border border-outline-variant/60 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-sm">{{ old('catatan') }}</textarea>
+                            class="w-full px-4 py-3 rounded-xl border border-outline-variant/40 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand shadow-sm">{{ old('catatan') }}</textarea>
                     </div>
 
                     <div class="flex flex-col sm:flex-row flex-wrap items-center gap-3">
@@ -391,7 +414,7 @@
                         @endif
 
                         <button type="submit" name="action" value="simpan_catatan"
-                            class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-5 py-2.5 rounded-lg bg-surface-container hover:bg-secondary/20 text-secondary text-sm font-bold transition-all">
+                            class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-5 py-2.5 rounded-lg bg-surface-container hover:bg-secondary/20 text-brand text-sm font-bold transition-all">
                             <span class="material-symbols-outlined text-[18px]">save</span>
                             Simpan Catatan Saja
                         </button>
@@ -399,7 +422,7 @@
                         <button type="submit" name="action" value="lanjut"
                             data-confirm="Teruskan permohonan ini ke tahap berikutnya{{ $nextTaskLabel ? ' (' . $nextTaskLabel . ')' : '' }}?"
                             data-confirm-variant="primary"
-                            class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-on-primary hover:bg-secondary text-sm font-bold shadow-md transition-all sm:ml-auto">
+                            class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-6 py-2.5 rounded-xl bg-brand text-white hover:bg-primary text-sm font-bold shadow-md transition-all sm:ml-auto">
                             <span class="material-symbols-outlined text-[18px]">redo</span>
                             @if ($nextTaskLabel)
                                 Teruskan ke {{ $nextTaskLabel }}

@@ -41,7 +41,7 @@
                 <label class="block text-xs text-on-surface-variant mb-1">Desil</label>
                 <select name="desil" class="px-3 py-1.5 rounded-lg border border-outline-variant/50 text-xs">
                     <option value="">Semua Desil</option>
-                    @foreach (['Desil 1', 'Desil 2', 'Desil 3', 'Desil 4'] as $d)
+                    @foreach (['Desil 1', 'Desil 2', 'Desil 3', 'Desil 4', 'Desil 5', 'Desil 6', 'Desil 7', 'Desil 8', 'Desil 9', 'Desil 10'] as $d)
                         <option value="{{ $d }}" @selected(request('desil') === $d)>{{ $d }}</option>
                     @endforeach
                 </select>

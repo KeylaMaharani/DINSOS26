@@ -50,6 +50,8 @@
                         "secondary-fixed": "#cfe5ff",
                         "secondary-container": "#82c1fd",
                         primary: "#003b62",
+                        brand: "#0a5ca8",
+                        "brand-soft": "#e8f4fd",
                         "on-surface": "#121d26",
                         outline: "#72777f",
                         "on-surface-variant": "#42474e",
@@ -143,7 +145,7 @@
     </style>
 </head>
 
-<body class="bg-surface font-body-md text-on-surface antialiased">
+<body class="bg-brand-soft font-body-md text-on-surface antialiased">
     @php
         // Peta menu => info tampilan, dipakai untuk render sidebar & cek "aktif"
         $sidebarMenus = [
@@ -190,65 +192,101 @@
         $helpPdfUrl = asset('assets/help/panduan-penggunaan.pdf');
     @endphp
 
-    <div class="flex h-screen overflow-hidden" x-data="{ sidebarOpen: false }">
+    {{-- Status sidebar:
+         - collapsedPref : pilihan pengguna (disimpan di localStorage), true = hanya ikon
+         - desktop       : true di layar >= lg. Di layar kecil sidebar selalu tampil penuh (ikon + nama)
+         - collapsed     : hasil gabungan keduanya, dipakai oleh seluruh isi sidebar --}}
+    <div class="flex h-screen overflow-hidden"
+        x-data="{
+            sidebarOpen: false,
+            collapsedPref: (function() { try { return localStorage.getItem('sidebarCollapsed') === '1'; } catch (e) { return false; } })(),
+            desktop: window.innerWidth >= 1024,
+            get collapsed() { return this.collapsedPref && this.desktop; },
+            toggleSidebar() {
+                this.collapsedPref = !this.collapsedPref;
+                try { localStorage.setItem('sidebarCollapsed', this.collapsedPref ? '1' : '0'); } catch (e) {}
+            }
+        }"
+        @resize.window="desktop = window.innerWidth >= 1024">
 
         <!-- Overlay (mobile) -->
         <div x-show="sidebarOpen" x-cloak @click="sidebarOpen = false" class="fixed inset-0 bg-black/40 z-30 lg:hidden">
         </div>
 
-        <!-- Sidebar -->
-        <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
-            class="fixed inset-y-0 left-0 z-40 w-64 h-screen overflow-y-auto bg-primary text-white flex flex-col shrink-0 transition-transform duration-200 ease-in-out lg:translate-x-0">
+        <!-- Sidebar (melayang, bisa diciutkan) -->
+        <aside :class="[sidebarOpen ? 'translate-x-0' : '-translate-x-[130%]', collapsed ? 'w-20' : 'w-64']"
+            class="fixed left-4 top-4 bottom-4 z-40 rounded-[28px] bg-brand text-white flex flex-col
+                   shadow-[0_10px_30px_rgba(10,92,168,0.35)] ring-1 ring-white/20
+                   transition-[width,transform] duration-200 ease-in-out lg:translate-x-0">
 
-            <div class="flex items-center gap-3 px-5 h-16 border-b border-white/10 shrink-0">
-                <img alt="Logo SOLID" src="{{ asset('assets/img/logo/logo.png') }}" class="w-8 h-8 object-contain" />
-                <div class="leading-tight">
-                    <p class="text-sm font-semibold">SOLID</p>
-                    <p class="text-[11px] text-white/70">Dinas Sosial Kota Bogor</p>
+            {{-- Tombol ciutkan / lebarkan (hanya di layar besar) --}}
+            <button type="button" @click="toggleSidebar()"
+                :title="collapsed ? 'Lebarkan sidebar' : 'Ciutkan sidebar'"
+                class="hidden lg:flex absolute -right-3 top-7 z-50 w-6 h-6 rounded-full bg-white text-brand shadow-md ring-1 ring-brand/20 items-center justify-center hover:bg-brand hover:text-white transition-colors">
+                <span class="material-symbols-outlined text-[18px]"
+                    x-text="collapsed ? 'chevron_right' : 'chevron_left'">chevron_left</span>
+            </button>
+
+            {{-- Logo --}}
+            <div class="h-20 shrink-0 flex items-center" :class="collapsed ? 'justify-center' : 'px-5 gap-3'">
+                <div class="w-11 h-11 shrink-0 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                    <img alt="Logo SOLID" src="{{ asset('assets/img/logo/logo.png') }}"
+                        class="w-8 h-8 object-contain" />
+                </div>
+                <div x-show="!collapsed" class="leading-tight min-w-0">
+                    <p class="text-sm font-bold">SOLID</p>
+                    <p class="text-[11px] text-white/70 truncate">Dinas Sosial Kota Bogor</p>
                 </div>
             </div>
 
-            <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+            <nav class="flex-1 min-h-0 px-3 py-2 space-y-1.5"
+                :class="collapsed ? 'overflow-visible' : 'overflow-y-auto'">
                 @if ($currentRole && $currentRole->hasModule('beranda'))
-                    <a href="{{ route('dashboard') }}"
-                        class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-                            {{ request()->routeIs('dashboard') ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
-                        <span class="material-symbols-outlined text-[20px]">dashboard</span>
-                        Beranda
+                    <a href="{{ route('dashboard') }}" :title="collapsed ? 'Beranda' : null"
+                        :class="collapsed ? 'w-12 mx-auto justify-center' : 'w-full px-3 gap-3'"
+                        class="h-12 rounded-xl flex items-center transition-colors
+                            {{ request()->routeIs('dashboard') ? 'bg-white/25 text-white shadow-inner' : 'text-white/80 hover:bg-white/15 hover:text-white' }}">
+                        <span class="material-symbols-outlined text-[24px] shrink-0">dashboard</span>
+                        <span x-show="!collapsed" class="text-sm font-medium truncate">Beranda</span>
                     </a>
                 @endif
 
                 {{-- ========== Menu layanan (Asesmen SPMB, PBI APBN, Kedaruratan Medis, Kartu KKS, DTSEN) ==========
-                     Setiap menu cuma dirender kalau role user yang sedang login punya
-                     izin ke modul itu ($currentRole->hasModule($menu['key'])). Super
-                     Admin otomatis lolos semua (lihat Role::hasModule()). --}}
+                     Hanya dirender kalau role user punya izin ke modul itu.
+                     - Sidebar lebar : sub-menu (Ajuan / Arsip / Monitoring) membuka ke bawah (accordion)
+                     - Sidebar ciut  : sub-menu muncul sebagai panel melayang di samping ikon --}}
                 @foreach ($sidebarMenus as $menu)
                     @continue(!$currentRole || !$currentRole->hasModule($menu['key']))
-                    @php $isMenuActive = request()->routeIs($menu['route_prefix'] . '*'); @endphp
-                    <div x-data="{ open: {{ $isMenuActive ? 'true' : 'false' }} }">
-                        <button @click="open = !open" type="button"
-                            class="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-                                {{ $isMenuActive ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
-                            <span class="flex items-center gap-3">
-                                <span class="material-symbols-outlined text-[20px]">{{ $menu['icon'] }}</span>
-                                {{ $menu['label'] }}
-                            </span>
-                            <span class="material-symbols-outlined text-[18px] transition-transform"
+                    @php
+                        $isMenuActive = request()->routeIs($menu['route_prefix'] . '*');
+                        $subRoutes = [
+                            'ajuan' => 'Ajuan',
+                            'arsip' => 'Arsip',
+                            'monitoring' => 'Monitoring',
+                            // 'log' => 'Log',
+                        ];
+                    @endphp
+                    <div class="relative" x-data="{ open: false }"
+                        x-init="open = {{ $isMenuActive ? 'true' : 'false' }} && !collapsed;
+                        $watch('collapsed', function(v) { open = v ? false : {{ $isMenuActive ? 'true' : 'false' }}; })"
+                        @click.outside="if (collapsed) open = false">
+
+                        <button @click="open = !open" type="button" :title="collapsed ? '{{ $menu['label'] }}' : null"
+                            :class="collapsed ? 'w-12 mx-auto justify-center' : 'w-full px-3 gap-3'"
+                            class="h-12 rounded-xl flex items-center transition-colors
+                                {{ $isMenuActive ? 'bg-white/25 text-white shadow-inner' : 'text-white/80 hover:bg-white/15 hover:text-white' }}">
+                            <span class="material-symbols-outlined text-[24px] shrink-0">{{ $menu['icon'] }}</span>
+                            <span x-show="!collapsed"
+                                class="flex-1 text-left text-sm font-medium truncate">{{ $menu['label'] }}</span>
+                            <span x-show="!collapsed" class="material-symbols-outlined text-[18px] transition-transform"
                                 :class="open ? 'rotate-180' : ''">expand_more</span>
                         </button>
 
-                        <div x-show="open" x-cloak x-transition:enter="transition ease-out duration-150"
+                        {{-- Accordion (sidebar lebar) --}}
+                        <div x-show="open && !collapsed" x-cloak x-transition:enter="transition ease-out duration-150"
                             x-transition:enter-start="opacity-0 -translate-y-1"
                             x-transition:enter-end="opacity-100 translate-y-0"
-                            class="mt-1 ml-4 pl-4 border-l border-white/15 space-y-0.5">
-                            @php
-                                $subRoutes = [
-                                    'ajuan' => 'Ajuan',
-                                    'arsip' => 'Arsip',
-                                    'monitoring' => 'Monitoring',
-                                    // 'log' => 'Log',
-                                ];
-                            @endphp
+                            class="mt-1 ml-6 pl-4 border-l border-white/20 space-y-0.5">
                             @foreach ($subRoutes as $subKey => $subLabel)
                                 @php
                                     $subRouteName =
@@ -256,7 +294,26 @@
                                 @endphp
                                 <a href="{{ route($subRouteName) }}"
                                     class="block px-3 py-2 rounded-lg text-[13px] transition-colors
-                                        {{ request()->routeIs($subRouteName) ? 'bg-white/15 text-white font-semibold' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
+                                        {{ request()->routeIs($subRouteName) ? 'bg-white/20 text-white font-semibold' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
+                                    {{ $subLabel }}
+                                </a>
+                            @endforeach
+                        </div>
+
+                        {{-- Panel melayang (sidebar ciut) --}}
+                        <div x-show="open && collapsed" x-cloak x-transition:enter="transition ease-out duration-150"
+                            x-transition:enter-start="opacity-0 -translate-x-1"
+                            x-transition:enter-end="opacity-100 translate-x-0"
+                            class="absolute left-full top-0 ml-5 w-52 bg-white text-on-surface rounded-2xl shadow-xl border border-outline-variant/30 p-2 z-50">
+                            <p class="px-3 py-1.5 text-xs font-bold text-brand">{{ $menu['label'] }}</p>
+                            @foreach ($subRoutes as $subKey => $subLabel)
+                                @php
+                                    $subRouteName =
+                                        $menu['route_prefix'] . $subKey . ($menu['key'] === 'pbi-apbn' ? '.index' : '');
+                                @endphp
+                                <a href="{{ route($subRouteName) }}"
+                                    class="block px-3 py-2 rounded-lg text-[13px] transition-colors
+                                        {{ request()->routeIs($subRouteName) ? 'bg-brand/10 text-brand font-semibold' : 'text-on-surface-variant hover:bg-surface-container' }}">
                                     {{ $subLabel }}
                                 </a>
                             @endforeach
@@ -265,105 +322,142 @@
                 @endforeach
 
                 @if ($currentRole && $currentRole->hasModule('pbi-kelurahan'))
-                    <a href="{{ route('pbi-kelurahan.index') }}"
-                        class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-            {{ request()->routeIs('pbi-kelurahan.*') ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
-                        <span class="material-symbols-outlined text-[20px]">home_work</span>
-                        Verifikasi Kelurahan
+                    <a href="{{ route('pbi-kelurahan.index') }}" :title="collapsed ? 'Verifikasi Kelurahan' : null"
+                        :class="collapsed ? 'w-12 mx-auto justify-center' : 'w-full px-3 gap-3'"
+                        class="h-12 rounded-xl flex items-center transition-colors
+                            {{ request()->routeIs('pbi-kelurahan.*') ? 'bg-white/25 text-white shadow-inner' : 'text-white/80 hover:bg-white/15 hover:text-white' }}">
+                        <span class="material-symbols-outlined text-[24px] shrink-0">home_work</span>
+                        <span x-show="!collapsed" class="text-sm font-medium truncate">Verifikasi Kelurahan</span>
                     </a>
                 @endif
 
-                {{-- ========== 7. Dokumen ========== --}}
+                {{-- ========== Dokumen ========== --}}
                 @if ($currentRole && $currentRole->hasModule('dokumen'))
-                    <a href="{{ route('dokumen.index') }}"
-                        class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-                            {{ request()->routeIs('dokumen.*') ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
-                        <span class="material-symbols-outlined text-[20px]">description</span>
-                        Dokumen
+                    <a href="{{ route('dokumen.index') }}" :title="collapsed ? 'Dokumen' : null"
+                        :class="collapsed ? 'w-12 mx-auto justify-center' : 'w-full px-3 gap-3'"
+                        class="h-12 rounded-xl flex items-center transition-colors
+                            {{ request()->routeIs('dokumen.*') ? 'bg-white/25 text-white shadow-inner' : 'text-white/80 hover:bg-white/15 hover:text-white' }}">
+                        <span class="material-symbols-outlined text-[24px] shrink-0">description</span>
+                        <span x-show="!collapsed" class="text-sm font-medium truncate">Dokumen</span>
                     </a>
                 @endif
 
-                {{-- ========== Kelola Akses ==========
+                {{-- ========== Kelola Akses & Master Kriteria ==========
                      Menu ini SENGAJA tidak ada di Role::MODULES, jadi cuma dicek
-                     lewat isSuperAdmin() -- role lain, meski dicentang semua modul
-                     yang ada, tidak akan pernah bisa melihat menu ini. --}}
+                     lewat isSuperAdmin(). --}}
                 @if ($currentRole && $currentRole->isSuperAdmin())
-                    <div class="pt-2 mt-2 border-t border-white/10"></div>
+                    <div class="w-8 mx-auto border-t border-white/20 my-2"></div>
 
-                    <a href="{{ route('akun.index') }}"
-                        class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-            {{ request()->routeIs('akun.*') ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
-                        <span class="material-symbols-outlined text-[20px]">manage_accounts</span>
-                        Kelola Akses
+                    <a href="{{ route('akun.index') }}" :title="collapsed ? 'Kelola Akses' : null"
+                        :class="collapsed ? 'w-12 mx-auto justify-center' : 'w-full px-3 gap-3'"
+                        class="h-12 rounded-xl flex items-center transition-colors
+                            {{ request()->routeIs('akun.*') ? 'bg-white/25 text-white shadow-inner' : 'text-white/80 hover:bg-white/15 hover:text-white' }}">
+                        <span class="material-symbols-outlined text-[24px] shrink-0">manage_accounts</span>
+                        <span x-show="!collapsed" class="text-sm font-medium truncate">Kelola Akses</span>
                     </a>
 
-                    <a href="{{ route('master.kriteria.index') }}"
-                        class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-        {{ request()->routeIs('master.kriteria.*') ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
-                        <span class="material-symbols-outlined text-[20px]">rule</span>
-                        Master Kriteria
+                    <a href="{{ route('master.kriteria.index') }}" :title="collapsed ? 'Master Kriteria' : null"
+                        :class="collapsed ? 'w-12 mx-auto justify-center' : 'w-full px-3 gap-3'"
+                        class="h-12 rounded-xl flex items-center transition-colors
+                            {{ request()->routeIs('master.kriteria.*') ? 'bg-white/25 text-white shadow-inner' : 'text-white/80 hover:bg-white/15 hover:text-white' }}">
+                        <span class="material-symbols-outlined text-[24px] shrink-0">rule</span>
+                        <span x-show="!collapsed" class="text-sm font-medium truncate">Master Kriteria</span>
                     </a>
                 @endif
             </nav>
 
+            {{-- Logout (bagian bawah sidebar) --}}
+            <form method="POST" action="{{ route('logout') }}" class="px-3 py-4 shrink-0">
+                @csrf
+                <button type="submit" :title="collapsed ? 'Logout' : null"
+                    :class="collapsed ? 'w-12 mx-auto justify-center' : 'w-full px-3 gap-3'"
+                    class="h-12 rounded-xl flex items-center text-white/80 hover:bg-white/15 hover:text-white transition-colors">
+                    <span class="material-symbols-outlined text-[24px] shrink-0">logout</span>
+                    <span x-show="!collapsed" class="text-sm font-medium">Logout</span>
+                </button>
+            </form>
         </aside>
 
-        <!-- Spacer agar konten tidak ketutup sidebar fixed di layar besar -->
-        <div class="hidden lg:block w-64 shrink-0"></div>
+        <!-- Spacer agar konten tidak ketutup sidebar fixed di layar besar (lebarnya ikut sidebar) -->
+        <div class="hidden lg:block shrink-0 transition-[width] duration-200"
+            :class="collapsed ? 'w-24' : 'w-[17rem]'"></div>
 
         <!-- Main -->
         <div class="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
 
             <!-- Topbar -->
-            <header
-                class="h-16 shrink-0 bg-surface-container-lowest border-b border-outline-variant/40 flex items-center justify-between px-4 lg:px-6">
-                <div class="flex items-center gap-3">
-                    <button @click="sidebarOpen = true" class="lg:hidden text-on-surface-variant">
-                        <span class="material-symbols-outlined">menu</span>
+            <header class="shrink-0 flex items-center gap-4 px-4 pt-4 pb-2 lg:pl-2">
+                <button @click="sidebarOpen = true"
+                    class="lg:hidden w-11 h-11 shrink-0 rounded-xl bg-brand text-white flex items-center justify-center">
+                    <span class="material-symbols-outlined">menu</span>
+                </button>
+
+                <h1 class="hidden md:block shrink-0 text-xl font-extrabold text-brand tracking-tight">
+                    @yield('page_title', 'Beranda')
+                </h1>
+
+                {{-- Bar biru: pencarian + notifikasi + bantuan + pengguna --}}
+                <div
+                    class="flex-1 min-w-0 h-14 rounded-xl bg-brand shadow-[0_6px_18px_rgba(10,92,168,0.30)] ring-1 ring-white/20 flex items-center gap-3 px-3 sm:px-5">
+
+                    <div class="flex-1 flex justify-center min-w-0">
+                        <label
+                            class="w-full max-w-md h-9 rounded-lg bg-surface-container-low flex items-center gap-2 px-3 shadow-inner">
+                            <span class="material-symbols-outlined text-[18px] text-on-surface-variant">search</span>
+                            <input type="text" placeholder="Cari data, ajuan, atau dokumen..."
+                                class="w-full min-w-0 bg-transparent border-0 outline-none text-xs text-on-surface placeholder:text-on-surface-variant/70 focus:ring-0" />
+                        </label>
+                    </div>
+
+                    <button type="button" title="Notifikasi"
+                        class="hidden sm:flex w-8 h-8 shrink-0 items-center justify-center text-white/90 hover:text-white">
+                        <span class="material-symbols-outlined text-[20px]">notifications</span>
                     </button>
-                    <h1 class="text-base font-semibold text-on-surface">@yield('page_title', 'Beranda')</h1>
-                </div>
+                    <span class="hidden sm:flex w-8 h-8 shrink-0 items-center justify-center text-white/90"
+                        title="Bantuan">
+                        <span class="material-symbols-outlined text-[20px]">help</span>
+                    </span>
 
-                {{-- ===== Dropdown user + Edit Profil (pop-up, tidak lewat halaman Kelola Akses) ===== --}}
-                <div x-data="{ userMenuOpen: false, profileModalOpen: {{ $errors->profil->any() ? 'true' : 'false' }} }">
-                    <div class="relative">
-                        <button @click="userMenuOpen = !userMenuOpen" @click.outside="userMenuOpen = false"
-                            class="flex items-center gap-3 px-2 py-1.5 rounded-lg hover:bg-surface-container transition-colors">
-                            <div
-                                class="w-9 h-9 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container font-semibold text-sm shrink-0">
-                                {{ strtoupper(substr(auth()->user()->name ?? 'A', 0, 1)) }}
-                            </div>
-                            <div class="hidden sm:block leading-tight text-left">
-                                <p class="text-sm font-medium text-on-surface">{{ auth()->user()->name ?? 'Admin' }}
-                                </p>
-                                <p class="text-[11px] text-on-surface-variant">{{ auth()->user()->username ?? '' }}</p>
-                            </div>
-                            <span
-                                class="material-symbols-outlined text-[18px] text-on-surface-variant hidden sm:block">expand_more</span>
-                        </button>
-
-                        <div x-show="userMenuOpen" x-cloak x-transition:enter="transition ease-out duration-100"
-                            x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
-                            class="absolute right-0 mt-2 w-52 bg-surface-container-lowest border border-outline-variant/40 rounded-xl shadow-lg overflow-hidden z-50">
-
-                            <button type="button" @click="profileModalOpen = true; userMenuOpen = false"
-                                class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container transition-colors">
-                                <span class="material-symbols-outlined text-[18px]">person</span>
-                                Edit Profil
+                    {{-- ===== Dropdown user + Edit Profil (pop-up, tidak lewat halaman Kelola Akses) ===== --}}
+                    <div class="shrink-0" x-data="{ userMenuOpen: false, profileModalOpen: {{ $errors->profil->any() ? 'true' : 'false' }} }">
+                        <div class="relative">
+                            <button @click="userMenuOpen = !userMenuOpen" @click.outside="userMenuOpen = false"
+                                class="flex items-center gap-3 pl-1 rounded-lg transition-colors">
+                                <div class="hidden sm:block leading-tight text-right">
+                                    <p class="text-xs font-semibold text-white">
+                                        {{ auth()->user()->name ?? 'Admin' }}</p>
+                                    <p class="text-[10px] uppercase tracking-wide text-white/70">
+                                        {{ auth()->user()->username ?? '' }}</p>
+                                </div>
+                                <div
+                                    class="w-9 h-9 rounded-full bg-secondary-container ring-2 ring-white/70 flex items-center justify-center text-on-secondary-container font-semibold text-sm shrink-0">
+                                    {{ strtoupper(substr(auth()->user()->name ?? 'A', 0, 1)) }}
+                                </div>
                             </button>
 
-                            <div class="border-t border-outline-variant/40"></div>
+                            <div x-show="userMenuOpen" x-cloak x-transition:enter="transition ease-out duration-100"
+                                x-transition:enter-start="opacity-0 scale-95"
+                                x-transition:enter-end="opacity-100 scale-100"
+                                class="absolute right-0 mt-3 w-52 bg-surface-container-lowest text-on-surface border border-outline-variant/40 rounded-xl shadow-lg overflow-hidden z-50">
 
-                            <form method="POST" action="{{ route('logout') }}">
-                                @csrf
-                                <button type="submit"
-                                    class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-error hover:bg-error-container/40 transition-colors">
-                                    <span class="material-symbols-outlined text-[18px]">logout</span>
-                                    Logout
+                                <button type="button" @click="profileModalOpen = true; userMenuOpen = false"
+                                    class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container transition-colors">
+                                    <span class="material-symbols-outlined text-[18px]">person</span>
+                                    Edit Profil
                                 </button>
-                            </form>
+
+                                <div class="border-t border-outline-variant/40"></div>
+
+                                <form method="POST" action="{{ route('logout') }}">
+                                    @csrf
+                                    <button type="submit"
+                                        class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-error hover:bg-error-container/40 transition-colors">
+                                        <span class="material-symbols-outlined text-[18px]">logout</span>
+                                        Logout
+                                    </button>
+                                </form>
+                            </div>
                         </div>
-                    </div>
 
                     {{-- Modal Edit Profil (akun milik pengguna yang sedang login) --}}
                     <div x-show="profileModalOpen" x-cloak
@@ -450,11 +544,12 @@
                             </form>
                         </div>
                     </div>
+                    </div>
                 </div>
             </header>
 
             <!-- Content -->
-            <main class="flex-1 overflow-y-auto p-4 lg:p-6">
+            <main class="flex-1 overflow-y-auto px-4 pb-24 pt-2 lg:pl-2">
                 @if (session('success'))
                     <div class="mb-4 px-4 py-3 rounded-lg bg-success-container text-on-success-container text-sm">
                         {{ session('success') }}
@@ -584,7 +679,7 @@
     </div>
 
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    
+
 
     {{-- pdf.js: merender tiap halaman PDF ke <canvas> lalu dikonversi ke gambar --}}
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>

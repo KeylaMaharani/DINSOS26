@@ -30,6 +30,8 @@ class Role extends Model
         'dtsen' => 'DTSEN',
         'dokumen' => 'Dokumen',
         'pbi-kelurahan' => 'PBI APBN - Verifikasi Kelurahan',
+        'layanan-kartu-kks' => 'Kartu KKS - Pengajuan Kelurahan',
+        'layanan-dtsen' => 'DTSEN - Pengajuan Kelurahan',
     ];
 
     /**

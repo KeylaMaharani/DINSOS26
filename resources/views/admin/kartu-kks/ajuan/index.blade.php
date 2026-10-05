@@ -4,117 +4,148 @@
 @section('page_title', 'Kartu KKS — Ajuan')
 
 @section('content')
-    <div class="space-y-5">
+    <div class="space-y-6">
 
         @if (session('success'))
-            <div id="alert-success" class="flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs bg-green-50 border border-green-200 text-green-700">
-                <span class="material-symbols-outlined text-[16px]">check_circle</span>
-                {{ session('success') }}
+            <div id="alert-success" class="flex items-center gap-3 px-4 py-3 rounded-xl shadow-sm text-sm bg-green-50 border border-green-200 text-green-700 transition-all">
+                <span class="material-symbols-outlined text-[20px]">check_circle</span>
+                <span class="font-medium">{{ session('success') }}</span>
             </div>
         @endif
         @if (session('error'))
-            <div class="flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs bg-red-50 border border-red-200 text-red-700">
-                <span class="material-symbols-outlined text-[16px]">error</span>
-                {{ session('error') }}
+            <div class="flex items-center gap-3 px-4 py-3 rounded-xl shadow-sm text-sm bg-red-50 border border-red-200 text-red-700 transition-all">
+                <span class="material-symbols-outlined text-[20px]">error</span>
+                <span class="font-medium">{{ session('error') }}</span>
             </div>
         @endif
 
-        <form method="GET" action="{{ route('kartu-kks.ajuan') }}" data-auto-filter
-            class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-4 flex flex-wrap items-end gap-3">
-            <div>
-                <label class="block text-xs text-on-surface-variant mb-1">Tanggal Awal</label>
-                <input type="date" name="tanggal_awal" value="{{ request('tanggal_awal') }}"
-                    class="px-3 py-1.5 rounded-lg border border-outline-variant/50 text-xs" />
-            </div>
-            <div>
-                <label class="block text-xs text-on-surface-variant mb-1">Tanggal Akhir</label>
-                <input type="date" name="tanggal_akhir" value="{{ request('tanggal_akhir') }}"
-                    class="px-3 py-1.5 rounded-lg border border-outline-variant/50 text-xs" />
-            </div>
-            <div>
-                <label class="block text-xs text-on-surface-variant mb-1">Tahap Saat Ini</label>
-                <select name="status" class="px-3 py-1.5 rounded-lg border border-outline-variant/50 text-xs">
-                    <option value="">Semua</option>
-                    @foreach ($statusOptions as $value => $label)
-                        <option value="{{ $value }}" @selected(request('status') === $value)>{{ $label }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="flex-1 min-w-[200px]">
-                <label class="block text-xs text-on-surface-variant mb-1">Cari</label>
-                <input type="text" name="search" value="{{ request('search') }}" placeholder="Nama, NIK, Alamat, Tanggal (dd-mm-yyyy)..."
-                    class="w-full px-3 py-1.5 rounded-lg border border-outline-variant/50 text-xs" />
-            </div>
+        <!-- Filter Section -->
+        <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] p-5">
+            <form method="GET" action="{{ route('kartu-kks.ajuan') }}" data-auto-filter>
+                <!-- Grid layout untuk input filter -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-on-surface-variant mb-1.5">Tanggal Awal</label>
+                        <input type="date" name="tanggal_awal" value="{{ request('tanggal_awal') }}"
+                            class="w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-xs focus:ring-2 focus:ring-brand/30 focus:border-brand focus:outline-none transition-colors" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-on-surface-variant mb-1.5">Tanggal Akhir</label>
+                        <input type="date" name="tanggal_akhir" value="{{ request('tanggal_akhir') }}"
+                            class="w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-xs focus:ring-2 focus:ring-brand/30 focus:border-brand focus:outline-none transition-colors" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-on-surface-variant mb-1.5">Tahap Saat Ini</label>
+                        <select name="status" class="w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-xs focus:ring-2 focus:ring-brand/30 focus:border-brand focus:outline-none transition-colors">
+                            <option value="">Semua Tahap</option>
+                            @foreach ($statusOptions as $value => $label)
+                                <option value="{{ $value }}" @selected(request('status') === $value)>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-on-surface-variant mb-1.5">Cari Data</label>
+                        <div class="relative">
+                            <input type="text" name="search" value="{{ request('search') }}" placeholder="Nama, NIK, Alamat, Tanggal (dd-mm-yyyy)..."
+                                class="w-full pl-8 pr-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-xs focus:ring-2 focus:ring-brand/30 focus:border-brand focus:outline-none transition-colors" />
+                            <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[16px] text-outline-variant/80">search</span>
+                        </div>
+                    </div>
+                </div>
 
-            <div class="flex items-center gap-2 text-xs text-on-surface-variant ml-auto">
-                Tampilkan
-                <select name="tampilkan" onchange="this.form.submit()" form="ajuan-kks-tampilkan-form"
-                    class="rounded-lg border border-outline-variant/50 px-2 py-1 text-xs">
-                    @foreach ([10, 25, 50, 100] as $n)
-                        <option value="{{ $n }}" @selected((int) request('tampilkan', 10) === $n)>{{ $n }}</option>
-                    @endforeach
-                </select>
-                data
-            </div>
-        </form>
+                <!-- Bagian Reset Filter & Tampilkan Data -->
+                <div class="mt-5 pt-4 border-t border-outline-variant/20 flex flex-wrap items-center justify-between gap-3">
 
-        <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden">
-            <table class="w-full text-xs table-fixed">
-                <colgroup>
-                    <col style="width: 5%">
-                    <col style="width: 11%">
-                    <col style="width: 15%">
-                    <col style="width: 17%">
-                    <col style="width: 22%">
-                    <col style="width: 18%">
-                    <col style="width: 12%">
-                </colgroup>
-                <thead class="bg-surface-container text-on-surface-variant uppercase">
-                    <tr>
-                        <th class="text-center px-2 py-2 whitespace-nowrap">No</th>
-                        <th class="text-center px-2 py-2 whitespace-nowrap">Tgl Insert</th>
-                        <th class="text-center px-2 py-2 whitespace-nowrap">NIK</th>
-                        <th class="text-center px-2 py-2 whitespace-nowrap">Nama</th>
-                        <th class="text-center px-2 py-2 whitespace-nowrap">Alamat</th>
-                        <th class="text-center px-2 py-2 whitespace-nowrap">Tahap Saat Ini</th>
-                        <th class="text-center px-2 py-2 whitespace-nowrap">Aksi</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-outline-variant/30">
-                    @forelse ($ajuanList as $item)
-                        <tr class="hover:bg-surface-container-low transition-colors">
-                            <td class="px-2 py-2 whitespace-nowrap truncate text-center">{{ $ajuanList->firstItem() + $loop->index }}</td>
-                            <td class="px-2 py-2 whitespace-nowrap text-center">{{ $item->tanggal_insert ? \Carbon\Carbon::parse($item->tanggal_insert)->format('d-m-Y') : '-' }}</td>
-                            <td class="px-2 py-2 whitespace-nowrap truncate font-medium text-primary text-center" title="{{ $item->nik }}">{{ $item->nik }}</td>
-                            <td class="px-2 py-2 whitespace-nowrap truncate" title="{{ $item->nama_pemohon }}">{{ $item->nama_pemohon }}</td>
-                            <td class="px-2 py-2 whitespace-nowrap truncate text-on-surface-variant" title="{{ $item->alamat }}">{{ $item->alamat }}</td>
-                            <td class="px-2 py-2 whitespace-nowrap text-center" title="{{ $statusLabels[$item->status] ?? $item->status }}">
-                                <span class="inline-flex items-center gap-1 max-w-full px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-secondary-fixed text-on-secondary-container">
-                                    <span class="material-symbols-outlined text-[12px]">schedule</span>
-                                    <span class="truncate">{{ $statusLabels[$item->status] ?? $item->status }}</span>
-                                </span>
-                            </td>
-                            <td class="px-2 py-2 whitespace-nowrap text-center">
-                                <a href="{{ route('kartu-kks.show', $item) }}"
-                                    class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-on-primary text-[11px] font-medium transition-colors">
-                                    <span class="material-symbols-outlined text-[14px]">visibility</span>
-                                    Lihat
-                                </a>
-                            </td>
-                        </tr>
-                    @empty
+                    <!-- Tombol Reset Filter -->
+                    <a href="{{ route('kartu-kks.ajuan') }}"
+                        class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-error hover:bg-error/10 border border-transparent hover:border-error/20 transition-all">
+                        <span class="material-symbols-outlined text-[16px]">restart_alt</span>
+                        Reset Filter
+                    </a>
+
+                    <!-- Pengaturan Tampilkan X Data -->
+                    <div class="flex items-center gap-2 text-xs text-on-surface-variant">
+                        Tampilkan
+                        <select name="tampilkan" onchange="this.form.submit()" form="ajuan-kks-tampilkan-form"
+                            class="rounded-xl border border-outline-variant/40 bg-slate-50 px-2 py-1.5 text-xs focus:outline-none">
+                            <!-- Default otomatis ke 10 jika tidak ada request -->
+                            @foreach ([10, 25, 50, 100] as $n)
+                                <option value="{{ $n }}" @selected((int) request('tampilkan', 10) === $n)>{{ $n }}</option>
+                            @endforeach
+                        </select>
+                        data per halaman
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Table Section -->
+        <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs table-fixed min-w-[900px]">
+                    <colgroup>
+                        <col style="width: 5%">
+                        <col style="width: 11%">
+                        <col style="width: 15%">
+                        <col style="width: 17%">
+                        <col style="width: 22%">
+                        <col style="width: 18%">
+                        <col style="width: 12%">
+                    </colgroup>
+                    <thead class="bg-[#e6edf8] text-on-surface-variant uppercase text-[10px] tracking-wider font-semibold">
                         <tr>
-                            <td colspan="7" class="px-4 py-8 text-center text-on-surface-variant">
-                                <span class="material-symbols-outlined text-[28px] block mb-2 opacity-40">inbox</span>
-                                Belum ada ajuan.
-                            </td>
+                            <th class="text-center px-3 py-3 whitespace-nowrap">No</th>
+                            <th class="text-center px-3 py-3 whitespace-nowrap">Tgl Insert</th>
+                            <th class="text-center px-3 py-3 whitespace-nowrap">NIK</th>
+                            <th class="text-left px-3 py-3 whitespace-nowrap">Nama</th>
+                            <th class="text-left px-3 py-3 whitespace-nowrap">Alamat</th>
+                            <th class="text-center px-3 py-3 whitespace-nowrap">Tahap Saat Ini</th>
+                            <th class="text-center px-3 py-3 whitespace-nowrap">Aksi</th>
                         </tr>
-                    @endforelse
-                </tbody>
-            </table>
-            <div class="px-4 py-3 border-t border-outline-variant/40">
-                {{ $ajuanList->links() }}
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant/20">
+                        @forelse ($ajuanList as $item)
+                            <tr class="hover:bg-surface-container-low transition-colors group">
+                                <td class="px-3 py-3.5 whitespace-nowrap truncate text-center text-on-surface-variant">{{ $ajuanList->firstItem() + $loop->index }}</td>
+                                <td class="px-3 py-3.5 whitespace-nowrap text-center text-on-surface-variant">{{ $item->tanggal_insert ? \Carbon\Carbon::parse($item->tanggal_insert)->format('d-m-Y') : '-' }}</td>
+                                <td class="px-3 py-3.5 whitespace-nowrap truncate font-semibold text-brand text-center" title="{{ $item->nik }}">{{ $item->nik }}</td>
+                                <td class="px-3 py-3.5 whitespace-nowrap truncate font-medium" title="{{ $item->nama_pemohon }}">{{ $item->nama_pemohon }}</td>
+                                <td class="px-3 py-3.5 whitespace-nowrap truncate text-on-surface-variant" title="{{ $item->alamat }}">{{ $item->alamat }}</td>
+                                <td class="px-3 py-3.5 whitespace-nowrap text-center" title="{{ $statusLabels[$item->status] ?? $item->status }}">
+                                    <span class="inline-flex items-center gap-1.5 max-w-full px-2.5 py-1 rounded-full text-[11px] font-medium bg-secondary-fixed text-on-secondary-container border border-secondary-fixed/50">
+                                        <span class="material-symbols-outlined text-[14px]">schedule</span>
+                                        <span class="truncate">{{ $statusLabels[$item->status] ?? $item->status }}</span>
+                                    </span>
+                                </td>
+                                <td class="px-3 py-3.5 whitespace-nowrap text-center">
+                                    <a href="{{ route('kartu-kks.show', $item) }}"
+                                        class="inline-flex items-center justify-center gap-1.5 w-full max-w-[80px] px-3 py-1.5 rounded-xl bg-brand/10 text-brand hover:bg-brand hover:text-white text-[11px] font-semibold transition-all duration-200">
+                                        <span class="material-symbols-outlined text-[14px]">visibility</span>
+                                        Lihat
+                                    </a>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="7" class="px-4 py-12 text-center text-on-surface-variant">
+                                    <div class="flex flex-col items-center justify-center">
+                                        <span class="material-symbols-outlined text-[40px] mb-3 opacity-30">inbox</span>
+                                        <p class="text-sm font-medium">Belum ada ajuan data</p>
+                                        <p class="text-xs opacity-70 mt-1">Silakan sesuaikan filter pencarian Anda</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
             </div>
+
+            <!-- Pagination Controls -->
+            @if ($ajuanList->hasPages())
+                <div class="px-5 py-4 border-t border-outline-variant/20 bg-white">
+                    {{ $ajuanList->links() }}
+                </div>
+            @endif
         </div>
 
         {{-- Form tersembunyi untuk fitur Tampilkan data --}}
