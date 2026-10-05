@@ -13,8 +13,8 @@
             </div>
         @endif
 
-        <!-- BAGIAN FILTER (TIDAK DIUBAH) -->
-        <form method="GET" action="{{ route('dtsen.monitoring') }}"
+        <!-- BAGIAN FILTER -->
+        <form method="GET" action="{{ route('dtsen.monitoring') }}" data-auto-filter
             class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-4 flex flex-wrap items-end gap-3">
             <div>
                 <label class="block text-xs text-on-surface-variant mb-1">Tanggal Awal</label>
@@ -27,9 +27,9 @@
                     class="px-3 py-1.5 rounded-lg border border-outline-variant/50 text-xs" />
             </div>
             <div class="w-48">
-                <label class="block text-xs text-on-surface-variant mb-1">Tahap Saat Ini</label>
+                <label class="block text-xs text-on-surface-variant mb-1">Status</label>
                 <select name="status" class="w-full px-3 py-1.5 rounded-lg border border-outline-variant/50 text-xs">
-                    <option value="">Semua Tahap</option>
+                    <option value="">Semua Status</option>
                     @foreach ($statusLabels as $key => $label)
                         <option value="{{ $key }}" @selected(request('status') === $key)>{{ $label }}</option>
                     @endforeach
@@ -40,10 +40,6 @@
                 <input type="text" name="search" value="{{ request('search') }}" placeholder="Nama, NIK..."
                     class="w-full px-3 py-1.5 rounded-lg border border-outline-variant/50 text-xs" />
             </div>
-            <button type="submit"
-                class="px-4 py-1.5 rounded-lg bg-primary hover:bg-secondary text-on-primary text-xs font-medium">
-                Terapkan
-            </button>
             @if (request()->hasAny(['tanggal_awal', 'tanggal_akhir', 'search', 'status']))
                 <a href="{{ route('dtsen.monitoring') }}" class="px-3 py-1.5 rounded-lg text-xs text-on-surface-variant hover:text-primary">
                     Reset
@@ -64,11 +60,11 @@
         <!-- AKHIR BAGIAN FILTER -->
 
         <div class="flex items-center justify-between">
-            <h2 class="text-sm font-semibold text-on-surface">Permohonan Berjalan</h2>
+            <h2 class="text-sm font-semibold text-on-surface">Semua Permohonan</h2>
             <span class="text-xs text-on-surface-variant">{{ $monitoringList->total() }} permohonan</span>
         </div>
 
-        <!-- STRUKTUR TABEL BARU -->
+        <!-- TABEL MONITORING -->
         <div class="overflow-x-auto bg-surface-container-lowest border border-outline-variant/40 text-on-surface">
             <table class="w-full text-xs text-left align-top">
                 <thead class="bg-surface-container/50 border-b border-outline-variant/40 text-on-surface-variant">
@@ -110,13 +106,13 @@
                                 <div class="font-medium mt-1">{{ $item->nama_pemohon }}</div>
                             </td>
                             <td class="px-3 py-3 border-r border-outline-variant/40">
-                                {{ $item->alasan_cetak }}
+                                {{ $item->alasan_cetak ?? '-' }}
                             </td>
                             <td class="p-0 border-r border-outline-variant/40">
                                 <!-- Tabel Nesting Riwayat Log -->
                                 <table class="w-full text-[11px]">
                                     <tbody class="divide-y border-outline-variant/40">
-                                        {{-- Baris Status Berjalan Saat Ini --}}
+                                        {{-- Baris Status Berjalan Saat Ini (hanya untuk yang belum final) --}}
                                         @if (! $isFinalItem)
                                             <tr class="bg-yellow-50 text-yellow-800 border-b border-outline-variant/40">
                                                 <td class="px-3 py-2 w-1/4 border-r border-outline-variant/40">-</td>
@@ -128,7 +124,7 @@
                                             </tr>
                                         @endif
 
-                                        {{-- Baris Riwayat Selesai/Ditolak --}}
+                                        {{-- Riwayat log: hijau untuk proses/selesai, merah untuk ditolak --}}
                                         @foreach ($item->logs as $log)
                                             <tr class="{{ $isRejected ? 'bg-red-50 text-red-800' : 'bg-green-500 text-white' }} border-b border-outline-variant/40 last:border-b-0">
                                                 <td class="px-3 py-2 w-1/4 border-r {{ $isRejected ? 'border-outline-variant/40' : 'border-green-600' }} whitespace-nowrap">
@@ -143,7 +139,7 @@
                                             </tr>
                                         @endforeach
 
-                                        @if($item->logs->isEmpty() && $isFinalItem)
+                                        @if ($item->logs->isEmpty() && $isFinalItem)
                                             <tr>
                                                 <td colspan="4" class="px-3 py-3 text-center text-on-surface-variant">Belum ada riwayat proses.</td>
                                             </tr>
@@ -161,14 +157,14 @@
                         <tr>
                             <td colspan="5" class="px-3 py-10 text-center text-on-surface-variant bg-surface-container-lowest">
                                 <span class="material-symbols-outlined text-[28px] block mb-2 opacity-40">inbox</span>
-                                Tidak ada permohonan berjalan.
+                                Tidak ada permohonan.
                             </td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
-        <!-- AKHIR STRUKTUR TABEL BARU -->
+        <!-- AKHIR TABEL MONITORING -->
 
         <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl px-4 py-3 mt-4">
             {{ $monitoringList->links() }}
@@ -181,4 +177,62 @@
             <input type="hidden" name="status" value="{{ request('status') }}">
         </form>
     </div>
+    @push('scripts')
+        <script>
+            // Filter & pencarian otomatis tanpa tombol "Terapkan"
+            (function () {
+                const FOCUS_KEY = 'focus-search:' + location.pathname;
+
+                document.querySelectorAll('form[data-auto-filter]').forEach(function (form) {
+                    const searchInput = form.querySelector('input[name="search"]');
+                    let timer = null;
+
+                    function submitForm() {
+                        if (searchInput && document.activeElement === searchInput) {
+                            sessionStorage.setItem(FOCUS_KEY, '1');
+                        }
+                        form.submit();
+                    }
+
+                    // Dropdown: langsung submit saat berubah
+                    form.querySelectorAll('select').forEach(function (el) {
+                        el.addEventListener('change', submitForm);
+                    });
+
+                    // Tanggal: submit hanya jika kosong atau sudah lengkap & valid
+                    form.querySelectorAll('input[type="date"]').forEach(function (el) {
+                        el.addEventListener('change', function () {
+                            const v = el.value;
+                            if (v === '' || (v.length === 10 && parseInt(v.slice(0, 4), 10) >= 1900)) {
+                                submitForm();
+                            }
+                        });
+                    });
+
+                    // Pencarian: tunggu 500ms setelah berhenti mengetik
+                    if (searchInput) {
+                        searchInput.addEventListener('input', function () {
+                            clearTimeout(timer);
+                            timer = setTimeout(submitForm, 500);
+                        });
+                        searchInput.addEventListener('keydown', function (e) {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                clearTimeout(timer);
+                                submitForm();
+                            }
+                        });
+
+                        // Kembalikan fokus & kursor ke kolom cari setelah halaman dimuat ulang
+                        if (sessionStorage.getItem(FOCUS_KEY)) {
+                            sessionStorage.removeItem(FOCUS_KEY);
+                            searchInput.focus();
+                            const len = searchInput.value.length;
+                            searchInput.setSelectionRange(len, len);
+                        }
+                    }
+                });
+            })();
+        </script>
+    @endpush
 @endsection

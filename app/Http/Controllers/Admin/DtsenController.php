@@ -134,7 +134,31 @@ class DtsenController extends Controller
     }
 
     /**
+     * Tambahkan kondisi OR pencarian pada kolom tanggal_insert.
+     * Mendukung input sebagian maupun penuh, format dd-mm-yyyy (tampilan di tabel)
+     * atau yyyy-mm-dd. Tanda "/" otomatis dianggap "-".
+     * Contoh: "25-09-2026", "25-09", "09-2026", "2026-09-25".
+     */
+    private function orWhereTanggalLike($q, string $term): void
+    {
+        $term = str_replace('/', '-', trim($term));
+
+        $formats = match (DB::connection()->getDriverName()) {
+            'sqlite' => ["strftime('%d-%m-%Y', tanggal_insert)", "strftime('%Y-%m-%d', tanggal_insert)"],
+            'pgsql' => ["to_char(tanggal_insert, 'DD-MM-YYYY')", "to_char(tanggal_insert, 'YYYY-MM-DD')"],
+            default => ["DATE_FORMAT(tanggal_insert, '%d-%m-%Y')", "DATE_FORMAT(tanggal_insert, '%Y-%m-%d')"],
+        };
+
+        foreach ($formats as $expr) {
+            $q->orWhereRaw("{$expr} LIKE ?", ["%{$term}%"]);
+        }
+    }
+
+    /**
      * GET /dtsen/ajuan
+     *
+     * Daftar permohonan yang masih berjalan (belum Selesai / Ditolak).
+     * Filter: tanggal, tahap saat ini, pencarian (termasuk tanggal).
      */
     public function ajuan(Request $request)
     {
@@ -142,41 +166,17 @@ class DtsenController extends Controller
         $roleSlug = $this->roleSlug($user->role);
         $isAdmin = $this->isAdmin($user->role);
 
-        $query = DtsenPermohonan::with('currentRole')
-            ->whereNotIn('status', [DtsenPermohonan::STATUS_SELESAI, DtsenPermohonan::STATUS_DITOLAK]);
+        $statusFinal = [
+            DtsenPermohonan::STATUS_SELESAI,
+            DtsenPermohonan::STATUS_DITOLAK,
+        ];
+
+        $query = DtsenPermohonan::with(['currentRole', 'bansos'])
+            ->whereNotIn('status', $statusFinal);
 
         if (! $isAdmin) {
             $query->whereHas('currentRole', fn ($q) => $q->where('slug', $roleSlug));
         }
-
-        if ($request->filled('search')) {
-            $s = $request->search;
-            $query->where(function ($q) use ($s) {
-                $q->where('nik', 'like', "%{$s}%")
-                    ->orWhere('nama_pemohon', 'like', "%{$s}%")
-                    ->orWhere('alamat', 'like', "%{$s}%");
-            });
-        }
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        $ajuanList = $query->orderBy('tanggal_insert')->paginate(10)->withQueryString();
-
-        return view('admin.dtsen.ajuan.index', [
-            'ajuanList' => $ajuanList,
-            'statusLabels' => DtsenPermohonan::statusLabels(),
-        ]);
-    }
-
-    /**
-     * GET /dtsen/arsip
-     */
-    public function arsip(Request $request)
-    {
-        $query = DtsenPermohonan::with('bansos')
-            ->where('status', DtsenPermohonan::STATUS_SELESAI);
 
         if ($request->filled('tanggal_awal')) {
             $query->whereDate('tanggal_insert', '>=', $request->date('tanggal_awal'));
@@ -184,15 +184,77 @@ class DtsenController extends Controller
         if ($request->filled('tanggal_akhir')) {
             $query->whereDate('tanggal_insert', '<=', $request->date('tanggal_akhir'));
         }
-        if ($request->filled('alasan_cetak') && $request->alasan_cetak !== '-Pilih-') {
-            $query->where('alasan_cetak', $request->alasan_cetak);
-        }
+
         if ($request->filled('search')) {
             $s = $request->search;
             $query->where(function ($q) use ($s) {
                 $q->where('nik', 'like', "%{$s}%")
                     ->orWhere('nama_pemohon', 'like', "%{$s}%")
                     ->orWhere('alamat', 'like', "%{$s}%");
+                // Pencarian juga mencocokkan Tgl Insert (dd-mm-yyyy atau yyyy-mm-dd)
+                $this->orWhereTanggalLike($q, $s);
+            });
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        $perPage = (int) $request->query('tampilkan', 10);
+        if (! in_array($perPage, [10, 25, 50, 100], true)) {
+            $perPage = 10;
+        }
+
+        $ajuanList = $query->orderBy('tanggal_insert')->paginate($perPage)->withQueryString();
+
+        $statusLabels = DtsenPermohonan::statusLabels();
+
+        return view('admin.dtsen.ajuan.index', [
+            'ajuanList' => $ajuanList,
+            'statusLabels' => $statusLabels,
+            // Dropdown tahap hanya berisi tahap yang masih berjalan
+            'statusOptions' => collect($statusLabels)->except($statusFinal)->all(),
+        ]);
+    }
+
+    /**
+     * GET /dtsen/arsip
+     *
+     * Arsip berisi permohonan yang sudah final: Selesai + Ditolak.
+     * Bisa difilter per status lewat query string ?status=selesai|ditolak.
+     *
+     * Filter "Alasan Cetak" sudah dihapus.
+     */
+    public function arsip(Request $request)
+    {
+        $statusArsip = [
+            DtsenPermohonan::STATUS_SELESAI,
+            DtsenPermohonan::STATUS_DITOLAK,
+        ];
+
+        $query = DtsenPermohonan::with('bansos')
+            ->whereIn('status', $statusArsip);
+
+        if ($request->filled('tanggal_awal')) {
+            $query->whereDate('tanggal_insert', '>=', $request->date('tanggal_awal'));
+        }
+        if ($request->filled('tanggal_akhir')) {
+            $query->whereDate('tanggal_insert', '<=', $request->date('tanggal_akhir'));
+        }
+
+        // Filter status (hanya menerima selesai / ditolak)
+        if ($request->filled('status') && in_array($request->status, $statusArsip, true)) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('search')) {
+            $s = $request->search;
+            $query->where(function ($q) use ($s) {
+                $q->where('nik', 'like', "%{$s}%")
+                    ->orWhere('nama_pemohon', 'like', "%{$s}%")
+                    ->orWhere('alamat', 'like', "%{$s}%");
+                // Pencarian juga mencocokkan Tgl Insert (dd-mm-yyyy atau yyyy-mm-dd)
+                $this->orWhereTanggalLike($q, $s);
             });
         }
 
@@ -200,15 +262,15 @@ class DtsenController extends Controller
 
         $arsipList = $query->orderByDesc('tanggal_insert')->paginate($perPage)->withQueryString();
 
-        $alasanCetakOptions = DtsenPermohonan::query()
-            ->whereNotNull('alasan_cetak')
-            ->distinct()
-            ->pluck('alasan_cetak');
+        $statusLabels = DtsenPermohonan::statusLabels();
 
         return view('admin.dtsen.arsip.index', [
             'arsipList' => $arsipList,
-            'alasanCetakOptions' => $alasanCetakOptions,
-            'statusLabels' => DtsenPermohonan::statusLabels(),
+            'statusLabels' => $statusLabels,
+            'statusOptions' => [
+                DtsenPermohonan::STATUS_SELESAI => $statusLabels[DtsenPermohonan::STATUS_SELESAI] ?? 'Selesai',
+                DtsenPermohonan::STATUS_DITOLAK => $statusLabels[DtsenPermohonan::STATUS_DITOLAK] ?? 'Ditolak',
+            ],
         ]);
     }
 

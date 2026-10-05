@@ -7,17 +7,59 @@ use App\Models\PbiApbn;
 use App\Models\PbiApbnLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class PbiApbnController extends Controller
 {
     /**
+     * Tambahkan kondisi OR pencarian pada kolom created_at (Tgl Insert).
+     * Mendukung input sebagian maupun penuh, format dd-mm-yyyy (tampilan di tabel)
+     * atau yyyy-mm-dd. Tanda "/" otomatis dianggap "-".
+     * Contoh: "25-09-2026", "25-09", "09-2026", "2026-09-25".
+     * Disamakan dengan DtsenController::orWhereTanggalLike().
+     */
+    private function orWhereTanggalLike($q, string $term): void
+    {
+        $term = str_replace('/', '-', trim($term));
+
+        $formats = match (DB::connection()->getDriverName()) {
+            'sqlite' => ["strftime('%d-%m-%Y', created_at)", "strftime('%Y-%m-%d', created_at)"],
+            'pgsql' => ["to_char(created_at, 'DD-MM-YYYY')", "to_char(created_at, 'YYYY-MM-DD')"],
+            default => ["DATE_FORMAT(created_at, '%d-%m-%Y')", "DATE_FORMAT(created_at, '%Y-%m-%d')"],
+        };
+
+        foreach ($formats as $expr) {
+            $q->orWhereRaw("{$expr} LIKE ?", ["%{$term}%"]);
+        }
+    }
+
+    /**
+     * Ambil jumlah data per halaman dari query string dan batasi
+     * hanya ke pilihan yang valid (10/25/50/100).
+     */
+    private function perPage(Request $request, string $key = 'tampilkan'): int
+    {
+        $perPage = (int) $request->query($key, 10);
+
+        return in_array($perPage, [10, 25, 50, 100], true) ? $perPage : 10;
+    }
+
+    /**
      * ================= AJUAN =================
-     * List permohonan yang masih berjalan (belum final) + peta lokasi.
+     * List permohonan yang masih berjalan (belum final).
+     * Filter: tanggal, tahap saat ini, pencarian (termasuk tanggal).
      */
     public function ajuanIndex(Request $request)
     {
         $query = PbiApbn::query()->whereNotIn('status', ['disetujui', 'ditolak']);
+
+        if ($request->filled('tanggal_awal')) {
+            $query->whereDate('created_at', '>=', $request->date('tanggal_awal'));
+        }
+        if ($request->filled('tanggal_akhir')) {
+            $query->whereDate('created_at', '<=', $request->date('tanggal_akhir'));
+        }
 
         if ($request->filled('search')) {
             $s = $request->search;
@@ -26,6 +68,8 @@ class PbiApbnController extends Controller
                     ->orWhere('no_registrasi', 'like', "%{$s}%")
                     ->orWhere('nik_kepala_keluarga', 'like', "%{$s}%")
                     ->orWhere('no_kk', 'like', "%{$s}%");
+                // Pencarian juga mencocokkan Tgl Insert (dd-mm-yyyy atau yyyy-mm-dd)
+                $this->orWhereTanggalLike($q, $s);
             });
         }
 
@@ -33,10 +77,9 @@ class PbiApbnController extends Controller
             $query->where('status', $request->status);
         }
 
-        $ajuan = $query->latest()->paginate(10)->withQueryString();
+        $ajuan = $query->latest()->paginate($this->perPage($request))->withQueryString();
 
         return view('admin.pbi-apbn.ajuan.index', compact('ajuan'));
-        // $markers sudah tidak dikirim ke view
     }
 
     public function ajuanShow(PbiApbn $pbiApbn)
@@ -199,30 +242,61 @@ class PbiApbnController extends Controller
 
     /**
      * ================= ARSIP =================
-     * List permohonan yang sudah final (disetujui / ditolak).
+     * List permohonan yang sudah final: Disetujui + Ditolak.
+     * Bisa difilter per status lewat query string ?status=disetujui|ditolak.
+     * Disamakan dengan DtsenController::arsip().
      */
     public function arsipIndex(Request $request)
     {
-        $query = PbiApbn::query()->where('status', 'disetujui');
+        $statusArsip = ['disetujui', 'ditolak'];
+
+        $query = PbiApbn::query()->whereIn('status', $statusArsip);
 
         if ($request->filled('tanggal_awal')) {
-            $query->whereDate('updated_at', '>=', $request->tanggal_awal);
+            $query->whereDate('created_at', '>=', $request->date('tanggal_awal'));
         }
         if ($request->filled('tanggal_akhir')) {
-            $query->whereDate('updated_at', '<=', $request->tanggal_akhir);
+            $query->whereDate('created_at', '<=', $request->date('tanggal_akhir'));
         }
+
+        // Filter status (hanya menerima disetujui / ditolak)
+        if ($request->filled('status') && in_array($request->status, $statusArsip, true)) {
+            $query->where('status', $request->status);
+        }
+
         if ($request->filled('search')) {
             $s = $request->search;
             $query->where(function ($q) use ($s) {
                 $q->where('nama_kepala_keluarga', 'like', "%{$s}%")
                     ->orWhere('nik_kepala_keluarga', 'like', "%{$s}%")
                     ->orWhere('no_registrasi', 'like', "%{$s}%");
+                // Pencarian juga mencocokkan Tgl Insert (dd-mm-yyyy atau yyyy-mm-dd)
+                $this->orWhereTanggalLike($q, $s);
             });
         }
 
-        $arsip = $query->latest('updated_at')->paginate(10)->withQueryString();
+        $arsip = $query->latest()->paginate($this->perPage($request))->withQueryString();
 
-        return view('admin.pbi-apbn.arsip.index', compact('arsip'));
+        return view('admin.pbi-apbn.arsip.index', [
+            'arsip' => $arsip,
+            'statusOptions' => [
+                'disetujui' => 'Disetujui',
+                'ditolak' => 'Ditolak',
+            ],
+        ]);
+    }
+
+    /**
+     * GET /pbi-apbn/arsip/{pbiApbn}/detail (dipanggil via fetch() untuk modal Arsip)
+     * Hanya untuk permohonan yang sudah final.
+     */
+    public function arsipDetail(PbiApbn $pbiApbn)
+    {
+        abort_unless($pbiApbn->isFinal(), 404);
+
+        $pbiApbn->load(['anggotaKeluarga', 'logs.user', 'diagnosaLogs.user']);
+
+        return response()->json($pbiApbn);
     }
 
     /**
@@ -253,8 +327,7 @@ class PbiApbnController extends Controller
             });
         }
 
-        $perPage = (int) $request->query('display', 10);
-        $data = $query->latest()->paginate($perPage)->withQueryString();
+        $data = $query->latest()->paginate($this->perPage($request, 'display'))->withQueryString();
 
         return view('admin.pbi-apbn.monitoring.index', compact('data'));
     }

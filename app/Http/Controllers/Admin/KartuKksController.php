@@ -167,7 +167,32 @@ class KartuKksController extends Controller
     }
 
     /**
+     * Tambahkan kondisi OR pencarian pada kolom tanggal_insert.
+     * Mendukung input sebagian maupun penuh, format dd-mm-yyyy (tampilan di tabel)
+     * atau yyyy-mm-dd. Tanda "/" otomatis dianggap "-".
+     * Contoh: "25-09-2026", "25-09", "09-2026", "2026-09-25".
+     */
+    private function orWhereTanggalLike($q, string $term): void
+    {
+        $term = str_replace('/', '-', trim($term));
+
+        $formats = match (DB::connection()->getDriverName()) {
+            'sqlite' => ["strftime('%d-%m-%Y', tanggal_insert)", "strftime('%Y-%m-%d', tanggal_insert)"],
+            'pgsql' => ["to_char(tanggal_insert, 'DD-MM-YYYY')", "to_char(tanggal_insert, 'YYYY-MM-DD')"],
+            default => ["DATE_FORMAT(tanggal_insert, '%d-%m-%Y')", "DATE_FORMAT(tanggal_insert, '%Y-%m-%d')"],
+        };
+
+        foreach ($formats as $expr) {
+            $q->orWhereRaw("{$expr} LIKE ?", ["%{$term}%"]);
+        }
+    }
+
+    /**
      * GET /kartu-kks/ajuan
+     *
+     * Daftar permohonan yang masih berjalan (belum Selesai / Ditolak).
+     * Filter: tanggal, tahap saat ini, pencarian (termasuk tanggal).
+     * Disamakan dengan DtsenController::ajuan().
      */
     public function ajuan(Request $request)
     {
@@ -175,42 +200,18 @@ class KartuKksController extends Controller
         $roleSlug = $this->roleSlug($user->role);
         $isAdmin = $this->isAdmin($user->role);
 
+        $statusFinal = [
+            KartuKksPermohonan::STATUS_SELESAI,
+            KartuKksPermohonan::STATUS_DITOLAK,
+        ];
+
         $query = KartuKksPermohonan::with('currentRole')
-            ->whereNotIn('status', [KartuKksPermohonan::STATUS_SELESAI, KartuKksPermohonan::STATUS_DITOLAK]);
+            ->whereNotIn('status', $statusFinal);
 
         // Superadmin/admin bisa melihat SEMUA data tanpa dibatasi role/tahap.
         if (! $isAdmin) {
             $query->whereHas('currentRole', fn($q) => $q->where('slug', $roleSlug));
         }
-
-        if ($request->filled('search')) {
-            $s = $request->search;
-            $query->where(function ($q) use ($s) {
-                $q->where('nik', 'like', "%{$s}%")
-                    ->orWhere('nama_pemohon', 'like', "%{$s}%")
-                    ->orWhere('alamat', 'like', "%{$s}%");
-            });
-        }
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        $ajuanList = $query->orderBy('tanggal_insert')->paginate(10)->withQueryString();
-
-        return view('admin.kartu-kks.ajuan.index', [
-            'ajuanList' => $ajuanList,
-            'statusLabels' => KartuKksPermohonan::statusLabels(),
-        ]);
-    }
-
-    /**
-     * GET /kartu-kks/arsip
-     */
-    public function arsip(Request $request)
-    {
-        $query = KartuKksPermohonan::query()
-            ->where('status', KartuKksPermohonan::STATUS_SELESAI);
 
         if ($request->filled('tanggal_awal')) {
             $query->whereDate('tanggal_insert', '>=', $request->date('tanggal_awal'));
@@ -218,31 +219,95 @@ class KartuKksController extends Controller
         if ($request->filled('tanggal_akhir')) {
             $query->whereDate('tanggal_insert', '<=', $request->date('tanggal_akhir'));
         }
-        if ($request->filled('masalah_kartu') && $request->masalah_kartu !== '-Pilih-') {
-            $query->where('masalah_kartu', $request->masalah_kartu);
-        }
+
         if ($request->filled('search')) {
             $s = $request->search;
             $query->where(function ($q) use ($s) {
                 $q->where('nik', 'like', "%{$s}%")
                     ->orWhere('nama_pemohon', 'like', "%{$s}%")
                     ->orWhere('alamat', 'like', "%{$s}%");
+                // Pencarian juga mencocokkan Tgl Insert (dd-mm-yyyy atau yyyy-mm-dd)
+                $this->orWhereTanggalLike($q, $s);
+            });
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        $perPage = (int) $request->query('tampilkan', 10);
+        if (! in_array($perPage, [10, 25, 50, 100], true)) {
+            $perPage = 10;
+        }
+
+        $ajuanList = $query->orderBy('tanggal_insert')->paginate($perPage)->withQueryString();
+
+        $statusLabels = KartuKksPermohonan::statusLabels();
+
+        return view('admin.kartu-kks.ajuan.index', [
+            'ajuanList' => $ajuanList,
+            'statusLabels' => $statusLabels,
+            // Dropdown tahap hanya berisi tahap yang masih berjalan
+            'statusOptions' => collect($statusLabels)->except($statusFinal)->all(),
+        ]);
+    }
+
+    /**
+     * GET /kartu-kks/arsip
+     *
+     * Arsip berisi permohonan yang sudah final: Selesai + Ditolak.
+     * Bisa difilter per status lewat query string ?status=selesai|ditolak.
+     * Disamakan dengan DtsenController::arsip().
+     */
+    public function arsip(Request $request)
+    {
+        $statusArsip = [
+            KartuKksPermohonan::STATUS_SELESAI,
+            KartuKksPermohonan::STATUS_DITOLAK,
+        ];
+
+        $query = KartuKksPermohonan::query()
+            ->whereIn('status', $statusArsip);
+
+        if ($request->filled('tanggal_awal')) {
+            $query->whereDate('tanggal_insert', '>=', $request->date('tanggal_awal'));
+        }
+        if ($request->filled('tanggal_akhir')) {
+            $query->whereDate('tanggal_insert', '<=', $request->date('tanggal_akhir'));
+        }
+
+        // Filter status (hanya menerima selesai / ditolak)
+        if ($request->filled('status') && in_array($request->status, $statusArsip, true)) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('search')) {
+            $s = $request->search;
+            $query->where(function ($q) use ($s) {
+                $q->where('nik', 'like', "%{$s}%")
+                    ->orWhere('nama_pemohon', 'like', "%{$s}%")
+                    ->orWhere('alamat', 'like', "%{$s}%");
+                // Pencarian juga mencocokkan Tgl Insert (dd-mm-yyyy atau yyyy-mm-dd)
+                $this->orWhereTanggalLike($q, $s);
             });
         }
 
         $perPage = (int) $request->query('tampilkan', 10);
+        if (! in_array($perPage, [10, 25, 50, 100], true)) {
+            $perPage = 10;
+        }
 
         $arsipList = $query->orderByDesc('tanggal_insert')->paginate($perPage)->withQueryString();
 
-        $masalahKartuOptions = KartuKksPermohonan::query()
-            ->whereNotNull('masalah_kartu')
-            ->distinct()
-            ->pluck('masalah_kartu');
+        $statusLabels = KartuKksPermohonan::statusLabels();
 
         return view('admin.kartu-kks.arsip.index', [
             'arsipList' => $arsipList,
-            'masalahKartuOptions' => $masalahKartuOptions,
-            'statusLabels' => KartuKksPermohonan::statusLabels(),
+            'statusLabels' => $statusLabels,
+            'statusOptions' => [
+                KartuKksPermohonan::STATUS_SELESAI => $statusLabels[KartuKksPermohonan::STATUS_SELESAI] ?? 'Selesai',
+                KartuKksPermohonan::STATUS_DITOLAK => $statusLabels[KartuKksPermohonan::STATUS_DITOLAK] ?? 'Ditolak',
+            ],
         ]);
     }
 
@@ -251,7 +316,7 @@ class KartuKksController extends Controller
      */
     public function monitoring(Request $request)
     {
-        // [PERUBAHAN] Menarik SEMUA LOG secara urut layaknya DTSEN, bukan cuma 1
+        // Menarik SEMUA LOG secara urut layaknya DTSEN, bukan cuma 1
         $query = KartuKksPermohonan::with(['currentRole', 'logs' => fn($q) => $q->orderBy('tanggal_proses')])
             ->where('status', '!=', KartuKksPermohonan::STATUS_SELESAI);
 
@@ -332,7 +397,7 @@ class KartuKksController extends Controller
     }
 
     /**
-     * GET /kartu-kks/{permohonan}/detail
+     * GET /kartu-kks/{permohonan}/detail (dipanggil via fetch() untuk modal Arsip)
      */
     public function detail(KartuKksPermohonan $permohonan)
     {
