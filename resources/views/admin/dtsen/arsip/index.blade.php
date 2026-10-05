@@ -13,7 +13,7 @@
             </div>
         @endif
 
-        <form method="GET" action="{{ route('dtsen.arsip') }}"
+        <form method="GET" action="{{ route('dtsen.arsip') }}" data-auto-filter
             class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-4 flex flex-wrap items-end gap-3">
             <div>
                 <label class="block text-xs text-on-surface-variant mb-1">Tanggal Awal</label>
@@ -26,11 +26,11 @@
                     class="px-3 py-1.5 rounded-lg border border-outline-variant/50 text-xs" />
             </div>
             <div>
-                <label class="block text-xs text-on-surface-variant mb-1">Alasan Cetak</label>
-                <select name="alasan_cetak" class="px-3 py-1.5 rounded-lg border border-outline-variant/50 text-xs">
-                    <option value="-Pilih-">-Pilih-</option>
-                    @foreach ($alasanCetakOptions as $opt)
-                        <option value="{{ $opt }}" @selected(request('alasan_cetak') === $opt)>{{ $opt }}</option>
+                <label class="block text-xs text-on-surface-variant mb-1">Status</label>
+                <select name="status" class="px-3 py-1.5 rounded-lg border border-outline-variant/50 text-xs">
+                    <option value="">Semua</option>
+                    @foreach ($statusOptions as $value => $label)
+                        <option value="{{ $value }}" @selected(request('status') === $value)>{{ $label }}</option>
                     @endforeach
                 </select>
             </div>
@@ -39,10 +39,6 @@
                 <input type="text" name="search" value="{{ request('search') }}" placeholder="Nama, NIK, Alamat..."
                     class="w-full px-3 py-1.5 rounded-lg border border-outline-variant/50 text-xs" />
             </div>
-            <button type="submit"
-                class="px-4 py-1.5 rounded-lg bg-primary hover:bg-secondary text-on-primary text-xs font-medium">
-                Terapkan
-            </button>
 
             <div class="flex items-center gap-2 text-xs text-on-surface-variant ml-auto">
                 Tampilkan
@@ -84,6 +80,7 @@
                 </thead>
                 <tbody class="divide-y divide-outline-variant/30">
                     @forelse ($arsipList as $item)
+                        @php $isSelesai = $item->status === 'selesai'; @endphp
                         <tr class="hover:bg-surface-container-low transition-colors">
                             <td class="px-2 py-2 whitespace-nowrap truncate text-center">{{ $arsipList->firstItem() + $loop->index }}</td>
                             <td class="px-2 py-2 whitespace-nowrap text-center">{{ $item->tanggal_insert->format('d-m-Y') }}</td>
@@ -91,12 +88,12 @@
                             <td class="px-2 py-2 whitespace-nowrap truncate" title="{{ $item->nama_pemohon }}">{{ $item->nama_pemohon }}</td>
                             <td class="px-2 py-2 whitespace-nowrap truncate text-center">{{ $item->bansos->peringkat_kesejahteraan_keluarga ?? '-' }}</td>
                             <td class="px-2 py-2 whitespace-nowrap truncate text-on-surface-variant" title="{{ $item->alamat }}">{{ $item->alamat }}</td>
-                            <td class="px-2 py-2 whitespace-nowrap truncate" title="{{ $item->alasan_cetak }}">{{ $item->alasan_cetak }}</td>
+                            <td class="px-2 py-2 whitespace-nowrap truncate" title="{{ $item->alasan_cetak }}">{{ $item->alasan_cetak ?? '-' }}</td>
                             <td class="px-2 py-2 whitespace-nowrap truncate text-center">
                                 <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-medium
-                                    {{ $item->status === 'selesai' ? 'bg-success-container text-on-success-container' : 'bg-secondary-fixed text-on-secondary-container' }}">
+                                    {{ $isSelesai ? 'bg-success-container text-on-success-container' : 'bg-red-100 text-red-700' }}">
                                     <span class="material-symbols-outlined text-[12px]">
-                                        {{ $item->status === 'selesai' ? 'check_circle' : 'schedule' }}
+                                        {{ $isSelesai ? 'check_circle' : 'cancel' }}
                                     </span>
                                     {{ $statusLabels[$item->status] ?? $item->status }}
                                 </span>
@@ -223,7 +220,7 @@
         <form id="arsip-dtsen-tampilkan-form" method="GET" action="{{ route('dtsen.arsip') }}" class="hidden">
             <input type="hidden" name="tanggal_awal" value="{{ request('tanggal_awal') }}">
             <input type="hidden" name="tanggal_akhir" value="{{ request('tanggal_akhir') }}">
-            <input type="hidden" name="alasan_cetak" value="{{ request('alasan_cetak') }}">
+            <input type="hidden" name="status" value="{{ request('status') }}">
             <input type="hidden" name="search" value="{{ request('search') }}">
         </form>
     </div>
@@ -280,6 +277,63 @@
                     },
                 }
             }
+        </script>
+
+        <script>
+            // Filter & pencarian otomatis tanpa tombol "Terapkan"
+            (function () {
+                const FOCUS_KEY = 'focus-search:' + location.pathname;
+
+                document.querySelectorAll('form[data-auto-filter]').forEach(function (form) {
+                    const searchInput = form.querySelector('input[name="search"]');
+                    let timer = null;
+
+                    function submitForm() {
+                        if (searchInput && document.activeElement === searchInput) {
+                            sessionStorage.setItem(FOCUS_KEY, '1');
+                        }
+                        form.submit();
+                    }
+
+                    // Dropdown: langsung submit saat berubah
+                    form.querySelectorAll('select').forEach(function (el) {
+                        el.addEventListener('change', submitForm);
+                    });
+
+                    // Tanggal: submit hanya jika kosong atau sudah lengkap & valid
+                    form.querySelectorAll('input[type="date"]').forEach(function (el) {
+                        el.addEventListener('change', function () {
+                            const v = el.value;
+                            if (v === '' || (v.length === 10 && parseInt(v.slice(0, 4), 10) >= 1900)) {
+                                submitForm();
+                            }
+                        });
+                    });
+
+                    // Pencarian: tunggu 500ms setelah berhenti mengetik
+                    if (searchInput) {
+                        searchInput.addEventListener('input', function () {
+                            clearTimeout(timer);
+                            timer = setTimeout(submitForm, 500);
+                        });
+                        searchInput.addEventListener('keydown', function (e) {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                clearTimeout(timer);
+                                submitForm();
+                            }
+                        });
+
+                        // Kembalikan fokus & kursor ke kolom cari setelah halaman dimuat ulang
+                        if (sessionStorage.getItem(FOCUS_KEY)) {
+                            sessionStorage.removeItem(FOCUS_KEY);
+                            searchInput.focus();
+                            const len = searchInput.value.length;
+                            searchInput.setSelectionRange(len, len);
+                        }
+                    }
+                });
+            })();
         </script>
     @endpush
 @endsection

@@ -106,6 +106,7 @@ Route::middleware(['auth', 'staff'])->group(function () {
         Route::post('/ajuan/{pbiApbn}/diagnosa', [PbiApbnController::class, 'ajuanTambahDiagnosa'])->name('ajuan.diagnosa.store');
 
         Route::get('/arsip', [PbiApbnController::class, 'arsipIndex'])->name('arsip.index');
+        Route::get('/arsip/{pbiApbn}/detail', [PbiApbnController::class, 'arsipDetail'])->name('arsip.detail');
         Route::get('/monitoring', [PbiApbnController::class, 'monitoringIndex'])->name('monitoring.index');
         Route::get('/log', [PbiApbnController::class, 'logIndex'])->name('log.index');
     });

@@ -12,6 +12,7 @@ use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Schema;
 
 class DtsenSeeder extends Seeder
 {
@@ -99,9 +100,19 @@ class DtsenSeeder extends Seeder
 
     public function run(): void
     {
-        // Role dipakai untuk current_role_id (foreign key), dibuat kalau belum ada.
-        // PENTING: dicari & dibuat berdasarkan `slug` (bukan `name`), dan `slug` selalu
-        // diisi eksplisit -- kolom ini NOT NULL tanpa default di database.
+        // 1. KOSONGKAN TABEL KHUSUS DTSEN SAJA
+        // Ini memastikan tidak ada error duplikat data jika seeder dijalankan berulang kali,
+        // tanpa menghapus data di tabel lain (seperti users atau roles).
+        Schema::disableForeignKeyConstraints();
+        DtsenPermohonan::truncate();
+        DtsenDetail::truncate();
+        DtsenBansos::truncate();
+        DtsenLampiran::truncate();
+        DtsenSurat::truncate();
+        DtsenLog::truncate();
+        Schema::enableForeignKeyConstraints();
+
+        // 2. PASTIKAN ROLE TERSEDIA
         $roles = collect(['kelurahan', 'operator_dinsos', 'kabin', 'kadis'])
             ->mapWithKeys(fn (string $slug) => [
                 $slug => Role::firstOrCreate(
@@ -111,18 +122,15 @@ class DtsenSeeder extends Seeder
             ]);
 
         $creatorId = User::query()->inRandomOrder()->value('id');
-
         $stageOrder = array_keys($this->stages);
 
-        // Status "aktif" = semua tahap kecuali Selesai (Ditolak sengaja tidak
-        // dibuat di seeder ini). Dipakai untuk mengisi slot 7 data Ajuan.
         $activeStatuses = array_values(array_diff($stageOrder, [DtsenPermohonan::STATUS_SELESAI]));
 
-        // Rencana status utk 10 data: 7 tersebar di tahap aktif (-> muncul di Ajuan),
-        // 3 berstatus Selesai (-> muncul di Arsip, karena Arsip hanya menampilkan Selesai).
+        // 3. RENCANA STATUS (5 Ajuan aktif, 3 Selesai, 2 Ditolak)
         $statusPlan = array_merge(
-            array_fill(0, 7, null), // null = diisi status aktif acak di bawah
-            array_fill(0, 3, DtsenPermohonan::STATUS_SELESAI)
+            array_fill(0, 5, null), // null = diisi status aktif acak
+            array_fill(0, 3, DtsenPermohonan::STATUS_SELESAI),
+            array_fill(0, 2, DtsenPermohonan::STATUS_DITOLAK)
         );
         shuffle($statusPlan);
 
@@ -134,7 +142,8 @@ class DtsenSeeder extends Seeder
             $kelurahan = $this->kelurahanList[array_rand($this->kelurahanList)];
             $tanggalInsert = Carbon::now()->subDays(random_int(2, 120));
 
-            $isFinal = $status === DtsenPermohonan::STATUS_SELESAI;
+            // Cek apakah status sudah final (Selesai atau Ditolak)
+            $isFinal = in_array($status, [DtsenPermohonan::STATUS_SELESAI, DtsenPermohonan::STATUS_DITOLAK]);
 
             $currentRoleName = match (true) {
                 $isFinal => null,
@@ -171,7 +180,6 @@ class DtsenSeeder extends Seeder
                 'alasan_keputusan_cetak' => null,
             ]);
 
-            // Bansos & surat baru terisi kalau sudah lewat tahap Validasi Dinsos / Selesai.
             $sudahDivalidasiDinsos = in_array($status, [
                 DtsenPermohonan::STATUS_DIPROSES_KABIN,
                 DtsenPermohonan::STATUS_DISETUJUI_KADIS,
@@ -189,7 +197,6 @@ class DtsenSeeder extends Seeder
                 'pbi' => fake()->boolean(60),
                 'yatim_piatu' => fake()->boolean(15),
                 'tanggal_cetak' => $tanggalCetak,
-                // sebagian sengaja dibuat sudah lewat masa berlaku, untuk menguji badge "Kedaluwarsa"
                 'berlaku_sampai' => $berlakuSampai && fake()->boolean(25)
                     ? Carbon::now()->subMonths(random_int(1, 6))
                     : $berlakuSampai,
@@ -197,8 +204,6 @@ class DtsenSeeder extends Seeder
                 'upload_lainnya' => null,
             ]);
 
-            // Tidak ada file asli yang diunggah — kolom lampiran/surat sengaja dikosongkan (null)
-            // supaya tampilan "belum ada" di UI tetap benar, tidak menunjuk ke file yang tidak ada.
             DtsenLampiran::create([
                 'permohonan_id' => $permohonan->id,
                 'screenshot_dtsen' => null,
@@ -208,16 +213,22 @@ class DtsenSeeder extends Seeder
             DtsenSurat::create([
                 'permohonan_id' => $permohonan->id,
                 'surat_pengantar_dtsen_kelurahan_digital' => null,
-                'surat_pengantar_dtsen_kelurahan_digital_at' => null,
                 'surat_keterangan_dtsen_digital' => null,
-                'surat_keterangan_dtsen_digital_at' => null,
             ]);
 
-            // ===== Bangun riwayat log sesuai status saat ini =====
+            // 4. BANGUN RIWAYAT LOG
             $logTime = $tanggalInsert->copy();
-            $reachedIndex = array_search($status, $stageOrder, true);
 
-            foreach (array_slice($stageOrder, 0, $reachedIndex + 1) as $stageStatus) {
+            // Jika status ditolak, kita simulasikan penolakan terjadi di tahap 1, 2, atau 3 (secara acak)
+            if ($status === DtsenPermohonan::STATUS_DITOLAK) {
+                $reachedIndex = random_int(1, 3);
+                $stagesToLog = array_slice($stageOrder, 0, $reachedIndex);
+            } else {
+                $reachedIndex = array_search($status, $stageOrder, true);
+                $stagesToLog = array_slice($stageOrder, 0, $reachedIndex + 1);
+            }
+
+            foreach ($stagesToLog as $stageStatus) {
                 $stage = $this->stages[$stageStatus];
                 $logTime = $logTime->copy()->addDays(random_int(1, 4))->setTime(random_int(8, 16), random_int(0, 59));
 
@@ -233,8 +244,27 @@ class DtsenSeeder extends Seeder
                         : null,
                 ]);
             }
+
+            // Tambahkan log khusus penolakan jika status akhirnya Ditolak
+            if ($status === DtsenPermohonan::STATUS_DITOLAK) {
+                $logTime = $logTime->copy()->addHours(random_int(1, 5));
+                $alasanTolak = $this->alasanTolakList[array_rand($this->alasanTolakList)];
+
+                // Ambil data aktor terakhir yang memproses sebelum ditolak
+                $lastStage = $this->stages[$stageOrder[$reachedIndex - 1]];
+
+                DtsenLog::create([
+                    'permohonan_id' => $permohonan->id,
+                    'tanggal_proses' => $logTime,
+                    'user_id' => $creatorId,
+                    'username' => $lastStage['username'],
+                    'taskname' => 'Permohonan Ditolak',
+                    'rolename' => $lastStage['role'],
+                    'catatan' => 'Ditolak dengan alasan: ' . $alasanTolak,
+                ]);
+            }
         }
 
-        $this->command?->info('10 data dummy DTSEN berhasil dibuat (7 di Ajuan, 3 di Arsip).');
+        $this->command?->info('10 data dummy DTSEN berhasil dibuat (5 Ajuan aktif, 3 Selesai, 2 Ditolak).');
     }
 }
