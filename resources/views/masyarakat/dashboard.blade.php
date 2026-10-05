@@ -6,7 +6,7 @@
     <h1 class="text-lg sm:text-xl font-bold text-primary mb-1">Pengajuan Saya</h1>
     <p class="text-sm text-on-surface-variant mb-5 sm:mb-6">Status &amp; riwayat pengajuan PBI APBN Anda.</p>
 
-    @if (! $pbiApbn)
+    @if (!$pbiApbn)
         <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-5 sm:p-6 text-center">
             <p class="text-sm text-on-surface-variant">Anda belum memiliki pengajuan PBI APBN.</p>
         </div>
@@ -24,32 +24,49 @@
                                 class="block sm:inline">NIK {{ $pbiApbn->nik_kepala_keluarga }}</span>
                         </p>
                     </div>
-                    <span class="shrink-0 px-3 py-1 rounded-full text-xs font-semibold uppercase
-                        {{ $pbiApbn->status === 'disetujui' ? 'bg-success-container text-on-success-container'
-                            : ($pbiApbn->status === 'ditolak' ? 'bg-error-container text-on-error-container'
-                            : 'bg-secondary/10 text-secondary') }}">
+                    <span
+                        class="shrink-0 px-3 py-1 rounded-full text-xs font-semibold uppercase
+                        {{ $pbiApbn->status === 'disetujui'
+                            ? 'bg-success-container text-on-success-container'
+                            : ($pbiApbn->status === 'ditolak'
+                                ? 'bg-error-container text-on-error-container'
+                                : 'bg-secondary/10 text-secondary') }}">
                         {{ $pbiApbn->statusLabel() }}
                     </span>
                 </div>
             </div>
 
-            {{-- Peringatan data belum lengkap --}}
-            @if (! $isLengkap)
+            {{-- Peringatan / ajakan melengkapi data --}}
+            @if ($pbiApbn->dikembalikan_ke_masyarakat && $bisaEdit)
+                <div class="border border-warning/40 bg-warning-container/40 rounded-lg p-4">
+                    <p class="text-sm text-on-warning-container font-semibold mb-1">Petugas kelurahan meminta Anda
+                        memperbaiki data</p>
+                    @if ($pbiApbn->catatan_kelurahan)
+                        <p class="text-xs text-on-warning-container mb-3 break-words">Catatan:
+                            {{ $pbiApbn->catatan_kelurahan }}</p>
+                    @endif
+                    <a href="{{ route('masyarakat.pbi-apbn.lengkapi', $pbiApbn) }}"
+                        class="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 sm:py-2 rounded-full bg-primary text-white text-sm font-semibold">
+                        <span class="material-symbols-outlined text-[16px]">edit_document</span> Perbaiki Data
+                    </a>
+                </div>
+            @elseif (!$isLengkap && $bisaEdit)
                 <div class="border border-warning/40 bg-warning-container/40 rounded-lg p-4">
                     <p class="text-sm text-on-warning-container font-semibold mb-1">Data Anda belum lengkap</p>
                     <p class="text-xs text-on-warning-container mb-3">
-                        Lengkapi titik lokasi dan lampiran berkas persyaratan agar pengajuan bisa diproses.
+                        Ambil titik lokasi dan jawab pertanyaan kondisi rumah tangga
+                        ({{ $terjawab }}/{{ $totalParameter }} terjawab).
+                        Lampiran berkas akan dilengkapi oleh petugas kelurahan saat kunjungan.
                     </p>
                     <a href="{{ route('masyarakat.pbi-apbn.lengkapi', $pbiApbn) }}"
-                       class="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 sm:py-2 rounded-full bg-primary text-white text-sm font-semibold">
-                        <span class="material-symbols-outlined text-[16px]">edit_document</span>
-                        Lengkapi Data Sekarang
+                        class="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 sm:py-2 rounded-full bg-primary text-white text-sm font-semibold">
+                        <span class="material-symbols-outlined text-[16px]">edit_document</span> Lengkapi Data Sekarang
                     </a>
                 </div>
             @endif
 
             {{-- Progress Stepper: vertikal di HP, horizontal mulai layar >= 768px --}}
-            @if (! $pbiApbn->isFinal())
+            @if (!$pbiApbn->isFinal())
                 <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-4 sm:p-5">
                     <h3 class="text-sm font-bold mb-4 flex items-center gap-2">
                         <span class="material-symbols-outlined text-[18px] text-secondary">alt_route</span>
@@ -61,17 +78,20 @@
                                 @if ($step['state'] === 'current') aria-current="step" @endif>
 
                                 {{-- Garis penghubung ke langkah berikutnya --}}
-                                @if (! $loop->last)
+                                @if (!$loop->last)
                                     <span aria-hidden="true"
-                                          class="absolute left-[15px] top-8 bottom-0 w-0.5
+                                        class="absolute left-[15px] top-8 bottom-0 w-0.5
                                                  md:bottom-auto md:left-1/2 md:top-[15px] md:h-0.5 md:w-full
                                                  {{ $step['state'] === 'done' ? 'bg-success' : 'bg-outline-variant/50' }}"></span>
                                 @endif
 
-                                <div class="relative z-10 w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-xs font-bold
-                                    {{ $step['state'] === 'done' ? 'bg-success text-white'
-                                        : ($step['state'] === 'current' ? 'bg-primary text-white ring-4 ring-primary/20'
-                                        : 'bg-surface-container text-on-surface-variant') }}">
+                                <div
+                                    class="relative z-10 w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-xs font-bold
+                                    {{ $step['state'] === 'done'
+                                        ? 'bg-success text-white'
+                                        : ($step['state'] === 'current'
+                                            ? 'bg-primary text-white ring-4 ring-primary/20'
+                                            : 'bg-surface-container text-on-surface-variant') }}">
                                     @if ($step['state'] === 'done')
                                         <span class="material-symbols-outlined text-[16px]">check</span>
                                     @else
@@ -79,7 +99,8 @@
                                     @endif
                                 </div>
 
-                                <span class="text-sm pt-1 md:pt-0 md:text-[11px] md:leading-tight md:text-center md:px-1
+                                <span
+                                    class="text-sm pt-1 md:pt-0 md:text-[11px] md:leading-tight md:text-center md:px-1
                                     {{ $step['state'] === 'current' ? 'font-bold text-primary' : 'text-on-surface-variant' }}">
                                     {{ $step['label'] }}
                                 </span>
@@ -90,7 +111,8 @@
             @elseif ($pbiApbn->status === 'ditolak')
                 <div class="border border-error/40 bg-error-container/30 rounded-lg p-4 flex items-start gap-2">
                     <span class="material-symbols-outlined text-error text-[18px] mt-0.5 shrink-0">cancel</span>
-                    <p class="text-sm text-on-error-container">Pengajuan Anda <strong>ditolak</strong>. Lihat riwayat proses di bawah untuk catatan alasannya.</p>
+                    <p class="text-sm text-on-error-container">Pengajuan Anda <strong>ditolak</strong>. Lihat riwayat proses
+                        di bawah untuk catatan alasannya.</p>
                 </div>
             @endif
 
@@ -117,34 +139,31 @@
                 </dl>
             </div>
 
-            {{-- Lampiran yang sudah diupload --}}
+            {{-- Jawaban kondisi rumah tangga (tanpa indeks/bobot/skor) --}}
             <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-4 sm:p-5">
                 <div class="flex items-center justify-between gap-x-3 gap-y-1 flex-wrap mb-3">
                     <h3 class="text-sm font-bold flex items-center gap-2">
-                        <span class="material-symbols-outlined text-[18px] text-secondary">attach_file</span>
-                        Lampiran Terunggah
+                        <span class="material-symbols-outlined text-[18px] text-secondary">checklist</span>
+                        Jawaban Kondisi Rumah Tangga
                     </h3>
-                    <a href="{{ route('masyarakat.pbi-apbn.lengkapi', $pbiApbn) }}"
-                       class="text-xs font-semibold text-primary underline py-1">
-                        Perbarui / Unggah Ulang
-                    </a>
+                    @if ($bisaEdit)
+                        <a href="{{ route('masyarakat.pbi-apbn.lengkapi', $pbiApbn) }}"
+                            class="text-xs font-semibold text-primary underline py-1">Ubah Jawaban</a>
+                    @endif
                 </div>
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    @foreach ([
-                        'scan_ktp' => 'Scan KTP',
-                        'scan_kk' => 'Scan KK',
-                        'foto_rumah' => 'Foto Rumah',
-                        'foto_kamar_mandi' => 'Foto Kamar Mandi',
-                        'foto_selfie_ktp' => 'Selfie + KTP',
-                        'surat_rawat_inap' => 'Surat Rawat Inap',
-                        'screenshot_pembaharuan_desil' => 'Screenshot Desil',
-                        'screenshot_dtsen' => 'Screenshot DTSEN',
-                    ] as $field => $label)
-                        <x-lampiran-preview
-                            :src="$pbiApbn->{$field} ? asset('storage/' . $pbiApbn->{$field}) : null"
-                            :label="$label" />
-                    @endforeach
-                </div>
+                @php $jawabans = $pbiApbn->jawabans->sortBy('urutan'); @endphp
+                @if ($jawabans->isEmpty())
+                    <p class="text-sm text-on-surface-variant">Belum ada jawaban.</p>
+                @else
+                    <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                        @foreach ($jawabans as $j)
+                            <div class="min-w-0">
+                                <dt class="text-xs text-on-surface-variant">{{ $j->parameter_nama }}</dt>
+                                <dd class="font-medium break-words">{{ $j->jawaban_label }}</dd>
+                            </div>
+                        @endforeach
+                    </dl>
+                @endif
             </div>
 
             {{-- Informasi tambahan dari petugas (read-only) --}}
@@ -185,7 +204,8 @@
                             <div class="px-4 sm:px-5 py-3 text-sm">
                                 <div class="flex items-center justify-between gap-x-3 gap-y-0.5 flex-wrap">
                                     <span class="text-xs text-on-surface-variant">{{ $log->role_name }}</span>
-                                    <span class="text-xs text-on-surface-variant whitespace-nowrap">{{ $log->created_at->format('d M Y - H:i') }}</span>
+                                    <span
+                                        class="text-xs text-on-surface-variant whitespace-nowrap">{{ $log->created_at->format('d M Y - H:i') }}</span>
                                 </div>
                                 <p class="mt-1 text-on-surface break-words">{{ $log->diagnosa }}</p>
                             </div>

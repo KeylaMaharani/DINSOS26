@@ -11,11 +11,18 @@
     <h1 class="text-lg sm:text-xl font-bold text-primary mb-1">Lengkapi Data Pengajuan</h1>
     <p class="text-sm text-on-surface-variant mb-5 sm:mb-6 break-words">No. Registrasi: <strong>{{ $pbiApbn->no_registrasi }}</strong></p>
 
+    @if ($pbiApbn->dikembalikan_ke_masyarakat)
+        <div class="mb-4 px-4 py-3 rounded-lg bg-warning-container text-on-warning-container text-sm">
+            <p class="font-semibold">Petugas kelurahan meminta Anda memperbaiki data.</p>
+            @if ($pbiApbn->catatan_kelurahan)<p class="mt-1 break-words">Catatan: {{ $pbiApbn->catatan_kelurahan }}</p>@endif
+        </div>
+    @endif
+
     @if ($errors->any())
         <div class="mb-4 px-4 py-3 rounded-lg bg-error-container text-on-error-container text-sm">
             <p class="font-semibold mb-1">Periksa kembali data Anda:</p>
             <ul class="list-disc list-inside space-y-0.5 break-words">
-                @foreach ($errors->all() as $error)
+                @foreach (array_unique($errors->all()) as $error)
                     <li>{{ $error }}</li>
                 @endforeach
             </ul>
@@ -23,7 +30,7 @@
     @endif
 
     <form method="POST" action="{{ route('masyarakat.pbi-apbn.lengkapi.store', $pbiApbn) }}"
-          enctype="multipart/form-data" class="space-y-4 sm:space-y-6" id="form-lengkapi">
+          class="space-y-4 sm:space-y-6" id="form-lengkapi">
         @csrf
 
         {{-- ===== KOORDINAT ===== --}}
@@ -44,60 +51,41 @@
                 <span id="geo-text" class="min-w-0 break-words">Mengambil lokasi Anda...</span>
             </div>
 
-            <button type="button" id="btn-retry-geo"
-                    class="hidden mt-3 py-2 text-xs font-semibold text-primary underline">
+            <button type="button" id="btn-retry-geo" class="hidden mt-3 py-2 text-xs font-semibold text-primary underline">
                 Coba ambil ulang lokasi
             </button>
         </div>
 
-        {{-- ===== LAMPIRAN ===== --}}
+        {{-- ===== PERTANYAAN KONDISI RUMAH TANGGA ===== --}}
         <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-4 sm:p-5">
-            <h2 class="font-semibold text-sm mb-3 flex items-center gap-1.5">
-                <span class="material-symbols-outlined text-[18px] text-secondary">attach_file</span>
-                Lampiran Persyaratan
+            <h2 class="font-semibold text-sm mb-1 flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[18px] text-secondary">home</span>
+                Kondisi Rumah Tangga
             </h2>
+            <p class="text-xs text-on-surface-variant mb-4">Jawab sesuai keadaan sebenarnya. Petugas kelurahan akan mengecek langsung ke lapangan.</p>
+
+            @if ($parameters->isEmpty())
+                <p class="text-sm text-on-surface-variant">Pertanyaan belum tersedia. Silakan hubungi petugas.</p>
+            @endif
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-x-5">
-                @php
-                    $lampiranFields = [
-                        'scan_ktp' => 'Scan KTP',
-                        'scan_kk' => 'Scan Kartu Keluarga',
-                        'foto_rumah' => 'Foto Rumah Pemohon',
-                        'foto_kamar_mandi' => 'Foto Kamar Mandi',
-                        'foto_selfie_ktp' => 'Foto Selfie dengan KTP',
-                        'surat_rawat_inap' => 'Surat Ket. Rawat Inap (jika ada)',
-                        'screenshot_pembaharuan_desil' => 'Screenshot Pembaharuan Desil',
-                        'screenshot_dtsen' => 'Screenshot DTSEN',
-                    ];
-                @endphp
-
-                @foreach ($lampiranFields as $field => $label)
+                @foreach ($parameters as $p)
+                    @php $sel = old('jawaban.' . $p->id, $jawabanTersimpan[$p->id] ?? ''); @endphp
                     <div class="min-w-0">
-                        <label for="{{ $field }}" class="block text-xs font-semibold mb-1">{{ $label }}</label>
-
-                        @if ($pbiApbn->{$field})
-                            <div class="flex items-center gap-3 mb-2">
-                                <div class="w-20 shrink-0">
-                                    <x-lampiran-preview
-                                        :src="asset('storage/' . $pbiApbn->{$field})"
-                                        :label="$label" />
-                                </div>
-                                <div class="flex items-start gap-1.5 text-xs text-success">
-                                    <span class="material-symbols-outlined text-[15px] shrink-0">check_circle</span>
-                                    <span>Sudah diunggah — pilih file baru untuk mengganti.</span>
-                                </div>
-                            </div>
-                        @endif
-
-                        <input type="file" id="{{ $field }}" name="{{ $field }}" accept="image/*,.pdf"
-                               class="block w-full min-w-0 text-xs border border-outline-variant/40 rounded-lg file:mr-3 file:py-2.5 file:px-3 file:border-0 file:bg-surface-container file:text-xs file:font-semibold" />
-                        @error($field) <p class="text-error text-xs mt-1">{{ $message }}</p> @enderror
+                        <label for="jawaban-{{ $p->id }}" class="block text-xs font-semibold mb-1">{{ $loop->iteration }}. {{ $p->nama }}</label>
+                        <select id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]" required
+                                class="w-full rounded-lg border border-outline-variant/50 px-3 py-2.5 text-sm bg-white">
+                            <option value="">- Pilih -</option>
+                            @foreach ($p->opsis as $o)
+                                <option value="{{ $o->id }}" @selected((string) $sel === (string) $o->id)>{{ $o->label }}</option>
+                            @endforeach
+                        </select>
+                        @error('jawaban.' . $p->id)<p class="text-error text-xs mt-1">{{ $message }}</p>@enderror
                     </div>
                 @endforeach
             </div>
         </div>
 
-        {{-- Tombol simpan: menempel di bawah layar pada HP agar selalu terjangkau, normal di layar besar --}}
         <div class="sticky bottom-0 z-30 -mx-4 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]
                     bg-surface/90 backdrop-blur border-t border-outline-variant/40
                     sm:static sm:mx-0 sm:px-0 sm:pt-0 sm:pb-0 sm:bg-transparent sm:backdrop-blur-none sm:border-0">
@@ -144,27 +132,18 @@
                 setStatus('Lokasi berhasil diambil (' + pos.coords.latitude.toFixed(5) + ', ' + pos.coords.longitude.toFixed(5) + ')', 'check_circle', false);
                 btnSubmit.disabled = false;
             },
-            function (err) {
+            function () {
                 setStatus('Gagal mengambil lokasi: izinkan akses lokasi lalu coba lagi.', 'error', false);
                 btnRetry.classList.remove('hidden');
-                // Kalau sebelumnya sudah pernah tersimpan, tetap izinkan submit tanpa update lokasi
-                if (latInput.value && lngInput.value) {
-                    btnSubmit.disabled = false;
-                }
+                if (latInput.value && lngInput.value) { btnSubmit.disabled = false; }
             },
             { enableHighAccuracy: true, timeout: 10000 }
         );
     }
 
     btnRetry.addEventListener('click', ambilLokasi);
-
-    // Kalau sudah pernah ada koordinat tersimpan sebelumnya, submit boleh langsung aktif
-    if (latInput.value && lngInput.value) {
-        btnSubmit.disabled = false;
-    }
-
+    if (latInput.value && lngInput.value) { btnSubmit.disabled = false; }
     ambilLokasi();
 })();
 </script>
 @endpush
-    

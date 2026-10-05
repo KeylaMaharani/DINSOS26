@@ -39,6 +39,18 @@ class UserController
             'password.required' => 'Kata sandi wajib diisi.',
             'password.min' => 'Kata sandi minimal 6 karakter.',
             'password.confirmed' => 'Konfirmasi kata sandi tidak cocok.',
+
+            'kecamatan.max' => 'Kecamatan maksimal 100 karakter.',
+            'kelurahan.max' => 'Kelurahan maksimal 100 karakter.',
+        ];
+    }
+
+    /** Wilayah tugas (dipakai akun petugas kelurahan). */
+    private function wilayahRules(): array
+    {
+        return [
+            'kecamatan' => ['nullable', 'string', 'max:100'],
+            'kelurahan' => ['nullable', 'string', 'max:100'],
         ];
     }
 
@@ -49,6 +61,7 @@ class UserController
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'role_id' => ['required', 'exists:roles,id'],
             'password' => ['required', 'string', 'min:6', 'confirmed'],
+            ...$this->wilayahRules(),
         ], $this->userMessages());
 
         User::create([
@@ -59,6 +72,8 @@ class UserController
             'username' => $validated['username'],
             'email' => $validated['email'],
             'role_id' => $validated['role_id'],
+            'kecamatan' => $validated['kecamatan'] ?? null,
+            'kelurahan' => $validated['kelurahan'] ?? null,
             'password' => Hash::make($validated['password']),
         ]);
 
@@ -68,7 +83,7 @@ class UserController
 
     public function edit(User $akun)
     {
-        return response()->json($akun->only(['id', 'username', 'email', 'role_id']));
+        return response()->json($akun->only(['id', 'username', 'email', 'role_id', 'kecamatan', 'kelurahan']));
     }
 
     public function update(Request $request, User $akun)
@@ -78,11 +93,14 @@ class UserController
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($akun->id)],
             'role_id' => ['required', 'exists:roles,id'],
             'password' => ['nullable', 'string', 'min:6', 'confirmed'],
+            ...$this->wilayahRules(),
         ], $this->userMessages());
 
         $akun->username = $validated['username'];
         $akun->email = $validated['email'];
         $akun->role_id = $validated['role_id'];
+        $akun->kecamatan = $validated['kecamatan'] ?? null;
+        $akun->kelurahan = $validated['kelurahan'] ?? null;
 
         if (!empty($validated['password'])) {
             $akun->password = Hash::make($validated['password']);
@@ -116,11 +134,6 @@ class UserController
         ];
     }
 
-    /**
-     * Aturan validasi untuk checklist modul. Daftar modul valid diambil
-     * langsung dari Role::MODULES, jadi kalau ada modul baru ditambahkan
-     * di sana, validasi ini otomatis ikut menerimanya tanpa perlu diubah.
-     */
     private function permissionsRules(): array
     {
         return [
@@ -153,9 +166,6 @@ class UserController
 
     public function updateRole(Request $request, Role $role)
     {
-        // Super Admin tidak boleh diubah lewat request langsung (jaga-jaga,
-        // bukan cuma disembunyikan di UI) — dia selalu bypass semua modul
-        // lewat isSuperAdmin(), jadi checklist permissions tidak berlaku.
         if ($role->isSuperAdmin()) {
             return redirect()->route('akun.index', ['tab' => 'role'])
                 ->with('error', 'Hak Akses Super Admin tidak bisa diubah.');
@@ -181,7 +191,6 @@ class UserController
 
     public function destroyRole(Role $role)
     {
-        // Super Admin tidak boleh dihapus lewat request langsung.
         if ($role->isSuperAdmin()) {
             return redirect()->route('akun.index', ['tab' => 'role'])
                 ->with('error', 'Hak Akses Super Admin tidak bisa dihapus.');

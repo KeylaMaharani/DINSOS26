@@ -29,6 +29,7 @@ class Role extends Model
         'kartu-kks' => 'Kartu KKS',
         'dtsen' => 'DTSEN',
         'dokumen' => 'Dokumen',
+        'pbi-kelurahan' => 'PBI APBN - Verifikasi Kelurahan',
     ];
 
     /**

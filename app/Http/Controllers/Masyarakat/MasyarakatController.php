@@ -4,8 +4,12 @@ namespace App\Http\Controllers\Masyarakat;
 
 use App\Http\Controllers\Controller;
 use App\Models\PbiApbn;
+use App\Models\PbiApbnJawaban;
+use App\Models\PbiApbnLog;
+use App\Models\PbiKriteriaParameter;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class MasyarakatController extends Controller
 {
@@ -20,16 +24,19 @@ class MasyarakatController extends Controller
             ->latest()
             ->first();
 
+        $totalParameter = PbiKriteriaParameter::aktif()->count();
+        $terjawab = $pbiApbn ? $pbiApbn->jawabans()->count() : 0;
+
+        // "Lengkap" = lokasi terambil + semua parameter terjawab. Lampiran kini diurus Kelurahan.
         $isLengkap = $pbiApbn
             && $pbiApbn->latitude
             && $pbiApbn->longitude
-            && $pbiApbn->scan_ktp
-            && $pbiApbn->scan_kk
-            && $pbiApbn->foto_rumah
-            && $pbiApbn->foto_kamar_mandi
-            && $pbiApbn->foto_selfie_ktp;
+            && $totalParameter > 0
+            && $terjawab >= $totalParameter;
 
-        return view('masyarakat.dashboard', compact('pbiApbn', 'isLengkap'));
+        $bisaEdit = $pbiApbn ? $pbiApbn->masyarakatBisaEdit() : false;
+
+        return view('masyarakat.dashboard', compact('pbiApbn', 'isLengkap', 'bisaEdit', 'totalParameter', 'terjawab'));
     }
 
     /** GET /akun-saya/pbi-apbn/{pbiApbn}/lengkapi */
@@ -37,7 +44,16 @@ class MasyarakatController extends Controller
     {
         $this->authorizePemilik($request, $pbiApbn);
 
-        return view('masyarakat.pbi-apbn.lengkapi', compact('pbiApbn'));
+        if (! $pbiApbn->masyarakatBisaEdit()) {
+            return redirect()->route('masyarakat.dashboard')
+                ->with('error', 'Data sudah diteruskan ke tahap berikutnya dan tidak bisa diubah lagi.');
+        }
+
+        $parameters = PbiKriteriaParameter::aktif()->with('opsis')->get();
+        // parameter_id => opsi_id (HANYA id, tidak ada indeks/bobot yang dikirim ke halaman masyarakat)
+        $jawabanTersimpan = $pbiApbn->jawabans()->pluck('opsi_id', 'parameter_id')->all();
+
+        return view('masyarakat.pbi-apbn.lengkapi', compact('pbiApbn', 'parameters', 'jawabanTersimpan'));
     }
 
     /** POST /akun-saya/pbi-apbn/{pbiApbn}/lengkapi */
@@ -45,50 +61,78 @@ class MasyarakatController extends Controller
     {
         $this->authorizePemilik($request, $pbiApbn);
 
-        $validated = $request->validate([
-            'latitude' => ['required', 'numeric', 'between:-90,90'],
-            'longitude' => ['required', 'numeric', 'between:-180,180'],
-
-            'scan_ktp' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:2048'],
-            'scan_kk' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:2048'],
-            'foto_rumah' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:2048'],
-            'foto_kamar_mandi' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:2048'],
-            'foto_selfie_ktp' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:2048'],
-            'surat_rawat_inap' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:2048'],
-            'screenshot_pembaharuan_desil' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:2048'],
-            'screenshot_dtsen' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:2048'],
-        ], [
-            'latitude.required' => 'Lokasi belum berhasil diambil. Izinkan akses lokasi lalu coba lagi.',
-            'longitude.required' => 'Lokasi belum berhasil diambil. Izinkan akses lokasi lalu coba lagi.',
-        ]);
-
-        $fileFields = [
-            'scan_ktp', 'scan_kk', 'foto_rumah', 'foto_kamar_mandi',
-            'foto_selfie_ktp', 'surat_rawat_inap',
-            'screenshot_pembaharuan_desil', 'screenshot_dtsen',
-        ];
-
-        $dataToUpdate = [
-            'latitude' => $validated['latitude'],
-            'longitude' => $validated['longitude'],
-        ];
-
-        foreach ($fileFields as $field) {
-            if ($request->hasFile($field)) {
-                // Hapus file lama supaya storage tidak menumpuk
-                if ($pbiApbn->{$field}) {
-                    Storage::disk('public')->delete($pbiApbn->{$field});
-                }
-
-                $dataToUpdate[$field] = $request->file($field)
-                    ->store('pbi-apbn/lampiran', 'public');
-            }
+        if (! $pbiApbn->masyarakatBisaEdit()) {
+            return redirect()->route('masyarakat.dashboard')
+                ->with('error', 'Data sudah diteruskan ke tahap berikutnya dan tidak bisa diubah lagi.');
         }
 
-        $pbiApbn->update($dataToUpdate);
+        $parameters = PbiKriteriaParameter::aktif()->with('opsis')->get();
+
+        $rules = [
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
+            'jawaban' => ['required', 'array'],
+        ];
+        $messages = [
+            'latitude.required' => 'Lokasi belum berhasil diambil. Izinkan akses lokasi lalu coba lagi.',
+            'longitude.required' => 'Lokasi belum berhasil diambil. Izinkan akses lokasi lalu coba lagi.',
+            'jawaban.required' => 'Semua pertanyaan wajib dijawab.',
+        ];
+
+        foreach ($parameters as $p) {
+            $rules["jawaban.{$p->id}"] = ['required', Rule::in($p->opsis->pluck('id')->all())];
+            $messages["jawaban.{$p->id}.required"] = "Pertanyaan \"{$p->nama}\" wajib dijawab.";
+            $messages["jawaban.{$p->id}.in"] = "Jawaban untuk \"{$p->nama}\" tidak valid.";
+        }
+
+        $validated = $request->validate($rules, $messages);
+
+        DB::transaction(function () use ($pbiApbn, $parameters, $validated, $request) {
+            foreach ($parameters as $p) {
+                $opsi = $p->opsis->firstWhere('id', (int) $validated['jawaban'][$p->id]);
+
+                $skor = round((float) $p->indeks * (float) $p->bobot * (float) $opsi->indeks_terintegrasi, 6);
+
+                PbiApbnJawaban::updateOrCreate(
+                    ['pbi_apbn_id' => $pbiApbn->id, 'parameter_id' => $p->id],
+                    [
+                        'opsi_id' => $opsi->id,
+                        'urutan' => $p->urutan,
+                        'parameter_nama' => $p->nama,
+                        'jawaban_label' => $opsi->label,
+                        'indeks' => $p->indeks,
+                        'bobot' => $p->bobot,
+                        'indeks_terintegrasi' => $opsi->indeks_terintegrasi,
+                        'skor' => $skor,
+                    ]
+                );
+            }
+
+            // Buang jawaban untuk parameter yang kini nonaktif (baris snapshot yatim tidak disentuh)
+            $pbiApbn->jawabans()->whereNotNull('parameter_id')
+                ->whereNotIn('parameter_id', $parameters->pluck('id'))->delete();
+
+            $pbiApbn->update([
+                'latitude' => $validated['latitude'],
+                'longitude' => $validated['longitude'],
+                'data_diisi_at' => now(),
+                'dikembalikan_ke_masyarakat' => false,
+            ]);
+
+            $pbiApbn->hitungUlangSkor();
+
+            PbiApbnLog::create([
+                'pbi_apbn_id' => $pbiApbn->id,
+                'user_id' => $request->user()->id,
+                'username' => $request->user()->name,
+                'role_name' => 'Masyarakat',
+                'task_name' => 'Masyarakat mengisi data & parameter',
+                'catatan' => null,
+            ]);
+        });
 
         return redirect()->route('masyarakat.dashboard')
-            ->with('success', 'Data berhasil dilengkapi dan akan diproses oleh petugas.');
+            ->with('success', 'Data berhasil disimpan dan akan diverifikasi oleh petugas kelurahan.');
     }
 
     private function authorizePemilik(Request $request, PbiApbn $pbiApbn): void

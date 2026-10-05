@@ -14,7 +14,6 @@ class KartuKksSeeder extends Seeder
     {
         // 1) Pastikan semua role di alur sudah ada (aman dijalankan berkali-kali)
         $roles = [
-            ['name' => 'Super Admin', 'slug' => 'super_admin'],
             ['name' => 'Kelurahan', 'slug' => 'kelurahan'],
             ['name' => 'Operator Dinsos', 'slug' => 'operator_dinsos'],
             ['name' => 'PFM', 'slug' => 'pfm'],

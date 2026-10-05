@@ -170,6 +170,25 @@
                             @endif
                         </div>
 
+                        <div x-show="isKelurahan" x-cloak class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Kecamatan</label>
+                                <input name="kecamatan" x-model="form.kecamatan" type="text"
+                                    placeholder="Contoh: Bogor Tengah"
+                                    class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm" />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Kelurahan</label>
+                                <input name="kelurahan" x-model="form.kelurahan" type="text"
+                                    placeholder="Contoh: Paledang"
+                                    class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm" />
+                            </div>
+                            <p class="col-span-2 text-xs text-on-surface-variant -mt-1">
+                                Wilayah tugas petugas. Harus sama dengan nama kelurahan/kecamatan yang diisi masyarakat saat
+                                mendaftar.
+                            </p>
+                        </div>
+
                         <div>
                             <label class="block text-sm font-medium mb-1">
                                 <span x-text="mode === 'create' ? 'Kata Sandi' : 'Kata Sandi Baru'"></span>
@@ -278,7 +297,8 @@
                             <td class="py-2 font-medium">
                                 {{ $role->name }}
                                 @if ($role->isSuperAdmin())
-                                    <span class="ml-1 text-[10px] uppercase tracking-wide text-on-surface-variant">(bawaan sistem)</span>
+                                    <span class="ml-1 text-[10px] uppercase tracking-wide text-on-surface-variant">(bawaan
+                                        sistem)</span>
                                 @endif
                             </td>
                             <td class="py-2 text-on-surface-variant">{{ $role->description ?? '-' }}</td>
@@ -351,7 +371,8 @@
                             <label class="block text-sm font-medium mb-2">Hak Akses Modul</label>
 
                             <template x-if="isSuperAdminEdit">
-                                <p class="text-xs text-on-surface-variant italic bg-surface-container rounded-lg px-3 py-2">
+                                <p
+                                    class="text-xs text-on-surface-variant italic bg-surface-container rounded-lg px-3 py-2">
                                     Super Admin otomatis memiliki akses ke seluruh modul dan tidak bisa diubah.
                                 </p>
                             </template>
@@ -390,17 +411,25 @@
                     modalOpen: false,
                     mode: 'create',
                     editUrl: '',
+                    roleSlugs: @js($roles->pluck('slug', 'id')),
                     form: {
                         username: '',
                         email: '',
                         role_id: '',
+                        kecamatan: '',
+                        kelurahan: ''
+                    },
+                    get isKelurahan() {
+                        return String(this.roleSlugs[this.form.role_id] ?? '').toLowerCase().includes('kelurahan');
                     },
                     openCreate() {
                         this.mode = 'create';
                         this.form = {
                             username: '',
                             email: '',
-                            role_id: ''
+                            role_id: '',
+                            kecamatan: '',
+                            kelurahan: ''
                         };
                         this.modalOpen = true;
                     },
@@ -418,6 +447,8 @@
                                 username: data.username,
                                 email: data.email,
                                 role_id: data.role_id ?? '',
+                                kecamatan: data.kecamatan ?? '',
+                                kelurahan: data.kelurahan ?? '',
                             };
                         } catch (e) {
                             console.error('Gagal memuat data user', e);

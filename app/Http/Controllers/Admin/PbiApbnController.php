@@ -90,6 +90,10 @@ class PbiApbnController extends Controller
 
         $user = Auth::user();
 
+        if ($pbiApbn->status === 'kelurahan') {
+            return false;
+        }
+
         $pbiApbn->diagnosaLogs()->create([
             'user_id' => $user->id,
             'username' => $user->name,
@@ -168,7 +172,7 @@ class PbiApbnController extends Controller
                 $pbiApbn->update([
                     'status' => $prev,
                     'catatan_internal' => $catatan,
-                ]);
+                ] + ($prev === 'kelurahan' ? ['sudah_diverifikasi_kelurahan' => false] : []));
                 break;
 
             case 'reject':

@@ -14,6 +14,8 @@ use App\Http\Controllers\RegistrasiController;
 use App\Http\Controllers\Layanan\KartuKksAjuanController;
 use App\Http\Controllers\Layanan\DtsenAjuanController;
 use App\Http\Controllers\Masyarakat\MasyarakatController;
+use App\Http\Controllers\Admin\KriteriaController;
+use App\Http\Controllers\Admin\PbiKelurahanController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -108,6 +110,23 @@ Route::middleware(['auth', 'staff'])->group(function () {
         Route::get('/arsip', [PbiApbnController::class, 'arsipIndex'])->name('arsip.index');
         Route::get('/monitoring', [PbiApbnController::class, 'monitoringIndex'])->name('monitoring.index');
         Route::get('/log', [PbiApbnController::class, 'logIndex'])->name('log.index');
+    });
+
+    // Halaman Kelurahan (PBI APBN)
+    Route::prefix('pbi-kelurahan')->name('pbi-kelurahan.')->middleware('module:pbi-kelurahan')->group(function () {
+        Route::get('/', [PbiKelurahanController::class, 'index'])->name('index');
+        Route::get('/{pbiApbn}', [PbiKelurahanController::class, 'show'])->name('show');
+        Route::post('/{pbiApbn}/aksi', [PbiKelurahanController::class, 'aksi'])->name('aksi');
+    });
+
+    // Master Kriteria Kemiskinan (hanya Super Admin, sama seperti Kelola Akses)
+    Route::prefix('master/kriteria')->name('master.kriteria.')->middleware('module:kelola-akses')->group(function () {
+        Route::get('/', [KriteriaController::class, 'index'])->name('index');
+        Route::get('/tambah', [KriteriaController::class, 'create'])->name('create');
+        Route::post('/', [KriteriaController::class, 'store'])->name('store');
+        Route::get('/{parameter}/edit', [KriteriaController::class, 'edit'])->name('edit');
+        Route::put('/{parameter}', [KriteriaController::class, 'update'])->name('update');
+        Route::delete('/{parameter}', [KriteriaController::class, 'destroy'])->name('destroy');
     });
 
     // ==========================================
