@@ -4,216 +4,288 @@
 @section('page_title', 'DTSEN - Arsip')
 
 @section('content')
-    <div class="space-y-5" x-data="arsipDtsenManager()">
+    <div class="space-y-6" x-data="arsipDtsenManager()">
 
         @if (session('success'))
-            <div class="flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs bg-green-50 border border-green-200 text-green-700">
-                <span class="material-symbols-outlined text-[16px]">check_circle</span>
-                {{ session('success') }}
+            <div class="flex items-center gap-3 px-4 py-3 rounded-xl shadow-sm text-sm bg-green-50 border border-green-200 text-green-700 transition-all">
+                <span class="material-symbols-outlined text-[20px]">check_circle</span>
+                <span class="font-medium">{{ session('success') }}</span>
             </div>
         @endif
 
-        <form method="GET" action="{{ route('dtsen.arsip') }}" data-auto-filter
-            class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-4 flex flex-wrap items-end gap-3">
-            <div>
-                <label class="block text-xs text-on-surface-variant mb-1">Tanggal Awal</label>
-                <input type="date" name="tanggal_awal" value="{{ request('tanggal_awal') }}"
-                    class="px-3 py-1.5 rounded-lg border border-outline-variant/50 text-xs" />
-            </div>
-            <div>
-                <label class="block text-xs text-on-surface-variant mb-1">Tanggal Akhir</label>
-                <input type="date" name="tanggal_akhir" value="{{ request('tanggal_akhir') }}"
-                    class="px-3 py-1.5 rounded-lg border border-outline-variant/50 text-xs" />
-            </div>
-            <div>
-                <label class="block text-xs text-on-surface-variant mb-1">Status</label>
-                <select name="status" class="px-3 py-1.5 rounded-lg border border-outline-variant/50 text-xs">
-                    <option value="">Semua</option>
-                    @foreach ($statusOptions as $value => $label)
-                        <option value="{{ $value }}" @selected(request('status') === $value)>{{ $label }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="flex-1 min-w-[200px]">
-                <label class="block text-xs text-on-surface-variant mb-1">Cari</label>
-                <input type="text" name="search" value="{{ request('search') }}" placeholder="Nama, NIK, Alamat..."
-                    class="w-full px-3 py-1.5 rounded-lg border border-outline-variant/50 text-xs" />
-            </div>
+        <!-- Filter Section -->
+        <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] p-5">
+            <form method="GET" action="{{ route('dtsen.arsip') }}" data-auto-filter>
+                <!-- Grid layout untuk input filter -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-on-surface-variant mb-1.5">Tanggal Awal</label>
+                        <input type="date" name="tanggal_awal" value="{{ request('tanggal_awal') }}"
+                            class="w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-xs focus:ring-2 focus:ring-brand/30 focus:border-brand focus:outline-none transition-colors" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-on-surface-variant mb-1.5">Tanggal Akhir</label>
+                        <input type="date" name="tanggal_akhir" value="{{ request('tanggal_akhir') }}"
+                            class="w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-xs focus:ring-2 focus:ring-brand/30 focus:border-brand focus:outline-none transition-colors" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-on-surface-variant mb-1.5">Status</label>
+                        <select name="status" class="w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-xs focus:ring-2 focus:ring-brand/30 focus:border-brand focus:outline-none transition-colors">
+                            <option value="">Semua Status</option>
+                            @foreach ($statusOptions as $value => $label)
+                                <option value="{{ $value }}" @selected(request('status') === $value)>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-on-surface-variant mb-1.5">Cari Data</label>
+                        <div class="relative">
+                            <input type="text" name="search" value="{{ request('search') }}" placeholder="Nama, NIK, Alamat..."
+                                class="w-full pl-8 pr-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-xs focus:ring-2 focus:ring-brand/30 focus:border-brand focus:outline-none transition-colors" />
+                            <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[16px] text-outline-variant/80">search</span>
+                        </div>
+                    </div>
+                </div>
 
-            <div class="flex items-center gap-2 text-xs text-on-surface-variant ml-auto">
-                Tampilkan
-                <select name="tampilkan" onchange="this.form.submit()" form="arsip-dtsen-tampilkan-form"
-                    class="rounded-lg border border-outline-variant/50 px-2 py-1 text-xs">
-                    @foreach ([10, 25, 50, 100] as $n)
-                        <option value="{{ $n }}" @selected((int) request('tampilkan', 10) === $n)>{{ $n }}</option>
-                    @endforeach
-                </select>
-                data
-            </div>
-        </form>
+                <!-- Bagian Reset Filter & Tampilkan Data -->
+                <div class="mt-5 pt-4 border-t border-outline-variant/20 flex flex-wrap items-center justify-between gap-3">
 
-        <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden">
-            <table class="w-full text-xs table-fixed">
-                <colgroup>
-                    <col style="width: 4%">
-                    <col style="width: 10%">
-                    <col style="width: 13%">
-                    <col style="width: 13%">
-                    <col style="width: 6%">
-                    <col style="width: 14%">
-                    <col style="width: 13%">
-                    <col style="width: 12%">
-                    <col style="width: 15%">
-                </colgroup>
-                <thead class="bg-surface-container text-on-surface-variant uppercase">
-                    <tr>
-                        <th class="text-center px-2 py-2 whitespace-nowrap">No</th>
-                        <th class="text-center px-2 py-2 whitespace-nowrap">Tgl Insert</th>
-                        <th class="text-center px-2 py-2 whitespace-nowrap">NIK</th>
-                        <th class="text-center px-2 py-2 whitespace-nowrap">Nama</th>
-                        <th class="text-center px-2 py-2 whitespace-nowrap">Desil</th>
-                        <th class="text-center px-2 py-2 whitespace-nowrap">Alamat</th>
-                        <th class="text-center px-2 py-2 whitespace-nowrap">Alasan Cetak</th>
-                        <th class="text-center px-2 py-2 whitespace-nowrap">Status</th>
-                        <th class="text-center px-2 py-2 whitespace-nowrap">Aksi</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-outline-variant/30">
-                    @forelse ($arsipList as $item)
-                        @php $isSelesai = $item->status === 'selesai'; @endphp
-                        <tr class="hover:bg-surface-container-low transition-colors">
-                            <td class="px-2 py-2 whitespace-nowrap truncate text-center">{{ $arsipList->firstItem() + $loop->index }}</td>
-                            <td class="px-2 py-2 whitespace-nowrap text-center">{{ $item->tanggal_insert->format('d-m-Y') }}</td>
-                            <td class="px-2 py-2 whitespace-nowrap truncate font-medium text-primary text-center" title="{{ $item->nik }}">{{ $item->nik }}</td>
-                            <td class="px-2 py-2 whitespace-nowrap truncate" title="{{ $item->nama_pemohon }}">{{ $item->nama_pemohon }}</td>
-                            <td class="px-2 py-2 whitespace-nowrap truncate text-center">{{ $item->bansos->peringkat_kesejahteraan_keluarga ?? '-' }}</td>
-                            <td class="px-2 py-2 whitespace-nowrap truncate text-on-surface-variant" title="{{ $item->alamat }}">{{ $item->alamat }}</td>
-                            <td class="px-2 py-2 whitespace-nowrap truncate" title="{{ $item->alasan_cetak }}">{{ $item->alasan_cetak ?? '-' }}</td>
-                            <td class="px-2 py-2 whitespace-nowrap truncate text-center">
-                                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-medium
-                                    {{ $isSelesai ? 'bg-success-container text-on-success-container' : 'bg-red-100 text-red-700' }}">
-                                    <span class="material-symbols-outlined text-[12px]">
-                                        {{ $isSelesai ? 'check_circle' : 'cancel' }}
-                                    </span>
-                                    {{ $statusLabels[$item->status] ?? $item->status }}
-                                </span>
-                            </td>
-                            <td class="px-2 py-2 whitespace-nowrap text-center">
-                                <button @click="openDetail({{ $item->id }})"
-                                    class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-on-primary text-[11px] font-medium transition-colors">
-                                    <span class="material-symbols-outlined text-[14px]">visibility</span>
-                                    Lihat
-                                </button>
-                            </td>
-                        </tr>
-                    @empty
+                    <!-- Tombol Reset Filter -->
+                    <a href="{{ route('dtsen.arsip') }}"
+                        class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-error hover:bg-error/10 border border-transparent hover:border-error/20 transition-all">
+                        <span class="material-symbols-outlined text-[16px]">restart_alt</span>
+                        Reset Filter
+                    </a>
+
+                    <!-- Pengaturan Tampilkan X Data -->
+                    <div class="flex items-center gap-2 text-xs text-on-surface-variant">
+                        Tampilkan
+                        <select name="tampilkan" onchange="this.form.submit()" form="arsip-dtsen-tampilkan-form"
+                            class="rounded-xl border border-outline-variant/40 bg-slate-50 px-2 py-1.5 text-xs focus:outline-none">
+                            @foreach ([10, 25, 50, 100] as $n)
+                                <option value="{{ $n }}" @selected((int) request('tampilkan', 10) === $n)>{{ $n }}</option>
+                            @endforeach
+                        </select>
+                        data per halaman
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Table Section -->
+        <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs table-fixed min-w-[1000px]">
+                    <colgroup>
+                        <col style="width: 5%">
+                        <col style="width: 10%">
+                        <col style="width: 13%">
+                        <col style="width: 13%">
+                        <col style="width: 7%">
+                        <col style="width: 14%">
+                        <col style="width: 13%">
+                        <col style="width: 13%">
+                        <col style="width: 12%">
+                    </colgroup>
+                    <thead class="bg-[#e6edf8] text-on-surface-variant uppercase text-[10px] tracking-wider font-semibold">
                         <tr>
-                            <td colspan="9" class="px-4 py-8 text-center text-on-surface-variant">
-                                <span class="material-symbols-outlined text-[28px] block mb-2 opacity-40">inbox</span>
-                                Tidak ada data.
-                            </td>
+                            <th class="text-center px-3 py-3 whitespace-nowrap">No</th>
+                            <th class="text-center px-3 py-3 whitespace-nowrap">Tgl Insert</th>
+                            <th class="text-center px-3 py-3 whitespace-nowrap">NIK</th>
+                            <th class="text-left px-3 py-3 whitespace-nowrap">Nama</th>
+                            <th class="text-center px-3 py-3 whitespace-nowrap">Desil</th>
+                            <th class="text-left px-3 py-3 whitespace-nowrap">Alamat</th>
+                            <th class="text-left px-3 py-3 whitespace-nowrap">Alasan Cetak</th>
+                            <th class="text-center px-3 py-3 whitespace-nowrap">Status</th>
+                            <th class="text-center px-3 py-3 whitespace-nowrap">Aksi</th>
                         </tr>
-                    @endforelse
-                </tbody>
-            </table>
-            <div class="px-4 py-3 border-t border-outline-variant/40">
-                {{ $arsipList->links() }}
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant/20">
+                        @forelse ($arsipList as $item)
+                            @php
+                                $isSelesai = $item->status === 'selesai';
+                                $desil = $item->bansos->peringkat_kesejahteraan_keluarga ?? null;
+                            @endphp
+                            <tr class="hover:bg-surface-container-low transition-colors group">
+                                <td class="px-3 py-3.5 whitespace-nowrap truncate text-center text-on-surface-variant">{{ $arsipList->firstItem() + $loop->index }}</td>
+                                <td class="px-3 py-3.5 whitespace-nowrap text-center text-on-surface-variant">{{ $item->tanggal_insert->format('d-m-Y') }}</td>
+                                <td class="px-3 py-3.5 whitespace-nowrap truncate font-semibold text-brand text-center" title="{{ $item->nik }}">{{ $item->nik }}</td>
+                                <td class="px-3 py-3.5 whitespace-nowrap truncate font-medium" title="{{ $item->nama_pemohon }}">{{ $item->nama_pemohon }}</td>
+                                <td class="px-3 py-3.5 whitespace-nowrap truncate text-center">
+                                    @if ($desil)
+                                        <span class="px-2.5 py-1 rounded-full bg-brand/10 text-brand font-semibold">{{ $desil }}</span>
+                                    @else
+                                        <span class="text-outline-variant/60">-</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-3.5 whitespace-nowrap truncate text-on-surface-variant" title="{{ $item->alamat }}">{{ $item->alamat }}</td>
+                                <td class="px-3 py-3.5 whitespace-nowrap truncate" title="{{ $item->alasan_cetak }}">{{ $item->alasan_cetak ?? '-' }}</td>
+                                <td class="px-3 py-3.5 whitespace-nowrap truncate text-center">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border
+                                        {{ $isSelesai ? 'bg-success-container text-on-success-container border-success-container/50' : 'bg-red-50 text-red-700 border-red-200' }}">
+                                        <span class="material-symbols-outlined text-[14px]">
+                                            {{ $isSelesai ? 'check_circle' : 'cancel' }}
+                                        </span>
+                                        {{ $statusLabels[$item->status] ?? $item->status }}
+                                    </span>
+                                </td>
+                                <td class="px-3 py-3.5 whitespace-nowrap text-center">
+                                    <button @click="openDetail({{ $item->id }})"
+                                        class="inline-flex items-center justify-center gap-1.5 w-full max-w-[80px] px-3 py-1.5 rounded-xl bg-brand/10 text-brand hover:bg-brand hover:text-white text-[11px] font-semibold transition-all duration-200">
+                                        <span class="material-symbols-outlined text-[14px]">visibility</span>
+                                        Lihat
+                                    </button>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="9" class="px-4 py-12 text-center text-on-surface-variant">
+                                    <div class="flex flex-col items-center justify-center">
+                                        <span class="material-symbols-outlined text-[40px] mb-3 opacity-30">inbox</span>
+                                        <p class="text-sm font-medium">Belum ada arsip data</p>
+                                        <p class="text-xs opacity-70 mt-1">Silakan sesuaikan filter pencarian Anda</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
             </div>
+
+            @if ($arsipList->hasPages())
+                <div class="px-5 py-4 border-t border-outline-variant/20 bg-white">
+                    {{ $arsipList->links() }}
+                </div>
+            @endif
         </div>
 
         {{-- Modal Detail Arsip --}}
-        <div x-show="detailOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div x-show="detailOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 transition-opacity">
             <div @click.outside="detailOpen = false"
-                class="bg-surface-container-lowest w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-xl shadow-lg">
+                class="bg-white w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col rounded-3xl shadow-2xl transition-transform"
+                x-transition:enter="ease-out duration-300"
+                x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                x-transition:leave="ease-in duration-200"
+                x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
 
-                <div class="flex items-center justify-between px-5 py-4 border-b border-outline-variant/40 sticky top-0 bg-surface-container-lowest z-10">
-                    <h3 class="text-sm font-semibold text-on-surface">Detail DTSEN</h3>
-                    <button @click="detailOpen = false" class="text-on-surface-variant">
+                <!-- Modal Header -->
+                <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/30 bg-white shrink-0">
+                    <h3 class="text-base font-semibold text-on-surface flex items-center gap-2">
+                        <span class="material-symbols-outlined text-brand text-[20px]">assignment</span>
+                        Detail Arsip DTSEN
+                    </h3>
+                    <button @click="detailOpen = false" class="text-on-surface-variant hover:bg-outline-variant/10 p-1.5 rounded-full transition-colors">
                         <span class="material-symbols-outlined text-[20px]">close</span>
                     </button>
                 </div>
 
-                <div class="p-5 space-y-6 text-xs" x-show="!loading">
-                    <div>
-                        <h4 class="text-xs font-semibold mb-2 uppercase text-on-surface-variant">Keterangan Penerima BANSOS</h4>
-                        <div class="grid grid-cols-2 gap-x-6 gap-y-1">
-                            <template x-for="f in bansosFields" :key="f.key">
-                                <p><span class="text-on-surface-variant" x-text="f.label + ':'"></span> <span x-text="data.bansos ? data.bansos[f.key] : '-'"></span></p>
-                            </template>
-                        </div>
-                    </div>
+                <!-- Modal Body -->
+                <div class="p-6 overflow-y-auto" x-show="!loading">
+                    <div class="space-y-8 text-xs">
 
-                    <div>
-                        <h4 class="text-xs font-semibold mb-2 uppercase text-on-surface-variant">Data Detail</h4>
-                        <div class="grid grid-cols-2 gap-x-6 gap-y-1">
-                            <template x-for="f in detailFields" :key="f.key">
-                                <p><span class="text-on-surface-variant" x-text="f.label + ':'"></span> <span x-text="data.detail ? data.detail[f.key] : '-'"></span></p>
-                            </template>
-                        </div>
-                    </div>
-
-                    <div>
-                        <h4 class="text-xs font-semibold mb-2 uppercase text-on-surface-variant">Lampiran</h4>
-                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                            <template x-for="f in lampiranFields" :key="f.key">
-                                <a :href="lampiranUrl(f.key)" target="_blank"
-                                    class="flex items-center gap-2 px-3 py-2 rounded-lg border border-outline-variant/40"
-                                    :class="lampiranUrl(f.key) ? 'text-primary hover:bg-surface-container' : 'text-on-surface-variant pointer-events-none opacity-50'">
-                                    <span class="material-symbols-outlined text-[14px]">description</span>
-                                    <span x-text="f.label"></span>
-                                </a>
-                            </template>
-                        </div>
-                    </div>
-
-                    <div>
-                        <h4 class="text-xs font-semibold mb-2 uppercase text-on-surface-variant">Surat Keterangan</h4>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <a :href="suratUrl('surat_pengantar_dtsen_kelurahan_digital')" target="_blank"
-                                class="flex items-center gap-2 px-3 py-2 rounded-lg border border-outline-variant/40"
-                                :class="suratUrl('surat_pengantar_dtsen_kelurahan_digital') ? 'text-primary hover:bg-surface-container' : 'text-on-surface-variant pointer-events-none opacity-50'">
-                                <span class="material-symbols-outlined text-[14px]">badge</span>
-                                Surat Pengantar DTSEN Kelurahan Digital
-                            </a>
-                            <a :href="suratUrl('surat_keterangan_dtsen_digital')" target="_blank"
-                                class="flex items-center gap-2 px-3 py-2 rounded-lg border border-outline-variant/40"
-                                :class="suratUrl('surat_keterangan_dtsen_digital') ? 'text-primary hover:bg-surface-container' : 'text-on-surface-variant pointer-events-none opacity-50'">
-                                <span class="material-symbols-outlined text-[14px]">verified</span>
-                                Surat Keterangan DTSEN Digital
-                            </a>
-                        </div>
-                    </div>
-
-                    <div>
-                        <h4 class="text-xs font-semibold mb-2 uppercase text-on-surface-variant">Log Proses</h4>
-                        <table class="w-full text-[11px]">
-                            <thead>
-                                <tr class="text-left text-on-surface-variant border-b border-outline-variant/40">
-                                    <th class="py-1.5 w-8">No</th>
-                                    <th class="py-1.5">Tanggal</th>
-                                    <th class="py-1.5">Username</th>
-                                    <th class="py-1.5">Task</th>
-                                    <th class="py-1.5">Role</th>
-                                    <th class="py-1.5">Catatan</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <template x-for="(log, idx) in data.logs || []" :key="log.id">
-                                    <tr class="border-b border-outline-variant/20">
-                                        <td class="py-1.5" x-text="idx + 1"></td>
-                                        <td class="py-1.5" x-text="log.tanggal_proses"></td>
-                                        <td class="py-1.5" x-text="log.username"></td>
-                                        <td class="py-1.5" x-text="log.taskname"></td>
-                                        <td class="py-1.5" x-text="log.rolename"></td>
-                                        <td class="py-1.5" x-text="log.catatan ?? '-'"></td>
-                                    </tr>
+                        <!-- Keterangan Penerima BANSOS -->
+                        <div>
+                            <h4 class="text-[11px] font-bold mb-3 uppercase tracking-wider text-brand border-b border-outline-variant/20 pb-2">Keterangan Penerima BANSOS</h4>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
+                                <template x-for="f in bansosFields" :key="f.key">
+                                    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-baseline gap-1 border-b border-outline-variant/10 pb-2">
+                                        <span class="text-on-surface-variant font-medium" x-text="f.label"></span>
+                                        <span class="font-semibold text-on-surface text-left sm:text-right" x-text="data.bansos ? val(data.bansos[f.key]) : '-'"></span>
+                                    </div>
                                 </template>
-                            </tbody>
-                        </table>
+                            </div>
+                        </div>
+
+                        <!-- Data Detail -->
+                        <div>
+                            <h4 class="text-[11px] font-bold mb-3 uppercase tracking-wider text-brand border-b border-outline-variant/20 pb-2">Data Detail</h4>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
+                                <template x-for="f in detailFields" :key="f.key">
+                                    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-baseline gap-1 border-b border-outline-variant/10 pb-2">
+                                        <span class="text-on-surface-variant font-medium" x-text="f.label"></span>
+                                        <span class="font-semibold text-on-surface text-left sm:text-right" x-text="data.detail ? val(data.detail[f.key]) : '-'"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+
+                        <!-- Lampiran -->
+                        <div>
+                            <h4 class="text-[11px] font-bold mb-3 uppercase tracking-wider text-brand border-b border-outline-variant/20 pb-2">Dokumen Lampiran</h4>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                <template x-for="f in lampiranFields" :key="f.key">
+                                    <a :href="lampiranUrl(f.key)" target="_blank"
+                                        class="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-outline-variant/40 transition-all"
+                                        :class="lampiranUrl(f.key) ? 'text-brand hover:bg-brand/5 hover:border-brand/30 font-medium' : 'text-on-surface-variant/50 pointer-events-none bg-white'">
+                                        <span class="material-symbols-outlined text-[18px]" x-text="lampiranUrl(f.key) ? 'description' : 'draft'"></span>
+                                        <span x-text="f.label" class="truncate"></span>
+                                    </a>
+                                </template>
+                            </div>
+                        </div>
+
+                        <!-- Surat Keterangan -->
+                        <div>
+                            <h4 class="text-[11px] font-bold mb-3 uppercase tracking-wider text-brand border-b border-outline-variant/20 pb-2">Surat Keterangan</h4>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <a :href="suratUrl('surat_pengantar_dtsen_kelurahan_digital')" target="_blank"
+                                    class="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-outline-variant/40 transition-all"
+                                    :class="suratUrl('surat_pengantar_dtsen_kelurahan_digital') ? 'text-brand hover:bg-brand/5 hover:border-brand/30 font-medium' : 'text-on-surface-variant/50 pointer-events-none bg-white'">
+                                    <span class="material-symbols-outlined text-[18px]">badge</span>
+                                    <span class="truncate">Surat Pengantar DTSEN Kelurahan Digital</span>
+                                </a>
+                                <a :href="suratUrl('surat_keterangan_dtsen_digital')" target="_blank"
+                                    class="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-outline-variant/40 transition-all"
+                                    :class="suratUrl('surat_keterangan_dtsen_digital') ? 'text-brand hover:bg-brand/5 hover:border-brand/30 font-medium' : 'text-on-surface-variant/50 pointer-events-none bg-white'">
+                                    <span class="material-symbols-outlined text-[18px]">verified</span>
+                                    <span class="truncate">Surat Keterangan DTSEN Digital</span>
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- Log Proses -->
+                        <div>
+                            <h4 class="text-[11px] font-bold mb-3 uppercase tracking-wider text-brand border-b border-outline-variant/20 pb-2">Log Proses</h4>
+                            <div class="overflow-x-auto rounded-xl border border-outline-variant/20">
+                                <table class="w-full text-[11px]">
+                                    <thead class="bg-[#e6edf8]">
+                                        <tr class="text-left text-on-surface-variant uppercase text-[10px] tracking-wider">
+                                            <th class="px-3 py-2 font-semibold w-8">No</th>
+                                            <th class="px-3 py-2 font-semibold">Tanggal</th>
+                                            <th class="px-3 py-2 font-semibold">Username</th>
+                                            <th class="px-3 py-2 font-semibold">Task</th>
+                                            <th class="px-3 py-2 font-semibold">Role</th>
+                                            <th class="px-3 py-2 font-semibold">Catatan</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-outline-variant/20">
+                                        <template x-for="(log, idx) in data.logs || []" :key="log.id ?? idx">
+                                            <tr class="hover:bg-surface-container-low transition-colors">
+                                                <td class="px-3 py-2.5 text-on-surface-variant" x-text="idx + 1"></td>
+                                                <td class="px-3 py-2.5" x-text="val(log.tanggal_proses)"></td>
+                                                <td class="px-3 py-2.5 font-medium" x-text="val(log.username)"></td>
+                                                <td class="px-3 py-2.5" x-text="val(log.taskname)"></td>
+                                                <td class="px-3 py-2.5 text-on-surface-variant" x-text="val(log.rolename)"></td>
+                                                <td class="px-3 py-2.5" x-text="val(log.catatan)"></td>
+                                            </tr>
+                                        </template>
+                                        <tr x-show="!(data.logs || []).length">
+                                            <td colspan="6" class="px-3 py-6 text-center text-on-surface-variant italic">Belum ada log proses.</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="p-10 text-center text-xs text-on-surface-variant" x-show="loading">Memuat data...</div>
+                <!-- Loading State Modal -->
+                <div class="p-12 flex flex-col items-center justify-center gap-3 text-brand/70" x-show="loading">
+                    <span class="material-symbols-outlined text-[32px] animate-spin">progress_activity</span>
+                    <span class="text-sm font-medium">Memuat Detail Arsip...</span>
+                </div>
             </div>
         </div>
 
@@ -267,6 +339,9 @@
                         }
                         this.loading = false;
                     },
+                    val(v) {
+                        return (v === null || v === undefined || v === '') ? '-' : v;
+                    },
                     lampiranUrl(key) {
                         const path = this.data.lampiran ? this.data.lampiran[key] : null;
                         return path ? `/storage/${path}` : null;
@@ -296,7 +371,9 @@
                     }
 
                     // Dropdown: langsung submit saat berubah
+                    // (lewati dropdown "Tampilkan" yang punya form sendiri)
                     form.querySelectorAll('select').forEach(function (el) {
+                        if (el.form !== form) return;
                         el.addEventListener('change', submitForm);
                     });
 

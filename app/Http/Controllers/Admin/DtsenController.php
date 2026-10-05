@@ -8,6 +8,7 @@ use App\Models\Role;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class DtsenController extends Controller
@@ -61,6 +62,31 @@ class DtsenController extends Controller
         }
 
         return $role->slug ?: Str::slug($role->name, '_');
+    }
+
+    /**
+     * Pastikan petugas Kelurahan hanya bisa membuka / mengubah / memproses
+     * permohonan dari wilayah kelurahannya sendiri. Admin & role Dinsos
+     * lainnya tidak dibatasi wilayah (mereka dibatasi oleh tahap/role).
+     */
+    private function pastikanWilayah(DtsenPermohonan $permohonan): void
+    {
+        $user = Auth::user();
+        $role = $user->role;
+
+        if ($this->isAdmin($role)) {
+            return;
+        }
+
+        $slug = strtolower(str_replace(['-', ' '], '_', (string) $this->roleSlug($role)));
+
+        if ($slug === 'kelurahan') {
+            abort_unless(
+                filled($user->kelurahan) && $permohonan->kelurahan === $user->kelurahan,
+                403,
+                'Pengajuan ini bukan dari wilayah kelurahan Anda.'
+            );
+        }
     }
 
     /**
@@ -176,6 +202,15 @@ class DtsenController extends Controller
 
         if (! $isAdmin) {
             $query->whereHas('currentRole', fn ($q) => $q->where('slug', $roleSlug));
+
+            // Petugas Kelurahan hanya melihat ajuan dari kelurahannya sendiri.
+            if (strtolower(str_replace(['-', ' '], '_', (string) $roleSlug)) === 'kelurahan') {
+                $query->when(
+                    filled($user->kelurahan),
+                    fn ($q) => $q->where('kelurahan', $user->kelurahan),
+                    fn ($q) => $q->whereRaw('1 = 0') // wilayah belum diatur -> tidak tampil apa pun
+                );
+            }
         }
 
         if ($request->filled('tanggal_awal')) {
@@ -321,6 +356,8 @@ class DtsenController extends Controller
      */
     public function show(DtsenPermohonan $permohonan)
     {
+        $this->pastikanWilayah($permohonan);
+
         $permohonan->load([
             'detail',
             'bansos',
@@ -360,6 +397,9 @@ class DtsenController extends Controller
             'statusLabels' => DtsenPermohonan::statusLabels(),
             'isFinal' => $isFinal,
             'canAct' => $canAct,
+            // Lampiran (foto/dokumen) hanya boleh diunggah / diganti oleh
+            // Super Admin dan Operator Dinsos, pada tahap yang menjadi gilirannya.
+            'canUploadLampiran' => $canAct && ($isSuperAdmin || $roleSlug === 'operator_dinsos'),
             'isAdmin' => $isAdmin,
             'nextTaskLabel' => $rule['task_lanjut'] ?? null,
             'returnLabel' => $returnLabel,
@@ -382,6 +422,7 @@ class DtsenController extends Controller
      */
     public function updateDetail(Request $request, DtsenPermohonan $permohonan)
     {
+        $this->pastikanWilayah($permohonan);
         $this->authorizeCurrentStage($permohonan);
 
         $validated = $request->validate([
@@ -408,6 +449,7 @@ class DtsenController extends Controller
      */
     public function updateBansos(Request $request, DtsenPermohonan $permohonan)
     {
+        $this->pastikanWilayah($permohonan);
         $this->authorizeCurrentStage($permohonan);
 
         $validated = $request->validate([
@@ -429,7 +471,56 @@ class DtsenController extends Controller
     }
 
     /**
-     * Helper aturan akses yang sama dipakai updateDetail() & updateBansos().
+     * PUT /dtsen/{permohonan}/lampiran
+     * Upload Lampiran (Scan KTP, Screenshot DTSEN). Dipisah dari
+     * updateDetail() supaya field file tidak ikut masuk ke
+     * updateOrCreate() data detail.
+     */
+    public function updateLampiran(Request $request, DtsenPermohonan $permohonan)
+    {
+        $this->pastikanWilayah($permohonan);
+        $this->authorizeCurrentStage($permohonan);
+
+        $request->validate([
+            'scan_ktp' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
+            'screenshot_dtsen' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
+        ]);
+
+        // Lampiran (Scan KTP, Screenshot DTSEN) HANYA boleh diunggah / diganti
+        // oleh Super Admin dan Operator Dinsos.
+        $user = Auth::user();
+        $bolehUnggahLampiran = $this->isSuperAdmin($user->role)
+            || $this->roleSlug($user->role) === 'operator_dinsos';
+
+        foreach (['scan_ktp', 'screenshot_dtsen'] as $fieldLampiran) {
+            if ($request->hasFile($fieldLampiran) && ! $bolehUnggahLampiran) {
+                abort(403, 'Hanya Super Admin dan Operator Dinsos yang dapat mengunggah atau mengganti lampiran.');
+            }
+        }
+
+        $permohonan->loadMissing('lampiran');
+
+        // ---- Lampiran ----
+        $lampiranData = [];
+        foreach (['scan_ktp', 'screenshot_dtsen'] as $field) {
+            if ($request->hasFile($field)) {
+                $oldPath = optional($permohonan->lampiran)->{$field};
+                if ($oldPath) {
+                    Storage::disk('public')->delete($oldPath);
+                }
+                $lampiranData[$field] = $request->file($field)->store('dtsen/lampiran', 'public');
+            }
+        }
+        if (! empty($lampiranData)) {
+            $permohonan->lampiran()->updateOrCreate([], $lampiranData);
+        }
+
+        return back()->with('success', 'Lampiran berhasil diperbarui.');
+    }
+
+    /**
+     * Helper aturan akses yang sama dipakai updateDetail(), updateBansos()
+     * & updateLampiran().
      */
     private function authorizeCurrentStage(DtsenPermohonan $permohonan): void
     {
@@ -464,6 +555,8 @@ class DtsenController extends Controller
      */
     public function proses(Request $request, DtsenPermohonan $permohonan)
     {
+        $this->pastikanWilayah($permohonan);
+
         $request->validate([
             'action' => 'required|in:lanjut,tolak,kembalikan,simpan_catatan',
             'catatan' => 'required|string|max:1000',
@@ -561,6 +654,16 @@ class DtsenController extends Controller
             default:
                 if (! $rule) {
                     return back()->with('error', 'Permohonan ini sudah pada tahap akhir dan tidak bisa diproses lagi.');
+                }
+
+                // Operator Dinsos wajib melampirkan Screenshot DTSEN sebelum
+                // meneruskan berkas dari Validasi Dinsos ke Kabin.
+                if ($permohonan->status === DtsenPermohonan::STATUS_VALIDASI_DINSOS) {
+                    $permohonan->loadMissing('lampiran');
+
+                    if (! optional($permohonan->lampiran)->screenshot_dtsen) {
+                        return back()->with('error', 'Screenshot DTSEN wajib diunggah sebelum permohonan diteruskan.');
+                    }
                 }
 
                 DB::transaction(function () use ($permohonan, $rule, $user, $request) {

@@ -100,6 +100,29 @@ class KartuKksController extends Controller
     }
 
     /**
+     * Pastikan petugas Kelurahan hanya bisa membuka / mengubah / memproses
+     * permohonan dari wilayah kelurahannya sendiri. Admin & role Dinsos
+     * lainnya tidak dibatasi wilayah (mereka dibatasi oleh tahap/role).
+     */
+    private function pastikanWilayah(KartuKksPermohonan $permohonan): void
+    {
+        $user = Auth::user();
+        $role = $user->role;
+
+        if ($this->isAdmin($role)) {
+            return;
+        }
+
+        if ($this->roleSlug($role) === 'kelurahan') {
+            abort_unless(
+                filled($user->kelurahan) && $permohonan->kelurahan === $user->kelurahan,
+                403,
+                'Pengajuan ini bukan dari wilayah kelurahan Anda.'
+            );
+        }
+    }
+
+    /**
      * Label tampilan untuk sebuah role slug.
      */
     private function roleLabel(string $slug): string
@@ -211,6 +234,15 @@ class KartuKksController extends Controller
         // Superadmin/admin bisa melihat SEMUA data tanpa dibatasi role/tahap.
         if (! $isAdmin) {
             $query->whereHas('currentRole', fn($q) => $q->where('slug', $roleSlug));
+
+            // Petugas Kelurahan hanya melihat ajuan dari kelurahannya sendiri.
+            if ($roleSlug === 'kelurahan') {
+                $query->when(
+                    filled($user->kelurahan),
+                    fn($q) => $q->where('kelurahan', $user->kelurahan),
+                    fn($q) => $q->whereRaw('1 = 0') // wilayah belum diatur -> tidak tampil apa pun
+                );
+            }
         }
 
         if ($request->filled('tanggal_awal')) {
@@ -352,6 +384,8 @@ class KartuKksController extends Controller
      */
     public function show(KartuKksPermohonan $permohonan)
     {
+        $this->pastikanWilayah($permohonan);
+
         $permohonan->load([
             'detail',
             'lampiran',
@@ -390,6 +424,9 @@ class KartuKksController extends Controller
             'statusLabels' => KartuKksPermohonan::statusLabels(),
             'isFinal' => $isFinal,
             'canAct' => $canAct,
+            // Lampiran (foto/dokumen) hanya boleh diunggah / diganti oleh
+            // Super Admin dan Operator Dinsos, pada tahap yang menjadi gilirannya.
+            'canUploadLampiran' => $canAct && ($isSuperAdmin || $roleSlug === 'operator_dinsos'),
             'isAdmin' => $isAdmin,
             'nextTaskLabel' => $rule['task_lanjut'] ?? null,
             'returnLabel' => $returnLabel,
@@ -411,6 +448,8 @@ class KartuKksController extends Controller
      */
     public function updateDetail(Request $request, KartuKksPermohonan $permohonan)
     {
+        $this->pastikanWilayah($permohonan);
+
         $user = Auth::user();
         $roleSlug = $this->roleSlug($user->role);
         $isSuperAdmin = $this->isSuperAdmin($user->role);
@@ -432,6 +471,16 @@ class KartuKksController extends Controller
 
         if (! $canAct) {
             abort(403, 'Anda tidak berwenang mengedit data ini.');
+        }
+
+        // Lampiran (foto/dokumen) HANYA boleh diunggah / diganti oleh
+        // Super Admin dan Operator Dinsos. Role lain (mis. Kelurahan)
+        // tetap bisa mengedit Data Detail, tapi tidak boleh menyentuh lampiran.
+        $bolehUnggahLampiran = $isSuperAdmin || $roleSlug === 'operator_dinsos';
+        foreach (['scan_ktp', 'scan_kartu_keluarga', 'surat_kehilangan_polisi', 'scan_kartu_kks', 'screenshot_dtsen'] as $fieldLampiran) {
+            if ($request->hasFile($fieldLampiran) && ! $bolehUnggahLampiran) {
+                abort(403, 'Hanya Super Admin dan Operator Dinsos yang dapat mengunggah atau mengganti lampiran.');
+            }
         }
 
         $permohonan->loadMissing('lampiran', 'surat');
@@ -474,8 +523,7 @@ class KartuKksController extends Controller
                 },
             ],
 
-            // ---- Surat — disesuaikan dengan model ----
-            'surat_pengantar_kelurahan' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
+            // ---- Surat ----
             'surat_keterangan_dinsos' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
         ]);
 
@@ -516,8 +564,8 @@ class KartuKksController extends Controller
             $permohonan->lampiran()->updateOrCreate([], $lampiranData);
         }
 
-        // ---- 3. Surat (disesuaikan dengan model) ----
-        $suratFields = ['surat_pengantar_kelurahan', 'surat_keterangan_dinsos'];
+        // ---- 3. Surat (disesuaikan dengan model; kolom *_at ikut dicatat) ----
+        $suratFields = ['surat_keterangan_dinsos'];
         $suratData = [];
         foreach ($suratFields as $field) {
             if ($request->hasFile($field)) {
@@ -526,6 +574,7 @@ class KartuKksController extends Controller
                     Storage::disk('public')->delete($oldPath);
                 }
                 $suratData[$field] = $request->file($field)->store('kartu-kks/surat', 'public');
+                $suratData[$field . '_at'] = now();
             }
         }
         if (! empty($suratData)) {
@@ -540,6 +589,8 @@ class KartuKksController extends Controller
      */
     public function proses(Request $request, KartuKksPermohonan $permohonan)
     {
+        $this->pastikanWilayah($permohonan);
+
         $request->validate([
             'action' => 'required|in:lanjut,tolak,kembalikan,simpan_catatan',
             'catatan' => 'required|string|max:1000',
@@ -637,6 +688,16 @@ class KartuKksController extends Controller
             default:
                 if (! $rule) {
                     return back()->with('error', 'Permohonan ini sudah pada tahap akhir dan tidak bisa diproses lagi.');
+                }
+
+                // Operator Dinsos wajib melampirkan Screenshot DTSEN sebelum
+                // meneruskan berkas dari Validasi Dinsos ke Kabin.
+                if ($permohonan->status === KartuKksPermohonan::STATUS_VALIDASI_DINSOS) {
+                    $permohonan->loadMissing('lampiran');
+
+                    if (! optional($permohonan->lampiran)->screenshot_dtsen) {
+                        return back()->with('error', 'Screenshot DTSEN wajib diunggah sebelum permohonan diteruskan.');
+                    }
                 }
 
                 DB::transaction(function () use ($permohonan, $rule, $user, $request) {

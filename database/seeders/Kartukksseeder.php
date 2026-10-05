@@ -10,6 +10,13 @@ use Illuminate\Support\Facades\Hash;
 
 class KartuKksSeeder extends Seeder
 {
+    /**
+     * Wilayah kelurahan untuk user demo role "kelurahan".
+     * Harus SAMA PERSIS dengan kolom `kelurahan` di data permohonan,
+     * karena daftar Ajuan & detail untuk role Kelurahan dibatasi per wilayah.
+     */
+    private const KELURAHAN_DEMO = 'Sempur';
+
     public function run(): void
     {
         // 1) Pastikan semua role di alur sudah ada (aman dijalankan berkali-kali)
@@ -30,6 +37,8 @@ class KartuKksSeeder extends Seeder
 
         // 2) Contoh 1 user dummy per role, supaya bisa login & lihat sisi masing-masing
         //    Password default: password
+        //    User role "kelurahan" diberi wilayah (kolom `kelurahan`) supaya
+        //    pembatasan wilayah di KartuKksController / DtsenController jalan.
         foreach ($roles as $r) {
             User::firstOrCreate(
                 ['email' => $r['slug'] . '@dinsoskotabogor.test'],
@@ -38,9 +47,16 @@ class KartuKksSeeder extends Seeder
                     'username' => $r['slug'],
                     'password' => Hash::make('password'),
                     'role_id' => Role::where('slug', $r['slug'])->first()->id,
+                    'kelurahan' => $r['slug'] === 'kelurahan' ? self::KELURAHAN_DEMO : null,
                 ]
             );
         }
+
+        // firstOrCreate() tidak mengubah user yang SUDAH ada, jadi untuk user
+        // "kelurahan" lama yang belum punya wilayah, isi di sini (aman diulang).
+        User::where('username', 'kelurahan')
+            ->whereNull('kelurahan')
+            ->update(['kelurahan' => self::KELURAHAN_DEMO]);
 
         // 3) Dummy permohonan tersebar di berbagai tahap alur, supaya tiap tab
         //    (Ajuan/Arsip/Monitoring) sudah ada isinya waktu pertama kali dicoba.
@@ -63,7 +79,9 @@ class KartuKksSeeder extends Seeder
             [
                 'nik' => '3271010101900001',
                 'nama' => 'Sri Wahyuni',
-                'alamat' => 'Jl. Merdeka No. 12, Kel. Bogor Tengah',
+                // Sengaja di Kel. Sempur supaya user demo "kelurahan" kebagian
+                // 2 ajuan aktif (tahap Diajukan & Verifikasi Kelurahan).
+                'alamat' => 'Jl. Merdeka No. 12, Kel. Sempur',
                 'lat' => -6.5950, 'lng' => 106.7890,
                 'masalah' => 'Kartu Hilang',
                 'status' => KartuKksPermohonan::STATUS_DIAJUKAN,
@@ -134,6 +152,15 @@ class KartuKksSeeder extends Seeder
             ],
         ];
 
+        // Pemetaan nilai "masalah" di permohonan -> nilai dropdown "Masalah Kartu"
+        // di form Data Detail (harus sama dengan aturan `in:` di updateDetail()),
+        // supaya data demo bisa disimpan ulang tanpa gagal validasi.
+        $masalahKartuDetail = [
+            'Kartu Hilang' => 'hilang',
+            'Kartu Rusak' => 'rusak',
+            'Data Tidak Sesuai KTP' => 'nama tidak sesuai',
+        ];
+
         foreach ($dummy as $d) {
             $permohonan = KartuKksPermohonan::firstOrCreate(
                 ['nik' => $d['nik']],
@@ -155,7 +182,8 @@ class KartuKksSeeder extends Seeder
                 $permohonan->detail()->create([
                     'nik' => $d['nik'],
                     'nama' => $d['nama'],
-                    'jenis_kelamin' => rand(0, 1) ? 'L' : 'P',
+                    // Nilai disesuaikan dengan opsi dropdown di form Data Detail
+                    'jenis_kelamin' => rand(0, 1) ? 'Laki-laki' : 'Perempuan',
                     'tempat_lahir' => 'Bogor',
                     'tanggal_lahir' => now()->subYears(rand(25, 55))->subDays(rand(1, 300)),
                     'agama' => 'Islam',
@@ -166,7 +194,7 @@ class KartuKksSeeder extends Seeder
                     'no_rekening' => rand(1000000000, 9999999999),
                     'pekerjaan' => 'Tidak Bekerja',
                     'alamat' => $d['alamat'],
-                    'masalah_kartu' => $d['masalah'],
+                    'masalah_kartu' => $masalahKartuDetail[$d['masalah']] ?? 'keterangan lainnya',
                     'nomor_kehilangan_polisi' => $permohonan->nomor_kehilangan_polisi,
                 ]);
 

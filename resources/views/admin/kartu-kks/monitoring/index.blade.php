@@ -15,20 +15,20 @@
 
         <!-- BAGIAN FILTER -->
         <form method="GET" action="{{ route('kartu-kks.monitoring') }}" data-auto-filter
-            class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-4 flex flex-wrap items-end gap-3">
+            class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] p-4 flex flex-wrap items-end gap-3">
             <div>
                 <label class="block text-xs text-on-surface-variant mb-1">Tanggal Awal</label>
                 <input type="date" name="tanggal_awal" value="{{ request('tanggal_awal') }}"
-                    class="px-3 py-1.5 rounded-lg border border-outline-variant/50 text-xs" />
+                    class="px-3 py-1.5 rounded-xl border border-outline-variant/40 bg-slate-50 text-xs" />
             </div>
             <div>
                 <label class="block text-xs text-on-surface-variant mb-1">Tanggal Akhir</label>
                 <input type="date" name="tanggal_akhir" value="{{ request('tanggal_akhir') }}"
-                    class="px-3 py-1.5 rounded-lg border border-outline-variant/50 text-xs" />
+                    class="px-3 py-1.5 rounded-xl border border-outline-variant/40 bg-slate-50 text-xs" />
             </div>
             <div class="w-48">
                 <label class="block text-xs text-on-surface-variant mb-1">Status</label>
-                <select name="status" class="w-full px-3 py-1.5 rounded-lg border border-outline-variant/50 text-xs">
+                <select name="status" class="w-full px-3 py-1.5 rounded-xl border border-outline-variant/40 bg-slate-50 text-xs">
                     <option value="">Semua Status</option>
                     @foreach ($statusLabels as $key => $label)
                         {{-- "Selesai" tidak ditampilkan di Monitoring (sudah masuk Arsip) --}}
@@ -40,10 +40,10 @@
             <div class="flex-1 min-w-[200px]">
                 <label class="block text-xs text-on-surface-variant mb-1">Cari</label>
                 <input type="text" name="search" value="{{ request('search') }}" placeholder="Nama, NIK..."
-                    class="w-full px-3 py-1.5 rounded-lg border border-outline-variant/50 text-xs" />
+                    class="w-full px-3 py-1.5 rounded-xl border border-outline-variant/40 bg-slate-50 text-xs" />
             </div>
             @if (request()->hasAny(['tanggal_awal', 'tanggal_akhir', 'search', 'status']))
-                <a href="{{ route('kartu-kks.monitoring') }}" class="px-3 py-1.5 rounded-lg text-xs text-on-surface-variant hover:text-primary">
+                <a href="{{ route('kartu-kks.monitoring') }}" class="px-3 py-1.5 rounded-lg text-xs text-on-surface-variant hover:text-brand">
                     Reset
                 </a>
             @endif
@@ -51,7 +51,7 @@
             <div class="flex items-center gap-2 text-xs text-on-surface-variant ml-auto">
                 Tampilkan
                 <select name="display" onchange="this.form.submit()" form="monitoring-kks-tampilkan-form"
-                    class="rounded-lg border border-outline-variant/50 px-2 py-1 text-xs">
+                    class="rounded-xl border border-outline-variant/40 bg-slate-50 px-2 py-1 text-xs">
                     @foreach ([10, 25, 50, 100] as $n)
                         <option value="{{ $n }}" @selected((int) request('display', 10) === $n)>{{ $n }}</option>
                     @endforeach
@@ -67,9 +67,9 @@
         </div>
 
         <!-- TABEL MONITORING -->
-        <div class="overflow-x-auto bg-surface-container-lowest border border-outline-variant/40 text-on-surface">
+        <div class="overflow-x-auto bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] text-on-surface">
             <table class="w-full text-xs text-left align-top">
-                <thead class="bg-surface-container/50 border-b border-outline-variant/40 text-on-surface-variant">
+                <thead class="bg-[#e6edf8] border-b border-outline-variant/40 text-on-surface-variant">
                     <tr>
                         <th class="px-3 py-3 w-10 text-center border-r border-outline-variant/40 font-medium">No</th>
                         <th class="px-3 py-3 w-56 border-r border-outline-variant/40 font-medium">NIK<br>Nama Pemohon</th>
@@ -157,7 +157,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="px-3 py-10 text-center text-on-surface-variant bg-surface-container-lowest">
+                            <td colspan="5" class="px-3 py-10 text-center text-on-surface-variant bg-white">
                                 <span class="material-symbols-outlined text-[28px] block mb-2 opacity-40">inbox</span>
                                 Tidak ada permohonan.
                             </td>
@@ -168,7 +168,7 @@
         </div>
         <!-- AKHIR TABEL MONITORING -->
 
-        <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl px-4 py-3 mt-4">
+        <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] px-4 py-3 mt-4">
             {{ $monitoringList->links() }}
         </div>
 

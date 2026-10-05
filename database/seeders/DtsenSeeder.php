@@ -17,6 +17,13 @@ use Illuminate\Support\Facades\Schema;
 class DtsenSeeder extends Seeder
 {
     /**
+     * Wilayah kelurahan untuk user demo role "kelurahan" (sama dengan
+     * KartuKksSeeder). Harus SAMA PERSIS dengan kolom `kelurahan` di data
+     * permohonan karena daftar Ajuan role Kelurahan dibatasi per wilayah.
+     */
+    private const KELURAHAN_DEMO = 'Sempur';
+
+    /**
      * Urutan tahapan alur DTSEN, identik dengan alur Kartu KKS:
      * Kelurahan -> Operator Dinsos -> Kabin -> Kadis -> Selesai.
      * Dipakai untuk membangun riwayat log yang konsisten dengan status akhir tiap permohonan.
@@ -121,6 +128,12 @@ class DtsenSeeder extends Seeder
                 )->id,
             ]);
 
+        // User demo "kelurahan" (dibuat KartuKksSeeder) harus punya wilayah,
+        // kalau tidak daftar Ajuan-nya kosong. Aman dijalankan berulang.
+        User::where('username', 'kelurahan')
+            ->whereNull('kelurahan')
+            ->update(['kelurahan' => self::KELURAHAN_DEMO]);
+
         $creatorId = User::query()->inRandomOrder()->value('id');
         $stageOrder = array_keys($this->stages);
 
@@ -139,18 +152,29 @@ class DtsenSeeder extends Seeder
             $nik = fake()->numerify('################');
             $nama = fake('id_ID')->name();
             $alamat = fake('id_ID')->address();
-            $kelurahan = $this->kelurahanList[array_rand($this->kelurahanList)];
+
+            // Setiap data ke-3 dipaksa di wilayah demo supaya user "kelurahan"
+            // kebagian data; sisanya acak.
+            $kelurahan = $i % 3 === 0
+                ? self::KELURAHAN_DEMO
+                : $this->kelurahanList[array_rand($this->kelurahanList)];
+
             $tanggalInsert = Carbon::now()->subDays(random_int(2, 120));
 
             // Cek apakah status sudah final (Selesai atau Ditolak)
             $isFinal = in_array($status, [DtsenPermohonan::STATUS_SELESAI, DtsenPermohonan::STATUS_DITOLAK]);
 
+            // Pemegang berkas harus sama dengan transitions() di DtsenController:
+            //   diajukan, verifikasi_kelurahan -> kelurahan
+            //   ttd_lurah, validasi_dinsos     -> operator_dinsos
+            //   diproses_kabin                 -> kabin
+            //   disetujui_kadis                -> kadis
             $currentRoleName = match (true) {
                 $isFinal => null,
                 default => match ($status) {
                     DtsenPermohonan::STATUS_DIAJUKAN,
-                    DtsenPermohonan::STATUS_VERIFIKASI_KELURAHAN,
-                    DtsenPermohonan::STATUS_TTD_LURAH => 'kelurahan',
+                    DtsenPermohonan::STATUS_VERIFIKASI_KELURAHAN => 'kelurahan',
+                    DtsenPermohonan::STATUS_TTD_LURAH,
                     DtsenPermohonan::STATUS_VALIDASI_DINSOS => 'operator_dinsos',
                     DtsenPermohonan::STATUS_DIPROSES_KABIN => 'kabin',
                     DtsenPermohonan::STATUS_DISETUJUI_KADIS => 'kadis',
@@ -204,6 +228,8 @@ class DtsenSeeder extends Seeder
                 'upload_lainnya' => null,
             ]);
 
+            // Lampiran sengaja kosong: Screenshot DTSEN wajib diunggah Operator
+            // Dinsos sebelum berkas dari Validasi Dinsos diteruskan ke Kabin.
             DtsenLampiran::create([
                 'permohonan_id' => $permohonan->id,
                 'screenshot_dtsen' => null,

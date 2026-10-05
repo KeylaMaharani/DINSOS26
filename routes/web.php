@@ -85,13 +85,21 @@ Route::middleware(['auth', 'staff'])->group(function () {
         Route::delete('/role/{role}', [UserController::class, 'destroyRole'])->name('role.destroy');
     });
 
-    Route::prefix('layanan/kartu-kks')->name('layanan.kartu-kks.')->group(function () {
+    // ==========================================
+    // Layanan Kelurahan — Ajukan & Riwayat Kartu KKS
+    // Dibatasi modul 'layanan-kartu-kks' (centang di Kelola Hak Akses).
+    // ==========================================
+    Route::prefix('layanan/kartu-kks')->name('layanan.kartu-kks.')->middleware('module:layanan-kartu-kks')->group(function () {
         Route::get('/ajukan', [KartuKksAjuanController::class, 'create'])->name('ajukan');
         Route::post('/ajukan', [KartuKksAjuanController::class, 'store'])->name('ajukan.store');
         Route::get('/riwayat', [KartuKksAjuanController::class, 'riwayat'])->name('riwayat');
     });
 
-    Route::prefix('layanan/dtsen')->name('layanan.dtsen.')->group(function () {
+    // ==========================================
+    // Layanan Kelurahan — Ajukan & Riwayat DTSEN
+    // Dibatasi modul 'layanan-dtsen' (centang di Kelola Hak Akses).
+    // ==========================================
+    Route::prefix('layanan/dtsen')->name('layanan.dtsen.')->middleware('module:layanan-dtsen')->group(function () {
         Route::get('/ajukan', [DtsenAjuanController::class, 'create'])->name('ajukan');
         Route::post('/ajukan', [DtsenAjuanController::class, 'store'])->name('ajukan.store');
         Route::get('/riwayat', [DtsenAjuanController::class, 'riwayat'])->name('riwayat');
@@ -160,6 +168,7 @@ Route::middleware(['auth', 'staff'])->group(function () {
         Route::get('/{permohonan}/detail', [DtsenController::class, 'detail'])->name('detail');
         Route::put('/{permohonan}/detail', [DtsenController::class, 'updateDetail'])->name('detail.update');
         Route::put('/{permohonan}/bansos', [DtsenController::class, 'updateBansos'])->name('bansos.update');
+        Route::put('/{permohonan}/lampiran', [DtsenController::class, 'updateLampiran'])->name('lampiran.update');
         Route::post('/{permohonan}/proses', [DtsenController::class, 'proses'])->name('proses');
     });
 
