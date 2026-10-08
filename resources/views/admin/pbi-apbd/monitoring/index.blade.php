@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
-@section('title', 'Monitoring PBI APBN')
-@section('page_title', 'PBI APBN — Monitoring')
+@section('title', 'Monitoring PBI APBD')
+@section('page_title', 'PBI APBD — Monitoring')
 
 @section('content')
     <div class="space-y-5">
@@ -14,7 +14,7 @@
         @endif
 
         <!-- BAGIAN FILTER -->
-        <form method="GET" action="{{ route('pbi-apbn.monitoring.index') }}" data-auto-filter
+        <form method="GET" action="{{ route('pbi-apbd.monitoring.index') }}" data-auto-filter
             class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-4 flex flex-wrap items-end gap-3">
             <div>
                 <label class="block text-xs text-on-surface-variant mb-1">Tanggal Awal</label>
@@ -30,7 +30,7 @@
                 <label class="block text-xs text-on-surface-variant mb-1">Status</label>
                 <select name="status" class="w-full px-3 py-1.5 rounded-lg border border-outline-variant/50 text-xs">
                     <option value="">Semua Status</option>
-                    @foreach (\App\Models\PbiApbn::STAGES as $key => $stage)
+                    @foreach (\App\Models\PbiApbd::STAGES as $key => $stage)
                         <option value="{{ $key }}" @selected(request('status') === $key)>{{ $stage['label'] }}</option>
                     @endforeach
                     <option value="disetujui" @selected(request('status') === 'disetujui')>Disetujui</option>
@@ -52,7 +52,7 @@
                     class="w-full px-3 py-1.5 rounded-lg border border-outline-variant/50 text-xs" />
             </div>
             @if (request()->hasAny(['tanggal_awal', 'tanggal_akhir', 'search', 'status', 'desil']))
-                <a href="{{ route('pbi-apbn.monitoring.index') }}" class="px-3 py-1.5 rounded-lg text-xs text-on-surface-variant hover:text-primary">
+                <a href="{{ route('pbi-apbd.monitoring.index') }}" class="px-3 py-1.5 rounded-lg text-xs text-on-surface-variant hover:text-primary">
                     Reset
                 </a>
             @endif
@@ -177,7 +177,7 @@
             {{ $data->links() }}
         </div>
 
-        <form id="monitoring-pbi-tampilkan-form" method="GET" action="{{ route('pbi-apbn.monitoring.index') }}" class="hidden">
+        <form id="monitoring-pbi-tampilkan-form" method="GET" action="{{ route('pbi-apbd.monitoring.index') }}" class="hidden">
             <input type="hidden" name="tanggal_awal" value="{{ request('tanggal_awal') }}">
             <input type="hidden" name="tanggal_akhir" value="{{ request('tanggal_akhir') }}">
             <input type="hidden" name="search" value="{{ request('search') }}">

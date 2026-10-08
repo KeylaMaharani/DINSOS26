@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\PbiApbn;
-use App\Models\PbiApbnLog;
+use App\Models\PbiApbd;
+use App\Models\PbiApbdLog;
 use App\Models\PbiKriteriaParameter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 /**
- * Halaman Petugas Kelurahan untuk modul PBI APBN.
+ * Halaman Petugas Kelurahan untuk modul PBI APBD.
  * Alur: Masyarakat isi data -> Kelurahan verifikasi + upload lampiran -> Operator Dinsos -> Kabid -> Kadis.
  * Kelurahan HANYA melihat jawaban (tanpa indeks/bobot/skor).
  */
@@ -36,7 +36,7 @@ class PbiKelurahanController extends Controller
         $user = Auth::user()->loadMissing('role');
         $tab = $request->query('tab', 'proses') === 'riwayat' ? 'riwayat' : 'proses';
 
-        $query = PbiApbn::query()->untukKelurahan($user)->withCount('jawabans');
+        $query = PbiApbd::query()->untukKelurahan($user)->withCount('jawabans');
 
         $tab === 'proses'
             ? $query->where('status', 'kelurahan')
@@ -59,26 +59,26 @@ class PbiKelurahanController extends Controller
         return view('admin.pbi-kelurahan.index', compact('ajuan', 'tab', 'totalParameter', 'wilayahBelumDiatur', 'user'));
     }
 
-    public function show(PbiApbn $pbiApbn)
+    public function show(PbiApbd $pbiApbd)
     {
-        $this->pastikanBerwenang($pbiApbn);
+        $this->pastikanBerwenang($pbiApbd);
 
-        $pbiApbn->load(['anggotaKeluarga', 'jawabans', 'logs']);
+        $pbiApbd->load(['anggotaKeluarga', 'jawabans', 'logs']);
         $totalParameter = PbiKriteriaParameter::aktif()->count();
 
         return view('admin.pbi-kelurahan.show', [
-            'data' => $pbiApbn,
+            'data' => $pbiApbd,
             'lampiran' => self::LAMPIRAN,
             'totalParameter' => $totalParameter,
         ]);
     }
 
-    public function aksi(Request $request, PbiApbn $pbiApbn)
+    public function aksi(Request $request, PbiApbd $pbiApbd)
     {
-        $this->pastikanBerwenang($pbiApbn);
+        $this->pastikanBerwenang($pbiApbd);
 
-        if ($pbiApbn->status !== 'kelurahan') {
-            return redirect()->route('pbi-kelurahan.show', $pbiApbn)
+        if ($pbiApbd->status !== 'kelurahan') {
+            return redirect()->route('pbi-kelurahan.show', $pbiApbd)
                 ->with('error', 'Berkas ini sudah tidak berada di Kelurahan.');
         }
 
@@ -107,19 +107,19 @@ class PbiKelurahanController extends Controller
 
         // ---- Kembalikan ke masyarakat / Tolak: tidak memproses file ----
         if ($aksi === 'kembalikan') {
-            $pbiApbn->update([
+            $pbiApbd->update([
                 'dikembalikan_ke_masyarakat' => true,
                 'catatan_kelurahan' => $catatan,
                 'sudah_diverifikasi_kelurahan' => false,
             ]);
-            $this->catatLog($pbiApbn, 'Mengembalikan ke Masyarakat untuk perbaikan data', $catatan);
+            $this->catatLog($pbiApbd, 'Mengembalikan ke Masyarakat untuk perbaikan data', $catatan);
 
             return redirect()->route('pbi-kelurahan.index')->with('success', 'Berkas dikembalikan ke masyarakat untuk diperbaiki.');
         }
 
         if ($aksi === 'tolak') {
-            $pbiApbn->update(['status' => 'ditolak', 'catatan_kelurahan' => $catatan]);
-            $this->catatLog($pbiApbn, 'Kelurahan menolak permohonan', $catatan);
+            $pbiApbd->update(['status' => 'ditolak', 'catatan_kelurahan' => $catatan]);
+            $this->catatLog($pbiApbd, 'Kelurahan menolak permohonan', $catatan);
 
             return redirect()->route('pbi-kelurahan.index')->with('success', 'Permohonan ditolak.');
         }
@@ -128,37 +128,37 @@ class PbiKelurahanController extends Controller
         $update = [];
         foreach (array_keys(self::LAMPIRAN) as $field) {
             if ($request->hasFile($field)) {
-                if ($pbiApbn->{$field}) {
-                    Storage::disk('public')->delete($pbiApbn->{$field});
+                if ($pbiApbd->{$field}) {
+                    Storage::disk('public')->delete($pbiApbd->{$field});
                 }
-                $update[$field] = $request->file($field)->store('pbi-apbn/lampiran', 'public');
+                $update[$field] = $request->file($field)->store('pbi-apbd/lampiran', 'public');
             }
         }
         if ($request->filled('kesimpulan_rekomendasi')) {
             $update['kesimpulan_rekomendasi'] = $request->input('kesimpulan_rekomendasi');
         }
         if ($update) {
-            $pbiApbn->update($update);
+            $pbiApbd->update($update);
         }
 
         if ($aksi === 'simpan') {
-            $this->catatLog($pbiApbn, 'Kelurahan menyimpan hasil verifikasi lapangan', $catatan);
+            $this->catatLog($pbiApbd, 'Kelurahan menyimpan hasil verifikasi lapangan', $catatan);
 
-            return redirect()->route('pbi-kelurahan.show', $pbiApbn)->with('success', 'Hasil verifikasi & lampiran tersimpan.');
+            return redirect()->route('pbi-kelurahan.show', $pbiApbd)->with('success', 'Hasil verifikasi & lampiran tersimpan.');
         }
 
         // ---- Validasi & teruskan: cek kelengkapan ----
         $masalah = [];
 
         $aktifIds = PbiKriteriaParameter::aktif()->pluck('id');
-        $terjawab = $pbiApbn->jawabans()->whereIn('parameter_id', $aktifIds)->count();
+        $terjawab = $pbiApbd->jawabans()->whereIn('parameter_id', $aktifIds)->count();
         if ($aktifIds->isEmpty() || $terjawab < $aktifIds->count()) {
             $masalah[] = "Masyarakat belum menjawab semua parameter ({$terjawab}/{$aktifIds->count()}). Gunakan \"Kembalikan ke Masyarakat\" bila perlu.";
         }
 
         $kurang = [];
         foreach (self::LAMPIRAN as $field => [$label, $wajib]) {
-            if ($wajib && ! $pbiApbn->{$field}) {
+            if ($wajib && ! $pbiApbd->{$field}) {
                 $kurang[] = $label;
             }
         }
@@ -166,45 +166,45 @@ class PbiKelurahanController extends Controller
             $masalah[] = 'Lampiran wajib belum lengkap: ' . implode(', ', $kurang) . '.';
         }
 
-        if (blank($pbiApbn->kesimpulan_rekomendasi)) {
+        if (blank($pbiApbd->kesimpulan_rekomendasi)) {
             $masalah[] = 'Kesimpulan/rekomendasi kelurahan wajib diisi.';
         }
 
         if ($masalah) {
-            return redirect()->route('pbi-kelurahan.show', $pbiApbn)
+            return redirect()->route('pbi-kelurahan.show', $pbiApbd)
                 ->withInput()
                 ->withErrors(['validasi' => $masalah]);
         }
 
-        $pbiApbn->update([
-            'status' => $pbiApbn->nextStageKey(), // kelurahan -> operator_dinsos
+        $pbiApbd->update([
+            'status' => $pbiApbd->nextStageKey(), // kelurahan -> operator_dinsos
             'sudah_diverifikasi_kelurahan' => true,
             'dikembalikan_ke_masyarakat' => false,
             'divalidasi_kelurahan_at' => now(),
             'divalidasi_kelurahan_oleh' => $user->id,
         ]);
-        $this->catatLog($pbiApbn, 'Verifikasi kelurahan selesai, diteruskan ke Operator Dinsos', $pbiApbn->kesimpulan_rekomendasi);
+        $this->catatLog($pbiApbd, 'Verifikasi kelurahan selesai, diteruskan ke Operator Dinsos', $pbiApbd->kesimpulan_rekomendasi);
 
         return redirect()->route('pbi-kelurahan.index')->with('success', 'Berkas divalidasi dan diteruskan ke Operator Dinsos.');
     }
 
-    private function pastikanBerwenang(PbiApbn $pbiApbn): void
+    private function pastikanBerwenang(PbiApbd $pbiApbd): void
     {
         $user = Auth::user()->loadMissing('role');
 
         abort_unless(
-            PbiApbn::untukKelurahan($user)->whereKey($pbiApbn->getKey())->exists(),
+            PbiApbd::untukKelurahan($user)->whereKey($pbiApbd->getKey())->exists(),
             403,
             'Pengajuan ini bukan dari wilayah kelurahan Anda.'
         );
     }
 
-    private function catatLog(PbiApbn $pbiApbn, string $task, ?string $catatan): void
+    private function catatLog(PbiApbd $pbiApbd, string $task, ?string $catatan): void
     {
         $user = Auth::user();
 
-        PbiApbnLog::create([
-            'pbi_apbn_id' => $pbiApbn->id,
+        PbiApbdLog::create([
+            'pbi_apbd_id' => $pbiApbd->id,
             'user_id' => $user->id,
             'username' => $user->name,
             'role_name' => $user->role->name ?? '-',

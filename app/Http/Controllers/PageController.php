@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\PbiApbn;
+use App\Models\PbiApbd;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -98,7 +98,7 @@ class PageController extends Controller
             $request->session()->regenerate();
 
             // Kalau data belum lengkap, langsung arahkan ke form lengkapi data
-            $pbi = $user->pengajuanPbiApbn()->latest()->first();
+            $pbi = $user->pengajuanPbiApbd()->latest()->first();
             if ($pbi && $pbi->masyarakatBisaEdit()) {
                 $totalParameter = PbiKriteriaParameter::aktif()->count();
                 $belumLengkap = ! $pbi->latitude
@@ -106,7 +106,7 @@ class PageController extends Controller
                     || $pbi->jawabans()->count() < $totalParameter;
 
                 if ($belumLengkap) {
-                    return redirect()->route('masyarakat.pbi-apbn.lengkapi', $pbi);
+                    return redirect()->route('masyarakat.pbi-apbd.lengkapi', $pbi);
                 }
             }
 
@@ -123,7 +123,7 @@ class PageController extends Controller
     /**
      * Cari kandidat user dari input login:
      *  1. NIK   -> users.username (diisi NIK saat registrasi)
-     *  2. No KK -> pbi_apbns.no_kk -> pbi_apbns.user_id
+     *  2. No KK -> pbi_apbds.no_kk -> pbi_apbds.user_id
      *
      * Satu KK bisa punya lebih dari satu pendaftaran, jadi hasilnya
      * Collection dan password dicek ke tiap kandidat.
@@ -135,7 +135,7 @@ class PageController extends Controller
             ->get();
 
         if (preg_match('/^\d{16}$/', $identifier)) {
-            $userIds = PbiApbn::where('no_kk', $identifier)
+            $userIds = PbiApbd::where('no_kk', $identifier)
                 ->whereNotNull('user_id')
                 ->pluck('user_id');
 

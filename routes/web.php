@@ -3,7 +3,7 @@
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DtsenController;
 use App\Http\Controllers\Admin\KartuKksController;
-use App\Http\Controllers\Admin\PbiApbnController;
+use App\Http\Controllers\Admin\PbiApbdController;
 use App\Http\Controllers\Admin\PlaceholderController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\LoginAdminController;
@@ -16,6 +16,7 @@ use App\Http\Controllers\Layanan\DtsenAjuanController;
 use App\Http\Controllers\Masyarakat\MasyarakatController;
 use App\Http\Controllers\Admin\KriteriaController;
 use App\Http\Controllers\Admin\PbiKelurahanController;
+use App\Http\Controllers\Admin\SigapBencanaController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -106,26 +107,26 @@ Route::middleware(['auth', 'staff'])->group(function () {
     });
 
     // ==========================================
-    // 3. PBI APBN — sudah dibangun penuh
+    // 3. PBI APBD — sudah dibangun penuh
     // ==========================================
-    Route::prefix('pbi-apbn')->name('pbi-apbn.')->middleware('module:pbi-apbn')->group(function () {
-        Route::get('/ajuan', [PbiApbnController::class, 'ajuanIndex'])->name('ajuan.index');
-        Route::get('/ajuan/{pbiApbn}', [PbiApbnController::class, 'ajuanShow'])->name('ajuan.show');
-        Route::post('/ajuan/{pbiApbn}/aksi', [PbiApbnController::class, 'ajuanAksi'])->name('ajuan.aksi');
-        Route::put('/ajuan/{pbiApbn}/tambahan', [PbiApbnController::class, 'ajuanUpdateTambahan'])->name('ajuan.updateTambahan');
-        Route::post('/ajuan/{pbiApbn}/diagnosa', [PbiApbnController::class, 'ajuanTambahDiagnosa'])->name('ajuan.diagnosa.store');
+    Route::prefix('pbi-apbd')->name('pbi-apbd.')->middleware('module:pbi-apbd')->group(function () {
+        Route::get('/ajuan', [PbiApbdController::class, 'ajuanIndex'])->name('ajuan.index');
+        Route::get('/ajuan/{pbiApbd}', [PbiApbdController::class, 'ajuanShow'])->name('ajuan.show');
+        Route::post('/ajuan/{pbiApbd}/aksi', [PbiApbdController::class, 'ajuanAksi'])->name('ajuan.aksi');
+        Route::put('/ajuan/{pbiApbd}/tambahan', [PbiApbdController::class, 'ajuanUpdateTambahan'])->name('ajuan.updateTambahan');
+        Route::post('/ajuan/{pbiApbd}/diagnosa', [PbiApbdController::class, 'ajuanTambahDiagnosa'])->name('ajuan.diagnosa.store');
 
-        Route::get('/arsip', [PbiApbnController::class, 'arsipIndex'])->name('arsip.index');
-        Route::get('/arsip/{pbiApbn}/detail', [PbiApbnController::class, 'arsipDetail'])->name('arsip.detail');
-        Route::get('/monitoring', [PbiApbnController::class, 'monitoringIndex'])->name('monitoring.index');
-        Route::get('/log', [PbiApbnController::class, 'logIndex'])->name('log.index');
+        Route::get('/arsip', [PbiApbdController::class, 'arsipIndex'])->name('arsip.index');
+        Route::get('/arsip/{pbiApbd}/detail', [PbiApbdController::class, 'arsipDetail'])->name('arsip.detail');
+        Route::get('/monitoring', [PbiApbdController::class, 'monitoringIndex'])->name('monitoring.index');
+        Route::get('/log', [PbiApbdController::class, 'logIndex'])->name('log.index');
     });
 
-    // Halaman Kelurahan (PBI APBN)
+    // Halaman Kelurahan (PBI APBD)
     Route::prefix('pbi-kelurahan')->name('pbi-kelurahan.')->middleware('module:pbi-kelurahan')->group(function () {
         Route::get('/', [PbiKelurahanController::class, 'index'])->name('index');
-        Route::get('/{pbiApbn}', [PbiKelurahanController::class, 'show'])->name('show');
-        Route::post('/{pbiApbn}/aksi', [PbiKelurahanController::class, 'aksi'])->name('aksi');
+        Route::get('/{pbiApbd}', [PbiKelurahanController::class, 'show'])->name('show');
+        Route::post('/{pbiApbd}/aksi', [PbiKelurahanController::class, 'aksi'])->name('aksi');
     });
 
     // Master Kriteria Kemiskinan (hanya Super Admin, sama seperti Kelola Akses)
@@ -191,6 +192,38 @@ Route::middleware(['auth', 'staff'])->group(function () {
     }
 
     // ==========================================
+    // SIGAP BENCANA (Perlinsos) -- Laporan Bantuan Bencana
+    //   module sigap-bencana : staf Dinsos (Tagana, Perlinsos, Pengurus Barang, Kadis)
+    //   module sigap-proses  : Kelurahan / OPD wilayah (hanya menu Proses Bantuan Kebencanaan)
+    // ==========================================
+    Route::prefix('sigap-bencana')->name('sigap.')->group(function () {
+
+        // --- Staf Dinsos ---
+        Route::middleware('module:sigap-bencana')->group(function () {
+            Route::get('/laporan', [SigapBencanaController::class, 'index'])->name('index');
+
+            Route::get('/stok', [SigapBencanaController::class, 'stokIndex'])->name('stok.index');
+            Route::post('/stok/barang', [SigapBencanaController::class, 'stokStoreBarang'])->name('stok.barang.store');
+            Route::post('/stok/barang/{barang}/masuk', [SigapBencanaController::class, 'stokMasuk'])->name('stok.masuk');
+        });
+
+        // --- Kelurahan / OPD wilayah ---
+        Route::middleware('module:sigap-proses')->group(function () {
+            Route::get('/proses', [SigapBencanaController::class, 'prosesIndex'])->name('proses.index');
+        });
+
+        // --- Dipakai kedua kelompok (dicek lagi per role & wilayah di controller) ---
+        Route::middleware('module:sigap-bencana,sigap-proses')->group(function () {
+            Route::get('/buat', [SigapBencanaController::class, 'create'])->name('create');
+            Route::post('/buat', [SigapBencanaController::class, 'store'])->name('store');
+
+            Route::get('/{laporan}', [SigapBencanaController::class, 'show'])->name('show');
+            Route::patch('/{laporan}/lokasi', [SigapBencanaController::class, 'updateLokasi'])->name('lokasi');
+            Route::post('/{laporan}/proses', [SigapBencanaController::class, 'aksi'])->name('aksi');
+        });
+    });
+
+    // ==========================================
     // 7. Dokumen — template dokumen
     // ==========================================
     Route::get('/dokumen', [PlaceholderController::class, 'dokumen'])->middleware('module:dokumen')->name('dokumen.index');
@@ -201,7 +234,7 @@ Route::middleware(['auth', 'staff'])->group(function () {
 Route::middleware(['auth', 'role:masyarakat'])->prefix('akun-saya')->name('masyarakat.')->group(function () {
     Route::get('/', [MasyarakatController::class, 'dashboard'])->name('dashboard');
 
-    Route::prefix('pbi-apbn/{pbiApbn}')->name('pbi-apbn.')->group(function () {
+    Route::prefix('pbi-apbd/{pbiApbd}')->name('pbi-apbd.')->group(function () {
         Route::get('/lengkapi', [MasyarakatController::class, 'lengkapiData'])->name('lengkapi');
         Route::post('/lengkapi', [MasyarakatController::class, 'lengkapiDataStore'])->name('lengkapi.store');
     });

@@ -9,7 +9,7 @@
     <h2 class="text-lg font-semibold">{{ $moduleTitle }} — {{ $tabLabel }}</h2>
     <p class="text-sm text-on-surface-variant max-w-md">
         Halaman ini sudah tersedia menu &amp; route-nya, tapi fiturnya belum dibangun.
-        Saat ini pengembangan difokuskan ke modul <strong>PBI APBN</strong> terlebih dahulu.
+        Saat ini pengembangan difokuskan ke modul <strong>PBI APBD</strong> terlebih dahulu.
     </p>
 </div>
 @endsection

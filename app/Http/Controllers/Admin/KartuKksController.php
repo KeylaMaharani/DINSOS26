@@ -86,7 +86,7 @@ class KartuKksController extends Controller
      * Detail, tanpa terikat role pada tahap manapun. HANYA super admin —
      * role "admin" biasa TIDAK termasuk di sini, meskipun tetap bisa
      * melihat semua data lewat isAdmin() di tempat lain (mis. daftar
-     * Ajuan). Disamakan dengan userCanActOn() di PbiApbnController.
+     * Ajuan). Disamakan dengan userCanActOn() di PbiApbdController.
      */
     private function isSuperAdmin($role): bool
     {
@@ -410,7 +410,7 @@ class KartuKksController extends Controller
         // Hanya super admin yang selalu bisa bertindak di tahap manapun
         // selama permohonan belum final. Role "admin" biasa tetap harus
         // sesuai dengan role yang berwenang pada tahap saat ini — sama
-        // seperti alur PBI APBN.
+        // seperti alur PBI APBD.
         $canAct = ! $isFinal
             && $rule
             && ($isSuperAdmin || $roleSlug === $rule['allowed_role']);
@@ -617,7 +617,7 @@ class KartuKksController extends Controller
         // Hanya super admin yang selalu boleh memproses (lanjut/tolak/
         // kembalikan/simpan catatan) pada tahap apapun. Role "admin"
         // biasa tetap harus sesuai role yang berwenang pada tahap ini —
-        // sama seperti alur PBI APBN (userCanActOn()).
+        // sama seperti alur PBI APBD (userCanActOn()).
         $canAct = $rule
             && ($isSuperAdmin || $roleSlug === $rule['allowed_role']);
 

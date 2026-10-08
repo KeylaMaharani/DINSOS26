@@ -24,14 +24,16 @@ class Role extends Model
     public const MODULES = [
         'beranda' => 'Beranda',
         'asesmen-spmb' => 'Asesmen SPMB',
-        'pbi-apbn' => 'PBI APBN',
+        'pbi-apbd' => 'PBI APBD',
         'kedaruratan-medis' => 'Kedaruratan Medis',
         'kartu-kks' => 'Kartu KKS',
         'dtsen' => 'DTSEN',
         'dokumen' => 'Dokumen',
-        'pbi-kelurahan' => 'PBI APBN - Verifikasi Kelurahan',
+        'pbi-kelurahan' => 'PBI APBD - Verifikasi Kelurahan',
         'layanan-kartu-kks' => 'Kartu KKS - Pengajuan Kelurahan',
         'layanan-dtsen' => 'DTSEN - Pengajuan Kelurahan',
+        'sigap-bencana' => 'SIGAP Bencana - Laporan Bantuan Bencana (Dinsos)',
+        'sigap-proses'  => 'SIGAP Bencana - Proses Bantuan (Kelurahan/OPD Wilayah)',
     ];
 
     /**

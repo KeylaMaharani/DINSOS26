@@ -4,13 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class PbiApbnLog extends Model
+class PbiApbdLog extends Model
 {
     protected $guarded = [];
 
-    public function pbiApbn()
+    public function pbiApbd()
     {
-        return $this->belongsTo(PbiApbn::class);
+        return $this->belongsTo(PbiApbd::class);
     }
 
     public function user()

@@ -22,7 +22,7 @@ class DtsenController extends Controller
      * Kembalikan/Simpan Catatan) maupun mengedit Data Detail/BANSOS.
      * Untuk itu pakai isSuperAdmin() di bawah, supaya role "admin" biasa
      * tidak ikut mendapat hak proses — hanya super admin (disamakan
-     * dengan Kartu KKS & PBI APBN).
+     * dengan Kartu KKS & PBI APBD).
      */
     private function isAdmin($role): bool
     {
@@ -41,7 +41,7 @@ class DtsenController extends Controller
      * manapun. HANYA super admin — role "admin" biasa TIDAK termasuk di
      * sini, meskipun tetap bisa melihat semua data lewat isAdmin() di
      * tempat lain (mis. daftar Ajuan). Disamakan dengan isSuperAdmin() di
-     * KartuKksController / userCanActOn() di PbiApbnController.
+     * KartuKksController / userCanActOn() di PbiApbdController.
      */
     private function isSuperAdmin($role): bool
     {
@@ -383,7 +383,7 @@ class DtsenController extends Controller
         // Hanya super admin yang selalu bisa bertindak di tahap manapun
         // selama permohonan belum final. Role "admin" biasa tetap harus
         // sesuai dengan role yang berwenang pada tahap saat ini — sama
-        // seperti alur Kartu KKS & PBI APBN.
+        // seperti alur Kartu KKS & PBI APBD.
         $canAct = ! $isFinal
             && $rule
             && ($isSuperAdmin || $roleSlug === $rule['allowed_role']);
@@ -583,7 +583,7 @@ class DtsenController extends Controller
         // Hanya super admin yang selalu boleh memproses (lanjut/tolak/
         // kembalikan/simpan catatan) pada tahap apapun. Role "admin"
         // biasa tetap harus sesuai role yang berwenang pada tahap ini —
-        // sama seperti alur Kartu KKS & PBI APBN.
+        // sama seperti alur Kartu KKS & PBI APBD.
         $canAct = $rule
             && ($isSuperAdmin || $roleSlug === $rule['allowed_role']);
 

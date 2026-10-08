@@ -2,12 +2,12 @@
 
 namespace Database\Seeders;
 
-use App\Models\PbiApbn;
-use App\Models\PbiApbnAnggotaKeluarga;
-use App\Models\PbiApbnLog;
+use App\Models\PbiApbd;
+use App\Models\PbiApbdAnggotaKeluarga;
+use App\Models\PbiApbdLog;
 use Illuminate\Database\Seeder;
 
-class PbiApbnSeeder extends Seeder
+class PbiApbdSeeder extends Seeder
 {
     public function run(): void
     {
@@ -71,9 +71,9 @@ class PbiApbnSeeder extends Seeder
         ];
 
         foreach ($contoh as $i => $row) {
-            $noRegistrasi = 'PBI-APBN-2026-' . str_pad($i + 1, 4, '0', STR_PAD_LEFT);
+            $noRegistrasi = 'PBI-APBD-2026-' . str_pad($i + 1, 4, '0', STR_PAD_LEFT);
 
-            $pbi = PbiApbn::updateOrCreate(
+            $pbi = PbiApbd::updateOrCreate(
                 ['no_registrasi' => $noRegistrasi],
                 array_merge([
                     'no_kk' => '327101' . str_pad($i + 1, 10, '0', STR_PAD_LEFT),
@@ -101,7 +101,7 @@ class PbiApbnSeeder extends Seeder
                     'penggunaan_fasilitas_bab' => 'Sendiri',
                     'jenis_kloset' => 'Leher Angsa',
                     'tempat_pembuangan_akhir_tinja' => 'Tangki Septik',
-                    'kesimpulan_rekomendasi' => 'Layak diberikan bantuan PBI APBN.',
+                    'kesimpulan_rekomendasi' => 'Layak diberikan bantuan PBI APBD.',
                     'nama_faskes' => 'Puskesmas Terdekat',
                     'diagnosa' => 'Ibu hamil /gapias gravid 29-30 m664,presboking +4T+anensia',
                     
@@ -117,8 +117,8 @@ class PbiApbnSeeder extends Seeder
                 ], $row)
             );
 
-            PbiApbnAnggotaKeluarga::updateOrCreate(
-                ['pbi_apbn_id' => $pbi->id, 'nik' => $row['nik_kepala_keluarga']],
+            PbiApbdAnggotaKeluarga::updateOrCreate(
+                ['pbi_apbd_id' => $pbi->id, 'nik' => $row['nik_kepala_keluarga']],
                 [
                     'nama' => $row['nama_kepala_keluarga'],
                     'tempat_lahir' => 'Bogor',
@@ -131,7 +131,7 @@ class PbiApbnSeeder extends Seeder
                 ]
             );
 
-            $kesimpulan = $row['catatan_internal'] ?? 'Layak diberikan bantuan PBI APBN.';
+            $kesimpulan = $row['catatan_internal'] ?? 'Layak diberikan bantuan PBI APBD.';
 
             $riwayat = [
                 [
@@ -149,14 +149,14 @@ class PbiApbnSeeder extends Seeder
             if ($row['status'] === 'ditolak') {
                 $riwayat[] = [
                     'username' => 'Operator Dayasos',
-                    'role_name' => PbiApbn::OPERATOR_ROLE ?? 'operator',
+                    'role_name' => PbiApbd::OPERATOR_ROLE ?? 'operator',
                     'task_name' => 'Menolak permohonan',
                     'catatan' => $kesimpulan,
                 ];
             } elseif ($sudahLewatOperator) {
                 $riwayat[] = [
                     'username' => 'Operator Dayasos',
-                    'role_name' => PbiApbn::OPERATOR_ROLE ?? 'operator',
+                    'role_name' => PbiApbd::OPERATOR_ROLE ?? 'operator',
                     'task_name' => 'Meneruskan ke Kepala Bidang',
                     'catatan' => 'Berkas lengkap, memenuhi syarat administrasi. Diteruskan untuk persetujuan Kepala Bidang.',
                 ];
@@ -174,15 +174,15 @@ class PbiApbnSeeder extends Seeder
                             'username' => 'Kepala Dinas',
                             'role_name' => 'kadis',
                             'task_name' => 'Menyetujui permohonan',
-                            'catatan' => 'Permohonan disetujui dan berhak menerima bantuan PBI APBN.',
+                            'catatan' => 'Permohonan disetujui dan berhak menerima bantuan PBI APBD.',
                         ];
                     }
                 }
             }
 
             foreach ($riwayat as $log) {
-                PbiApbnLog::updateOrCreate(
-                    ['pbi_apbn_id' => $pbi->id, 'task_name' => $log['task_name']],
+                PbiApbdLog::updateOrCreate(
+                    ['pbi_apbd_id' => $pbi->id, 'task_name' => $log['task_name']],
                     [
                         'user_id' => null,
                         'username' => $log['username'],

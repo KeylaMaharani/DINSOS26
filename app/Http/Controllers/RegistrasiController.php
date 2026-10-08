@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\PbiApbn;
+use App\Models\PbiApbd;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -73,7 +73,7 @@ class RegistrasiController extends Controller
 
         $validated = $request->validate([
             'status_hubungan' => ['required', Rule::in(['kepala_keluarga', 'suami', 'istri', 'anak', 'lainnya'])],
-            'nik' => ['required', 'digits:16', Rule::unique('pbi_apbns', 'nik_kepala_keluarga')],
+            'nik' => ['required', 'digits:16', Rule::unique('pbi_apbds', 'nik_kepala_keluarga')],
             'password' => [
                 'required', 'string', 'min:8', 'confirmed',
                 'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/',
@@ -99,19 +99,19 @@ class RegistrasiController extends Controller
             'anggota.*.status' => ['required_with:anggota', 'string'],
         ], [
             'password.regex' => 'Password minimal 8 karakter, memuat 1 huruf kapital, 1 huruf kecil, dan 1 angka.',
-            'nik.unique' => 'NIK ini sudah pernah mengajukan PBI APBN.',
+            'nik.unique' => 'NIK ini sudah pernah mengajukan PBI APBD.',
             'email.unique' => 'Email ini sudah terdaftar, silakan login.',
         ]);
 
-        $noRegistrasi = 'PBI-APBN-' . now()->year . '-'
-            . Str::padLeft((string) (PbiApbn::whereYear('created_at', now()->year)->count() + 1), 4, '0');
+        $noRegistrasi = 'PBI-APBD-' . now()->year . '-'
+            . Str::padLeft((string) (PbiApbd::whereYear('created_at', now()->year)->count() + 1), 4, '0');
 
         $masyarakatRole = Role::firstOrCreate(
             ['slug' => 'masyarakat'],
             ['name' => 'Masyarakat', 'slug' => 'masyarakat']
         );
 
-        [$user, $pbiApbn] = DB::transaction(function () use ($validated, $noKk, $noRegistrasi, $masyarakatRole) {
+        [$user, $pbiApbd] = DB::transaction(function () use ($validated, $noKk, $noRegistrasi, $masyarakatRole) {
             $user = User::create([
                 'name' => $validated['nama_lengkap'],
                 'username' => $validated['nik'],
@@ -120,7 +120,7 @@ class RegistrasiController extends Controller
                 'role_id' => $masyarakatRole->id,
             ]);
 
-            $pbiApbn = PbiApbn::create([
+            $pbiApbd = PbiApbd::create([
                 'user_id' => $user->id,
                 'no_registrasi' => $noRegistrasi,
                 'no_kk' => $noKk,
@@ -135,13 +135,13 @@ class RegistrasiController extends Controller
                 'desa_kelurahan' => $validated['desa_kelurahan'],
                 'no_telp' => $validated['telp'],
                 'email' => $validated['email'],
-                // Tahap awal alur = 'kelurahan' (lihat PbiApbn::STAGES).
+                // Tahap awal alur = 'kelurahan' (lihat PbiApbd::STAGES).
                 // Kolom `status` di migration default-nya 'operator_dinsos',
                 // itu keliru/basi -- override eksplisit di sini.
                 'status' => 'kelurahan',
             ]);
 
-            $pbiApbn->anggotaKeluarga()->create([
+            $pbiApbd->anggotaKeluarga()->create([
                 'nik' => $validated['nik'],
                 'nama' => $validated['nama_lengkap'],
                 'tempat_lahir' => $validated['tempat_lahir'],
@@ -154,21 +154,21 @@ class RegistrasiController extends Controller
             ]);
 
             foreach ($validated['anggota'] ?? [] as $anggota) {
-                $pbiApbn->anggotaKeluarga()->create([
+                $pbiApbd->anggotaKeluarga()->create([
                     'nik' => $anggota['nik'],
                     'nama' => $anggota['nama'],
                     'hubungan_keluarga' => $anggota['status'],
                 ]);
             }
 
-            return [$user, $pbiApbn];
+            return [$user, $pbiApbd];
         });
 
         $request->session()->forget('registrasi.no_kk');
 
         return redirect()->route('login')->with('success', [
-            'no_registrasi' => $pbiApbn->no_registrasi,
-            'nama' => $pbiApbn->nama_kepala_keluarga,
+            'no_registrasi' => $pbiApbd->no_registrasi,
+            'nama' => $pbiApbd->nama_kepala_keluarga,
         ]);
     }
 }

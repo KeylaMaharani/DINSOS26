@@ -25,7 +25,7 @@
     // Aksi cepat
     $quick = [
         ['key' => 'asesmen-spmb', 'label' => 'Asesmen SPMB', 'icon' => 'fact_check', 'route' => 'asesmen_spmb.ajuan', 'tone' => 'text-secondary bg-secondary-fixed'],
-        ['key' => 'pbi-apbn', 'label' => 'PBI APBN', 'icon' => 'health_and_safety', 'route' => 'pbi-apbn.ajuan.index', 'tone' => 'text-primary bg-primary-fixed-dim/40'],
+        ['key' => 'pbi-apbd', 'label' => 'PBI APBD', 'icon' => 'health_and_safety', 'route' => 'pbi-apbd.ajuan.index', 'tone' => 'text-primary bg-primary-fixed-dim/40'],
         ['key' => 'kedaruratan-medis', 'label' => 'Kedaruratan Medis', 'icon' => 'emergency', 'route' => 'kedaruratan_medis.ajuan', 'tone' => 'text-error bg-error-container'],
         ['key' => 'kartu-kks', 'label' => 'Kartu KKS', 'icon' => 'credit_card', 'route' => 'kartu-kks.ajuan', 'tone' => 'text-warning bg-warning-container'],
         ['key' => 'dtsen', 'label' => 'DTSEN', 'icon' => 'database', 'route' => 'dtsen.ajuan', 'tone' => 'text-success bg-success-container'],

@@ -5,15 +5,15 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class PbiApbnDiagnosaLog extends Model
+class PbiApbdDiagnosaLog extends Model
 {
-    protected $table = 'pbi_apbn_diagnosa_logs';
+    protected $table = 'pbi_apbd_diagnosa_logs';
 
     protected $guarded = [];
 
-    public function pbiApbn(): BelongsTo
+    public function pbiApbd(): BelongsTo
     {
-        return $this->belongsTo(PbiApbn::class);
+        return $this->belongsTo(PbiApbd::class);
     }
 
     public function user(): BelongsTo

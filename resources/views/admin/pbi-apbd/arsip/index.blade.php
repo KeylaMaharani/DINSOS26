@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
-@section('title', 'Arsip PBI APBN')
-@section('page_title', 'PBI APBN — Arsip')
+@section('title', 'Arsip PBI APBD')
+@section('page_title', 'PBI APBD — Arsip')
 
 @section('content')
     <div class="space-y-6" x-data="arsipPbiManager()">
@@ -15,7 +15,7 @@
 
         <!-- Filter Section -->
         <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-5 shadow-sm">
-            <form method="GET" action="{{ route('pbi-apbn.arsip.index') }}" data-auto-filter>
+            <form method="GET" action="{{ route('pbi-apbd.arsip.index') }}" data-auto-filter>
                 <!-- Grid layout untuk input filter -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div>
@@ -51,7 +51,7 @@
                 <div class="mt-5 pt-4 border-t border-outline-variant/20 flex flex-wrap items-center justify-between gap-3">
 
                     <!-- Tombol Reset Filter -->
-                    <a href="{{ route('pbi-apbn.arsip.index') }}"
+                    <a href="{{ route('pbi-apbd.arsip.index') }}"
                         class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-error hover:bg-error/10 border border-transparent hover:border-error/20 transition-all">
                         <span class="material-symbols-outlined text-[16px]">restart_alt</span>
                         Reset Filter
@@ -168,7 +168,7 @@
                 <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/30 bg-surface-container-lowest shrink-0">
                     <h3 class="text-base font-semibold text-on-surface flex items-center gap-2">
                         <span class="material-symbols-outlined text-primary text-[20px]">assignment</span>
-                        Detail Arsip PBI APBN
+                        Detail Arsip PBI APBD
                     </h3>
                     <button @click="detailOpen = false" class="text-on-surface-variant hover:bg-outline-variant/10 p-1.5 rounded-full transition-colors">
                         <span class="material-symbols-outlined text-[20px]">close</span>
@@ -322,7 +322,7 @@
             </div>
         </div>
 
-        <form id="arsip-pbi-tampilkan-form" method="GET" action="{{ route('pbi-apbn.arsip.index') }}" class="hidden">
+        <form id="arsip-pbi-tampilkan-form" method="GET" action="{{ route('pbi-apbd.arsip.index') }}" class="hidden">
             <input type="hidden" name="tanggal_awal" value="{{ request('tanggal_awal') }}">
             <input type="hidden" name="tanggal_akhir" value="{{ request('tanggal_akhir') }}">
             <input type="hidden" name="status" value="{{ request('status') }}">
@@ -337,7 +337,7 @@
                     detailOpen: false,
                     loading: false,
                     data: {},
-                    detailUrlTemplate: @js(route('pbi-apbn.arsip.detail', ['pbiApbn' => '__ID__'])),
+                    detailUrlTemplate: @js(route('pbi-apbd.arsip.detail', ['pbiApbd' => '__ID__'])),
                     dataFields: [
                         { key: 'no_registrasi', label: 'No. Registrasi' },
                         { key: 'status', label: 'Status' },

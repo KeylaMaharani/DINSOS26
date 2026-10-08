@@ -1,4 +1,4 @@
-{{-- Pengganti blok "4/5. Verifikasi & Validasi Petugas Kelurahan" di admin/pbi-apbn/ajuan/show.blade.php.
+{{-- Pengganti blok "4/5. Verifikasi & Validasi Petugas Kelurahan" di admin/pbi-apbd/ajuan/show.blade.php.
      Indeks/bobot/skor hanya tampil untuk petugas Dinsos (bukan role kelurahan/masyarakat). --}}
 @php
     $lihatSkor = ! in_array(auth()->user()->role?->normalizedSlug(), ['kelurahan', 'masyarakat'], true);

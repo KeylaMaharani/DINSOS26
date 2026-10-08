@@ -9,12 +9,12 @@
     </a>
 
     <h1 class="text-lg sm:text-xl font-bold text-primary mb-1">Lengkapi Data Pengajuan</h1>
-    <p class="text-sm text-on-surface-variant mb-5 sm:mb-6 break-words">No. Registrasi: <strong>{{ $pbiApbn->no_registrasi }}</strong></p>
+    <p class="text-sm text-on-surface-variant mb-5 sm:mb-6 break-words">No. Registrasi: <strong>{{ $pbiApbd->no_registrasi }}</strong></p>
 
-    @if ($pbiApbn->dikembalikan_ke_masyarakat)
+    @if ($pbiApbd->dikembalikan_ke_masyarakat)
         <div class="mb-4 px-4 py-3 rounded-lg bg-warning-container text-on-warning-container text-sm">
             <p class="font-semibold">Petugas kelurahan meminta Anda memperbaiki data.</p>
-            @if ($pbiApbn->catatan_kelurahan)<p class="mt-1 break-words">Catatan: {{ $pbiApbn->catatan_kelurahan }}</p>@endif
+            @if ($pbiApbd->catatan_kelurahan)<p class="mt-1 break-words">Catatan: {{ $pbiApbd->catatan_kelurahan }}</p>@endif
         </div>
     @endif
 
@@ -29,7 +29,7 @@
         </div>
     @endif
 
-    <form method="POST" action="{{ route('masyarakat.pbi-apbn.lengkapi.store', $pbiApbn) }}"
+    <form method="POST" action="{{ route('masyarakat.pbi-apbd.lengkapi.store', $pbiApbd) }}"
           class="space-y-4 sm:space-y-6" id="form-lengkapi">
         @csrf
 
@@ -43,8 +43,8 @@
                 Pastikan Anda berada di rumah/lokasi yang didaftarkan, lalu izinkan akses lokasi di browser.
             </p>
 
-            <input type="hidden" name="latitude" id="latitude" value="{{ old('latitude', $pbiApbn->latitude) }}">
-            <input type="hidden" name="longitude" id="longitude" value="{{ old('longitude', $pbiApbn->longitude) }}">
+            <input type="hidden" name="latitude" id="latitude" value="{{ old('latitude', $pbiApbd->latitude) }}">
+            <input type="hidden" name="longitude" id="longitude" value="{{ old('longitude', $pbiApbd->longitude) }}">
 
             <div id="geo-status" class="flex items-start gap-2 text-sm p-3 rounded-lg bg-surface-container">
                 <span class="material-symbols-outlined text-[18px] shrink-0 mt-px animate-spin" id="geo-icon">progress_activity</span>

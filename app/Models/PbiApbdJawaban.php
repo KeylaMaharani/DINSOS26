@@ -4,9 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class PbiApbnJawaban extends Model
+class PbiApbdJawaban extends Model
 {
-    protected $table = 'pbi_apbn_jawabans';
+    protected $table = 'pbi_apbd_jawabans';
     protected $guarded = [];
 
     protected $casts = [
@@ -16,9 +16,9 @@ class PbiApbnJawaban extends Model
         'skor' => 'decimal:6',
     ];
 
-    public function pbiApbn()
+    public function pbiApbd()
     {
-        return $this->belongsTo(PbiApbn::class);
+        return $this->belongsTo(PbiApbd::class);
     }
 
     public function parameter()

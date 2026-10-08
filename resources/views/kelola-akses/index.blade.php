@@ -354,7 +354,7 @@
                             <label class="block text-sm font-medium mb-1">Nama Hak Akses</label>
                             <input name="name" x-model="form.name" type="text"
                                 class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm"
-                                placeholder="Contoh: Admin PBI APBN" required />
+                                placeholder="Contoh: Admin PBI APBD" required />
                         </div>
 
                         <div>

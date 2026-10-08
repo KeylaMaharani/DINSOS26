@@ -8,7 +8,7 @@
 
     <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-5 flex flex-wrap items-start justify-between gap-3">
         <div class="max-w-3xl">
-            <h2 class="text-sm font-bold text-on-surface">Parameter & Opsi Jawaban PBI APBN</h2>
+            <h2 class="text-sm font-bold text-on-surface">Parameter & Opsi Jawaban PBI APBD</h2>
             <p class="text-xs text-on-surface-variant mt-1 leading-relaxed">
                 Dasar: SK Wali Kota Bogor No. 460/Kep.196-Dinsos/2021. Parameter aktif menjadi pertanyaan (dropdown) di halaman masyarakat.
                 Rumus: <strong>Indeks Kumulatif = Indeks × Bobot × Indeks Terintegrasi</strong> (dijumlahkan semua parameter).

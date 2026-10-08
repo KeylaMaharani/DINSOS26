@@ -3,14 +3,14 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\PbiApbn;
-use App\Models\PbiApbnLog;
+use App\Models\PbiApbd;
+use App\Models\PbiApbdLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
-class PbiApbnController extends Controller
+class PbiApbdController extends Controller
 {
     /**
      * Tambahkan kondisi OR pencarian pada kolom created_at (Tgl Insert).
@@ -52,7 +52,7 @@ class PbiApbnController extends Controller
      */
     public function ajuanIndex(Request $request)
     {
-        $query = PbiApbn::query()->whereNotIn('status', ['disetujui', 'ditolak']);
+        $query = PbiApbd::query()->whereNotIn('status', ['disetujui', 'ditolak']);
 
         if ($request->filled('tanggal_awal')) {
             $query->whereDate('created_at', '>=', $request->date('tanggal_awal'));
@@ -79,18 +79,18 @@ class PbiApbnController extends Controller
 
         $ajuan = $query->latest()->paginate($this->perPage($request))->withQueryString();
 
-        return view('admin.pbi-apbn.ajuan.index', compact('ajuan'));
+        return view('admin.pbi-apbd.ajuan.index', compact('ajuan'));
     }
 
-    public function ajuanShow(PbiApbn $pbiApbn)
+    public function ajuanShow(PbiApbd $pbiApbd)
     {
-        $pbiApbn->load(['anggotaKeluarga', 'logs.user', 'diagnosaLogs.user']);
+        $pbiApbd->load(['anggotaKeluarga', 'logs.user', 'diagnosaLogs.user']);
 
-        $canAct = $this->userCanActOn($pbiApbn);
-        $faskesOptions = $this->faskesOptions($pbiApbn);
+        $canAct = $this->userCanActOn($pbiApbd);
+        $faskesOptions = $this->faskesOptions($pbiApbd);
 
-        return view('admin.pbi-apbn.ajuan.show', [
-            'data' => $pbiApbn,
+        return view('admin.pbi-apbd.ajuan.show', [
+            'data' => $pbiApbd,
             'canAct' => $canAct,
             'faskesOptions' => $faskesOptions,
         ]);
@@ -100,9 +100,9 @@ class PbiApbnController extends Controller
      * Update Nama Faskes (field overwrite, bukan riwayat).
      * Diagnosa TIDAK lagi ditangani di sini — lihat ajuanTambahDiagnosa().
      */
-    public function ajuanUpdateTambahan(Request $request, PbiApbn $pbiApbn)
+    public function ajuanUpdateTambahan(Request $request, PbiApbd $pbiApbd)
     {
-        if (!$this->userCanActOn($pbiApbn)) {
+        if (!$this->userCanActOn($pbiApbd)) {
             return back()->with('error', 'Anda tidak berwenang mengedit data ini.');
         }
 
@@ -110,7 +110,7 @@ class PbiApbnController extends Controller
             'nama_faskes' => ['nullable', 'string', 'max:150'],
         ]);
 
-        $pbiApbn->update($validated);
+        $pbiApbd->update($validated);
 
         return back()->with('success', 'Data berhasil diperbarui.');
     }
@@ -119,9 +119,9 @@ class PbiApbnController extends Controller
      * Tambah entri baru ke riwayat Diagnosa (bisa diisi berulang kali,
      * tidak menghapus/menimpa entri sebelumnya).
      */
-    public function ajuanTambahDiagnosa(Request $request, PbiApbn $pbiApbn)
+    public function ajuanTambahDiagnosa(Request $request, PbiApbd $pbiApbd)
     {
-        if (!$this->userCanActOn($pbiApbn)) {
+        if (!$this->userCanActOn($pbiApbd)) {
             return back()->with('error', 'Anda tidak berwenang mengedit data ini.');
         }
 
@@ -133,11 +133,11 @@ class PbiApbnController extends Controller
 
         $user = Auth::user();
 
-        if ($pbiApbn->status === 'kelurahan') {
+        if ($pbiApbd->status === 'kelurahan') {
             return false;
         }
 
-        $pbiApbn->diagnosaLogs()->create([
+        $pbiApbd->diagnosaLogs()->create([
             'user_id' => $user->id,
             'username' => $user->name,
             'role_name' => $user->role->name ?? '-',
@@ -145,7 +145,7 @@ class PbiApbnController extends Controller
         ]);
 
         // Simpan juga nilai terakhir di kolom utama untuk tampilan ringkas/cepat
-        $pbiApbn->update(['diagnosa' => $validated['diagnosa']]);
+        $pbiApbd->update(['diagnosa' => $validated['diagnosa']]);
 
         return back()->with('success', 'Diagnosa baru berhasil ditambahkan.');
     }
@@ -154,28 +154,28 @@ class PbiApbnController extends Controller
      * Daftar opsi Nama Faskes berdasarkan kecamatan pada data permohonan.
      * Sementara masih hardcoded di config/faskes.php (belum ada tabel master).
      */
-    private function faskesOptions(PbiApbn $pbiApbn): array
+    private function faskesOptions(PbiApbd $pbiApbd): array
     {
         $master = config('faskes.puskesmas', []);
 
-        return $master[$pbiApbn->kecamatan] ?? [];
+        return $master[$pbiApbd->kecamatan] ?? [];
     }
 
     /**
      * Aksi: simpan | next | back | reject
      */
-    public function ajuanAksi(Request $request, PbiApbn $pbiApbn)
+    public function ajuanAksi(Request $request, PbiApbd $pbiApbd)
     {
         $request->validate([
             'aksi' => ['required', Rule::in(['simpan', 'next', 'back', 'reject'])],
             'catatan' => ['required', 'string', 'max:2000'],
         ]);
 
-        if ($pbiApbn->isFinal()) {
+        if ($pbiApbd->isFinal()) {
             return back()->with('error', 'Permohonan ini sudah final (disetujui/ditolak), tidak bisa diproses lagi.');
         }
 
-        if (!$this->userCanActOn($pbiApbn)) {
+        if (!$this->userCanActOn($pbiApbd)) {
             return back()->with('error', 'Anda tidak berwenang memproses permohonan pada tahap ini.');
         }
 
@@ -186,33 +186,33 @@ class PbiApbnController extends Controller
 
         switch ($aksi) {
             case 'simpan':
-                $pbiApbn->update(['catatan_internal' => $catatan]);
+                $pbiApbd->update(['catatan_internal' => $catatan]);
                 $taskName = 'Menyimpan catatan';
                 break;
 
             case 'next':
-                $next = $pbiApbn->nextStageKey();
+                $next = $pbiApbd->nextStageKey();
                 if (!$next) {
                     return back()->with('error', 'Tidak ada tahap selanjutnya.');
                 }
-                $label = $next === 'disetujui' ? 'Disetujui' : (PbiApbn::STAGES[$next]['label'] ?? $next);
+                $label = $next === 'disetujui' ? 'Disetujui' : (PbiApbd::STAGES[$next]['label'] ?? $next);
                 $taskName = $next === 'disetujui'
                     ? 'Menyetujui permohonan'
                     : "Meneruskan ke {$label}";
-                $pbiApbn->update([
+                $pbiApbd->update([
                     'status' => $next,
                     'catatan_internal' => $catatan,
                 ]);
                 break;
 
             case 'back':
-                $prev = $pbiApbn->previousStageKey();
+                $prev = $pbiApbd->previousStageKey();
                 if (!$prev) {
                     return back()->with('error', 'Permohonan sudah berada di tahap paling awal, tidak bisa dikembalikan.');
                 }
-                $label = PbiApbn::STAGES[$prev]['label'] ?? $prev;
+                $label = PbiApbd::STAGES[$prev]['label'] ?? $prev;
                 $taskName = "Mengembalikan ke {$label}";
-                $pbiApbn->update([
+                $pbiApbd->update([
                     'status' => $prev,
                     'catatan_internal' => $catatan,
                 ] + ($prev === 'kelurahan' ? ['sudah_diverifikasi_kelurahan' => false] : []));
@@ -220,15 +220,15 @@ class PbiApbnController extends Controller
 
             case 'reject':
                 $taskName = 'Menolak permohonan';
-                $pbiApbn->update([
+                $pbiApbd->update([
                     'status' => 'ditolak',
                     'catatan_internal' => $catatan,
                 ]);
                 break;
         }
 
-        PbiApbnLog::create([
-            'pbi_apbn_id' => $pbiApbn->id,
+        PbiApbdLog::create([
+            'pbi_apbd_id' => $pbiApbd->id,
             'user_id' => $user->id,
             'username' => $user->name,
             'role_name' => $roleName,
@@ -236,7 +236,7 @@ class PbiApbnController extends Controller
             'catatan' => $catatan,
         ]);
 
-        return redirect()->route('pbi-apbn.ajuan.show', $pbiApbn)
+        return redirect()->route('pbi-apbd.ajuan.show', $pbiApbd)
             ->with('success', 'Berhasil diproses.');
     }
 
@@ -250,7 +250,7 @@ class PbiApbnController extends Controller
     {
         $statusArsip = ['disetujui', 'ditolak'];
 
-        $query = PbiApbn::query()->whereIn('status', $statusArsip);
+        $query = PbiApbd::query()->whereIn('status', $statusArsip);
 
         if ($request->filled('tanggal_awal')) {
             $query->whereDate('created_at', '>=', $request->date('tanggal_awal'));
@@ -277,7 +277,7 @@ class PbiApbnController extends Controller
 
         $arsip = $query->latest()->paginate($this->perPage($request))->withQueryString();
 
-        return view('admin.pbi-apbn.arsip.index', [
+        return view('admin.pbi-apbd.arsip.index', [
             'arsip' => $arsip,
             'statusOptions' => [
                 'disetujui' => 'Disetujui',
@@ -287,16 +287,16 @@ class PbiApbnController extends Controller
     }
 
     /**
-     * GET /pbi-apbn/arsip/{pbiApbn}/detail (dipanggil via fetch() untuk modal Arsip)
+     * GET /pbi-apbd/arsip/{pbiApbd}/detail (dipanggil via fetch() untuk modal Arsip)
      * Hanya untuk permohonan yang sudah final.
      */
-    public function arsipDetail(PbiApbn $pbiApbn)
+    public function arsipDetail(PbiApbd $pbiApbd)
     {
-        abort_unless($pbiApbn->isFinal(), 404);
+        abort_unless($pbiApbd->isFinal(), 404);
 
-        $pbiApbn->load(['anggotaKeluarga', 'logs.user', 'diagnosaLogs.user']);
+        $pbiApbd->load(['anggotaKeluarga', 'logs.user', 'diagnosaLogs.user']);
 
-        return response()->json($pbiApbn);
+        return response()->json($pbiApbd);
     }
 
     /**
@@ -305,7 +305,7 @@ class PbiApbnController extends Controller
      */
     public function monitoringIndex(Request $request)
     {
-        $query = PbiApbn::with(['logs' => fn($q) => $q->orderBy('created_at')]);
+        $query = PbiApbd::with(['logs' => fn($q) => $q->orderBy('created_at')]);
 
         if ($request->filled('tanggal_awal')) {
             $query->whereDate('created_at', '>=', $request->tanggal_awal);
@@ -329,20 +329,20 @@ class PbiApbnController extends Controller
 
         $data = $query->latest()->paginate($this->perPage($request, 'display'))->withQueryString();
 
-        return view('admin.pbi-apbn.monitoring.index', compact('data'));
+        return view('admin.pbi-apbd.monitoring.index', compact('data'));
     }
 
     /**
      * ================= LOG =================
-     * Semua log proses lintas permohonan (untuk modul PBI APBN).
+     * Semua log proses lintas permohonan (untuk modul PBI APBD).
      */
     public function logIndex(Request $request)
     {
-        $query = PbiApbnLog::with(['pbiApbn', 'user'])->latest();
+        $query = PbiApbdLog::with(['pbiApbd', 'user'])->latest();
 
         if ($request->filled('search')) {
             $s = $request->search;
-            $query->whereHas('pbiApbn', function ($q) use ($s) {
+            $query->whereHas('pbiApbd', function ($q) use ($s) {
                 $q->where('nama_kepala_keluarga', 'like', "%{$s}%")
                     ->orWhere('no_registrasi', 'like', "%{$s}%");
             });
@@ -350,7 +350,7 @@ class PbiApbnController extends Controller
 
         $logs = $query->paginate(20)->withQueryString();
 
-        return view('admin.pbi-apbn.monitoring.log', compact('logs'));
+        return view('admin.pbi-apbd.monitoring.log', compact('logs'));
     }
 
     /**
@@ -358,7 +358,7 @@ class PbiApbnController extends Controller
      * - dia super_admin (menerima variasi penulisan: superadmin, super_admin, super-admin), ATAU
      * - role dia cocok dengan role yang berwenang di status saat ini
      */
-    private function userCanActOn(PbiApbn $pbiApbn): bool
+    private function userCanActOn(PbiApbd $pbiApbd): bool
     {
         $user = Auth::user();
         $roleSlug = strtolower(str_replace(['-', ' '], '_', $user->role->slug ?? ''));
@@ -367,7 +367,7 @@ class PbiApbnController extends Controller
             return true;
         }
 
-        $stageRole = strtolower(str_replace(['-', ' '], '_', $pbiApbn->currentStageRole() ?? ''));
+        $stageRole = strtolower(str_replace(['-', ' '], '_', $pbiApbd->currentStageRole() ?? ''));
 
         return $roleSlug !== '' && $roleSlug === $stageRole;
     }

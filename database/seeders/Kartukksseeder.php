@@ -183,7 +183,7 @@ class KartuKksSeeder extends Seeder
                     'nik' => $d['nik'],
                     'nama' => $d['nama'],
                     // Nilai disesuaikan dengan opsi dropdown di form Data Detail
-                    'jenis_kelamin' => rand(0, 1) ? 'Laki-laki' : 'Perempuan',
+                    'jenis_kelamin' => rand(0, 1) ? 'L' : 'P',
                     'tempat_lahir' => 'Bogor',
                     'tanggal_lahir' => now()->subYears(rand(25, 55))->subDays(rand(1, 300)),
                     'agama' => 'Islam',

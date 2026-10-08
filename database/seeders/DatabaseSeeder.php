@@ -16,24 +16,32 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // 1. Jalankan Role Seeder terlebih dahulu
+        // 1. Role harus paling awal (dipakai akun admin & permission modul)
         $this->call([
             RoleSeeder::class,
         ]);
 
-        // 2. Buat akun Admin, dikaitkan ke role 'superadmin'
+        // 2. Akun Admin, dikaitkan ke role 'superadmin'
+        //    Dicek dulu supaya tidak dobel kalau seeder dijalankan ulang
         $superadmin = Role::where('slug', 'superadmin')->firstOrFail();
 
-        User::factory()->create([
-            'name' => 'Administrator',
-            'username' => 'admin',
-            'email' => 'admin@gmail.com',
-            'password' => bcrypt('admin123'),
-            'role_id' => $superadmin->id, // <- WAJIB DITAMBAHKAN
-        ]);
+        if (! User::where('username', 'admin')->exists()) {
+            User::factory()->create([
+                'name'     => 'Administrator',
+                'username' => 'admin',
+                'email'    => 'admin@gmail.com',
+                'password' => bcrypt('admin123'),
+                'role_id'  => $superadmin->id,
+            ]);
+        }
 
-        // $this->call([
-        //     KartuKksSeeder::class,
-        // ]);
+        // 3. Seeder modul. Urutan penting:
+        //    kriteria dulu, karena jawaban ajuan PBI APBD bergantung pada parameter kriteria
+        $this->call([
+            PbiKriteriaSeeder::class,
+            PbiApbdSeeder::class,
+            KartuKksSeeder::class,
+            DtsenSeeder::class,
+        ]);
     }
 }

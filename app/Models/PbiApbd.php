@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Concerns\HasKriteriaSkor;
 
-class PbiApbn extends Model
+class PbiApbd extends Model
 {
     use HasFactory, HasKriteriaSkor;
 
@@ -22,11 +22,11 @@ class PbiApbn extends Model
     /**
      * Pakai `no_registrasi` sebagai "slug" di URL (route model binding),
      * bukan `id` numerik. Berlaku otomatis untuk SEMUA route yang punya
-     * parameter {pbiApbn} — baik di sisi admin maupun masyarakat —
+     * parameter {pbiApbd} — baik di sisi admin maupun masyarakat —
      * karena semua route() di Blade sudah pass objek model, bukan ->id.
      *
-     * Contoh sebelum: /akun-saya/pbi-apbn/5/lengkapi
-     * Contoh sesudah : /akun-saya/pbi-apbn/PBI-APBN-2026-0001/lengkapi
+     * Contoh sebelum: /akun-saya/pbi-apbd/5/lengkapi
+     * Contoh sesudah : /akun-saya/pbi-apbd/PBI-APBD-2026-0001/lengkapi
      *
      * Aman dipakai karena kolom no_registrasi sudah unique() di migration.
      * $this->id (primary key asli) tetap tidak berubah dan tetap dipakai
@@ -74,7 +74,7 @@ class PbiApbn extends Model
 
     public function anggotaKeluarga()
     {
-        return $this->hasMany(PbiApbnAnggotaKeluarga::class);
+        return $this->hasMany(PbiApbdAnggotaKeluarga::class);
     }
 
     public function user()
@@ -84,7 +84,7 @@ class PbiApbn extends Model
 
     public function logs()
     {
-        return $this->hasMany(PbiApbnLog::class)->latest();
+        return $this->hasMany(PbiApbdLog::class)->latest();
     }
 
     /**
@@ -93,7 +93,7 @@ class PbiApbn extends Model
      */
     public function diagnosaLogs()
     {
-        return $this->hasMany(PbiApbnDiagnosaLog::class)->latest();
+        return $this->hasMany(PbiApbdDiagnosaLog::class)->latest();
     }
 
     public function statusLabel(): string

@@ -2,13 +2,13 @@
 
 namespace App\Models\Concerns;
 
-use App\Models\PbiApbnJawaban;
+use App\Models\PbiApbdJawaban;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * Dipasang di App\Models\PbiApbn:  use HasKriteriaSkor;
+ * Dipasang di App\Models\PbiApbd:  use HasKriteriaSkor;
  * Berisi logika baru: jawaban parameter, perhitungan skor (SK Wali Kota
  * 460/Kep.196-Dinsos/2021), dan pembatasan wilayah kelurahan.
  */
@@ -27,7 +27,7 @@ trait HasKriteriaSkor
 
     public function jawabans(): HasMany
     {
-        return $this->hasMany(PbiApbnJawaban::class);
+        return $this->hasMany(PbiApbdJawaban::class);
     }
 
     /** Masyarakat boleh mengisi/mengubah data selama berkas masih di Kelurahan. */

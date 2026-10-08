@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class PbiApbnAnggotaKeluarga extends Model
+class PbiApbdAnggotaKeluarga extends Model
 {
     protected $guarded = [];
 
@@ -12,8 +12,8 @@ class PbiApbnAnggotaKeluarga extends Model
         'tanggal_lahir' => 'date',
     ];
 
-    public function pbiApbn()
+    public function pbiApbd()
     {
-        return $this->belongsTo(PbiApbn::class);
+        return $this->belongsTo(PbiApbd::class);
     }
 }

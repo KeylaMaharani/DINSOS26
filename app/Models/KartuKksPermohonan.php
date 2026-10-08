@@ -65,7 +65,7 @@ class KartuKksPermohonan extends Model
      * Pakai `no_permohonan` sebagai slug di URL (route model binding),
      * bukan `id` numerik. Berlaku otomatis untuk semua route dengan
      * parameter {permohonan}, selama route() di Blade/redirect pass
-     * objek model (bukan ->id) — sesuai pola yang sudah dipakai di modul PBI APBN.
+     * objek model (bukan ->id) — sesuai pola yang sudah dipakai di modul PBI APBD.
      */
     public function getRouteKeyName(): string
     {

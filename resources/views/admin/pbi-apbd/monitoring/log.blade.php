@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
-@section('title', 'Log PBI APBN')
-@section('page_title', 'PBI APBN — Log Proses')
+@section('title', 'Log PBI APBD')
+@section('page_title', 'PBI APBD — Log Proses')
 
 @section('content')
 <div class="space-y-5">
@@ -15,7 +15,7 @@
         <button type="submit" class="px-4 py-2 rounded-lg bg-primary hover:bg-secondary text-on-primary text-sm font-medium">
             Cari
         </button>
-        <a href="{{ route('pbi-apbn.monitoring.index') }}"
+        <a href="{{ route('pbi-apbd.monitoring.index') }}"
             class="px-4 py-2 rounded-lg bg-surface-container text-on-surface text-sm font-medium hover:bg-surface-container-high">
             &larr; Kembali ke Monitoring
         </a>
@@ -38,9 +38,9 @@
                     <tr class="hover:bg-surface-container-low transition-colors">
                         <td class="px-4 py-3 whitespace-nowrap">{{ $log->created_at->format('d-m-Y H:i') }}</td>
                         <td class="px-4 py-3">
-                            @if ($log->pbiApbn)
-                                <a href="{{ route('pbi-apbn.ajuan.show', $log->pbiApbn) }}" class="text-primary hover:underline">
-                                    {{ $log->pbiApbn->no_registrasi }}
+                            @if ($log->pbiApbd)
+                                <a href="{{ route('pbi-apbd.ajuan.show', $log->pbiApbd) }}" class="text-primary hover:underline">
+                                    {{ $log->pbiApbd->no_registrasi }}
                                 </a>
                             @else
                                 -

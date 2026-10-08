@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
-@section('title', 'Detail Ajuan PBI APBN')
-@section('page_title', 'PBI APBN — Detail Ajuan')
+@section('title', 'Detail Ajuan PBI APBD')
+@section('page_title', 'PBI APBD — Detail Ajuan')
 
 @section('head')
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -18,7 +18,7 @@
 @section('content')
 <div class="space-y-5 max-w-5xl">
 
-    <a href="{{ route('pbi-apbn.ajuan.index') }}" class="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary transition-colors">
+    <a href="{{ route('pbi-apbd.ajuan.index') }}" class="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary transition-colors">
         <span class="material-symbols-outlined text-[18px]">arrow_back</span> Kembali ke daftar Ajuan
     </a>
 
@@ -207,7 +207,7 @@
 
                     {{-- Form tambah diagnosa baru --}}
                     @if ($canAct)
-                        <form method="POST" action="{{ route('pbi-apbn.ajuan.diagnosa.store', $data) }}" class="pt-2 border-t border-outline-variant/30">
+                        <form method="POST" action="{{ route('pbi-apbd.ajuan.diagnosa.store', $data) }}" class="pt-2 border-t border-outline-variant/30">
                             @csrf
                             <textarea name="diagnosa" rows="3" placeholder="Tulis diagnosa baru..."
                                 class="w-full px-4 py-3 rounded-lg border border-outline-variant/60 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-[#003B5C]/40 focus:border-[#003B5C] bg-white shadow-sm transition-shadow">{{ old('diagnosa') }}</textarea>
@@ -227,7 +227,7 @@
         </div>
     </div>
 
-    @include('admin.pbi-apbn.partials.hasil-verifikasi')
+    @include('admin.pbi-apbd.partials.hasil-verifikasi')
 
     {{-- 6. Fasilitas Kesehatan (editable) --}}
     <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
@@ -238,7 +238,7 @@
             </h3>
         </div>
         @if ($canAct)
-            <form method="POST" action="{{ route('pbi-apbn.ajuan.updateTambahan', $data) }}" class="p-5 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <form method="POST" action="{{ route('pbi-apbd.ajuan.updateTambahan', $data) }}" class="p-5 grid grid-cols-1 md:grid-cols-3 gap-6">
                 @csrf
                 @method('PUT')
                 <div class="md:col-span-1">
@@ -346,7 +346,7 @@
                 </p>
             </div>
         @else
-            <form method="POST" action="{{ route('pbi-apbn.ajuan.aksi', $data) }}" class="p-5" x-data="{ aksi: null }">
+            <form method="POST" action="{{ route('pbi-apbd.ajuan.aksi', $data) }}" class="p-5" x-data="{ aksi: null }">
                 @csrf
                 <div class="mb-5">
                     <label class="block text-sm font-bold text-on-surface mb-2">Catatan Proses <span class="text-error">*</span></label>
@@ -358,7 +358,7 @@
                         <button type="submit" name="aksi" value="back"
                             class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-5 py-2.5 rounded-lg border border-outline-variant hover:bg-surface-container-highest text-on-surface text-sm font-bold transition-all">
                             <span class="material-symbols-outlined text-[18px]">undo</span>
-                            Kembalikan ke {{ \App\Models\PbiApbn::STAGES[$data->previousStageKey()]['label'] }}
+                            Kembalikan ke {{ \App\Models\PbiApbd::STAGES[$data->previousStageKey()]['label'] }}
                         </button>
                     @endif
 
@@ -374,7 +374,7 @@
                         @if ($data->nextStageKey() === 'disetujui')
                             Setujui Final
                         @else
-                            Teruskan ke {{ \App\Models\PbiApbn::STAGES[$data->nextStageKey()]['label'] }}
+                            Teruskan ke {{ \App\Models\PbiApbd::STAGES[$data->nextStageKey()]['label'] }}
                         @endif
                     </button>
 

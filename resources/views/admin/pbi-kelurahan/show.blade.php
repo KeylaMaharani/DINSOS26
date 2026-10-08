@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
 @section('title', 'Verifikasi Kelurahan')
-@section('page_title', 'PBI APBN — Verifikasi Kelurahan')
+@section('page_title', 'PBI APBD — Verifikasi Kelurahan')
 
 @php
     $bisaProses = $data->status === 'kelurahan';

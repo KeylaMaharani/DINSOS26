@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
-@section('title', 'Verifikasi Kelurahan PBI APBN')
-@section('page_title', 'PBI APBN — Verifikasi Kelurahan')
+@section('title', 'Verifikasi Kelurahan PBI APBD')
+@section('page_title', 'PBI APBD — Verifikasi Kelurahan')
 
 @section('content')
 <div class="space-y-5">

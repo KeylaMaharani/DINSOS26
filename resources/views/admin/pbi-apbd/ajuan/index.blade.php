@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
-@section('title', 'Ajuan PBI APBN')
-@section('page_title', 'PBI APBN — Ajuan')
+@section('title', 'Ajuan PBI APBD')
+@section('page_title', 'PBI APBD — Ajuan')
 
 @section('content')
     <div class="space-y-6">
@@ -15,7 +15,7 @@
 
         <!-- Filter Section -->
         <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-5 shadow-sm">
-            <form method="GET" action="{{ route('pbi-apbn.ajuan.index') }}" data-auto-filter>
+            <form method="GET" action="{{ route('pbi-apbd.ajuan.index') }}" data-auto-filter>
                 <!-- Grid layout untuk input filter -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div>
@@ -32,7 +32,7 @@
                         <label class="block text-xs font-medium text-on-surface-variant mb-1.5">Tahap Saat Ini</label>
                         <select name="status" class="w-full px-3 py-2 rounded-lg border border-outline-variant/50 text-xs focus:ring-1 focus:outline-none transition-colors">
                             <option value="">Semua Tahap</option>
-                            @foreach (\App\Models\PbiApbn::STAGES as $key => $stage)
+                            @foreach (\App\Models\PbiApbd::STAGES as $key => $stage)
                                 <option value="{{ $key }}" @selected(request('status') === $key)>{{ $stage['label'] }}</option>
                             @endforeach
                         </select>
@@ -51,7 +51,7 @@
                 <div class="mt-5 pt-4 border-t border-outline-variant/20 flex flex-wrap items-center justify-between gap-3">
 
                     <!-- Tombol Reset Filter -->
-                    <a href="{{ route('pbi-apbn.ajuan.index') }}"
+                    <a href="{{ route('pbi-apbd.ajuan.index') }}"
                         class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-error hover:bg-error/10 border border-transparent hover:border-error/20 transition-all">
                         <span class="material-symbols-outlined text-[16px]">restart_alt</span>
                         Reset Filter
@@ -121,7 +121,7 @@
                                     </span>
                                 </td>
                                 <td class="px-3 py-3.5 whitespace-nowrap text-center">
-                                    <a href="{{ route('pbi-apbn.ajuan.show', $item) }}"
+                                    <a href="{{ route('pbi-apbd.ajuan.show', $item) }}"
                                         class="inline-flex items-center justify-center gap-1.5 w-full max-w-[80px] px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-on-primary text-[11px] font-semibold transition-all duration-200">
                                         <span class="material-symbols-outlined text-[14px]">visibility</span>
                                         Lihat
@@ -151,7 +151,7 @@
             @endif
         </div>
 
-        <form id="ajuan-pbi-tampilkan-form" method="GET" action="{{ route('pbi-apbn.ajuan.index') }}" class="hidden">
+        <form id="ajuan-pbi-tampilkan-form" method="GET" action="{{ route('pbi-apbd.ajuan.index') }}" class="hidden">
             <input type="hidden" name="tanggal_awal" value="{{ request('tanggal_awal') }}">
             <input type="hidden" name="tanggal_akhir" value="{{ request('tanggal_akhir') }}">
             <input type="hidden" name="status" value="{{ request('status') }}">

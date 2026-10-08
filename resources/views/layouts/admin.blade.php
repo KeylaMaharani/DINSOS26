@@ -156,10 +156,10 @@
                 'route_prefix' => 'asesmen_spmb.',
             ],
             [
-                'key' => 'pbi-apbn',
-                'label' => 'PBI APBN',
+                'key' => 'pbi-apbd',
+                'label' => 'PBI APBD',
                 'icon' => 'health_and_safety',
-                'route_prefix' => 'pbi-apbn.',
+                'route_prefix' => 'pbi-apbd.',
             ],
             [
                 'key' => 'kedaruratan-medis',
@@ -251,7 +251,7 @@
                     </a>
                 @endif
 
-                {{-- ========== Menu layanan (Asesmen SPMB, PBI APBN, Kedaruratan Medis, Kartu KKS, DTSEN) ==========
+                {{-- ========== Menu layanan (Asesmen SPMB, PBI APBD, Kedaruratan Medis, Kartu KKS, DTSEN) ==========
                      Hanya dirender kalau role user punya izin ke modul itu.
                      - Sidebar lebar : sub-menu (Ajuan / Arsip / Monitoring) membuka ke bawah (accordion)
                      - Sidebar ciut  : sub-menu muncul sebagai panel melayang di samping ikon --}}
@@ -290,7 +290,7 @@
                             @foreach ($subRoutes as $subKey => $subLabel)
                                 @php
                                     $subRouteName =
-                                        $menu['route_prefix'] . $subKey . ($menu['key'] === 'pbi-apbn' ? '.index' : '');
+                                        $menu['route_prefix'] . $subKey . ($menu['key'] === 'pbi-apbd' ? '.index' : '');
                                 @endphp
                                 <a href="{{ route($subRouteName) }}"
                                     class="block px-3 py-2 rounded-lg text-[13px] transition-colors
@@ -309,7 +309,7 @@
                             @foreach ($subRoutes as $subKey => $subLabel)
                                 @php
                                     $subRouteName =
-                                        $menu['route_prefix'] . $subKey . ($menu['key'] === 'pbi-apbn' ? '.index' : '');
+                                        $menu['route_prefix'] . $subKey . ($menu['key'] === 'pbi-apbd' ? '.index' : '');
                                 @endphp
                                 <a href="{{ route($subRouteName) }}"
                                     class="block px-3 py-2 rounded-lg text-[13px] transition-colors
@@ -328,6 +328,70 @@
                             {{ request()->routeIs('pbi-kelurahan.*') ? 'bg-white/25 text-white shadow-inner' : 'text-white/80 hover:bg-white/15 hover:text-white' }}">
                         <span class="material-symbols-outlined text-[24px] shrink-0">home_work</span>
                         <span x-show="!collapsed" class="text-sm font-medium truncate">Verifikasi Kelurahan</span>
+                    </a>
+                @endif
+
+                {{-- ========== SIGAP BENCANA -- staf Dinsos (folder dengan 2 sub-menu) ========== --}}
+                @if ($currentRole && $currentRole->hasModule('sigap-bencana'))
+                    @php
+                        $sigapActive = request()->routeIs('sigap.*') && !request()->routeIs('sigap.proses.*');
+                        $sigapSub = [
+                            ['route' => 'sigap.index', 'label' => 'Laporan Bantuan Bencana', 'match' => ['sigap.index', 'sigap.show', 'sigap.create']],
+                            ['route' => 'sigap.stok.index', 'label' => 'Stok Barang', 'match' => ['sigap.stok.*']],
+                        ];
+                    @endphp
+                    <div class="relative" x-data="{ open: false }"
+                        x-init="open = {{ $sigapActive ? 'true' : 'false' }} && !collapsed;
+                        $watch('collapsed', function(v) { open = v ? false : {{ $sigapActive ? 'true' : 'false' }}; })"
+                        @click.outside="if (collapsed) open = false">
+
+                        <button @click="open = !open" type="button" :title="collapsed ? 'SIGAP Bencana' : null"
+                            :class="collapsed ? 'w-12 mx-auto justify-center' : 'w-full px-3 gap-3'"
+                            class="h-12 rounded-xl flex items-center transition-colors
+                                {{ $sigapActive ? 'bg-white/25 text-white shadow-inner' : 'text-white/80 hover:bg-white/15 hover:text-white' }}">
+                            <span class="material-symbols-outlined text-[24px] shrink-0">crisis_alert</span>
+                            <span x-show="!collapsed" class="flex-1 text-left text-sm font-medium truncate">SIGAP Bencana</span>
+                            <span x-show="!collapsed" class="material-symbols-outlined text-[18px] transition-transform"
+                                :class="open ? 'rotate-180' : ''">expand_more</span>
+                        </button>
+
+                        {{-- Accordion (sidebar lebar) --}}
+                        <div x-show="open && !collapsed" x-cloak x-transition:enter="transition ease-out duration-150"
+                            x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0"
+                            class="mt-1 ml-6 pl-4 border-l border-white/20 space-y-0.5">
+                            @foreach ($sigapSub as $s)
+                                <a href="{{ route($s['route']) }}"
+                                    class="block px-3 py-2 rounded-lg text-[13px] transition-colors
+                                        {{ request()->routeIs(...$s['match']) ? 'bg-white/20 text-white font-semibold' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
+                                    {{ $s['label'] }}
+                                </a>
+                            @endforeach
+                        </div>
+
+                        {{-- Panel melayang (sidebar ciut) --}}
+                        <div x-show="open && collapsed" x-cloak x-transition:enter="transition ease-out duration-150"
+                            x-transition:enter-start="opacity-0 -translate-x-1" x-transition:enter-end="opacity-100 translate-x-0"
+                            class="absolute left-full top-0 ml-5 w-56 bg-white text-on-surface rounded-2xl shadow-xl border border-outline-variant/30 p-2 z-50">
+                            <p class="px-3 py-1.5 text-xs font-bold text-brand">SIGAP Bencana</p>
+                            @foreach ($sigapSub as $s)
+                                <a href="{{ route($s['route']) }}"
+                                    class="block px-3 py-2 rounded-lg text-[13px] transition-colors
+                                        {{ request()->routeIs(...$s['match']) ? 'bg-brand/10 text-brand font-semibold' : 'text-on-surface-variant hover:bg-surface-container' }}">
+                                    {{ $s['label'] }}
+                                </a>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+
+                {{-- ========== SIGAP BENCANA -- Kelurahan / OPD wilayah: HANYA satu menu ========== --}}
+                @if ($currentRole && $currentRole->hasModule('sigap-proses') && !$currentRole->isSuperAdmin())
+                    <a href="{{ route('sigap.proses.index') }}" :title="collapsed ? 'Proses Bantuan Kebencanaan' : null"
+                        :class="collapsed ? 'w-12 mx-auto justify-center' : 'w-full px-3 gap-3'"
+                        class="h-12 rounded-xl flex items-center transition-colors
+                            {{ request()->routeIs('sigap.proses.*') || request()->routeIs('sigap.show') ? 'bg-white/25 text-white shadow-inner' : 'text-white/80 hover:bg-white/15 hover:text-white' }}">
+                        <span class="material-symbols-outlined text-[24px] shrink-0">volunteer_activism</span>
+                        <span x-show="!collapsed" class="text-sm font-medium truncate">Proses Bantuan Kebencanaan</span>
                     </a>
                 @endif
 

@@ -10,7 +10,7 @@ use Illuminate\Http\Request;
  * (Asesmen SPMB, Kedaruratan Medis, Kartu KKS, DTSEN, Dokumen).
  *
  * Begitu fitur salah satu modul ini mau digarap, tinggal dibuatkan
- * controller sendiri (contoh: PbiApbnController) lalu route-nya
+ * controller sendiri (contoh: PbiApbdController) lalu route-nya
  * dialihkan dari placeholder ke controller barunya.
  */
 class PlaceholderController extends Controller

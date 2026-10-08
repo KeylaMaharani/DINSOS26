@@ -62,11 +62,11 @@ class User extends Authenticatable
     }
 
     /**
-     * Riwayat pengajuan PBI APBN milik user ini (sisi masyarakat).
+     * Riwayat pengajuan PBI APBD milik user ini (sisi masyarakat).
      */
-    public function pengajuanPbiApbn(): HasMany
+    public function pengajuanPbiApbd(): HasMany
     {
-        return $this->hasMany(PbiApbn::class, 'user_id');
+        return $this->hasMany(PbiApbd::class, 'user_id');
     }
 
     /**
