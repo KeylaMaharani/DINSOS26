@@ -200,6 +200,18 @@
                 'module' => 'beranda',
             ],
 
+            // ---------- Menu Frontend (langsung di bawah Beranda; dibaca dari config/frontend.php) ----------
+            ...config('frontend', []),
+
+            // ---------- Asesmen SPMB (tepat di bawah Menu Frontend) ----------
+            [
+                'label' => 'Asesmen SPMB',
+                'icon' => 'fact_check',
+                'route' => 'asesmen_spmb.ajuan',
+                'match' => ['asesmen_spmb.*'],
+                'module' => 'asesmen-spmb',
+            ],
+
             // ---------- PFM ----------
             [
                 'label' => 'PFM',
@@ -285,6 +297,7 @@
                 'module' => 'sigap-proses',
                 'hide_for_superadmin' => true,
             ],
+
             // Kelola Akses & Master Kriteria SENGAJA tidak ada di Role::MODULES (khusus Super Admin)
             [
                 'label' => 'Kelola Akses',
@@ -299,13 +312,6 @@
                 'route' => 'master.kriteria.index',
                 'match' => ['master.kriteria.*'],
                 'superadmin_only' => true,
-            ],
-            [
-                'label' => 'Asesmen SPMB',
-                'icon' => 'fact_check',
-                'route' => 'asesmen_spmb.ajuan',
-                'match' => ['asesmen_spmb.*'],
-                'module' => 'asesmen-spmb',
             ],
         ];
 
@@ -443,7 +449,7 @@
                             <span x-show="!collapsed" class="text-sm font-medium truncate">{{ $top['label'] }}</span>
                         </a>
                     @else
-                        {{-- Folder (PFM, Dayasos, Perlinsos, Rehabsos) --}}
+                        {{-- Folder (PFM, Dayasos, Perlinsos, Rehabsos, Menu Frontend) --}}
                         <div class="relative" x-data="{ open: false }"
                             x-init="open = {{ $isAct ? 'true' : 'false' }} && !collapsed;
                             $watch('collapsed', function(v) { open = v ? false : {{ $isAct ? 'true' : 'false' }}; })"
