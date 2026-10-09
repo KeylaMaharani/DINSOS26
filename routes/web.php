@@ -271,6 +271,29 @@ Route::middleware(['auth', 'staff'])->group(function () {
     $daftarkanDayasos(config('dayasos', []));
 
     // ==========================================
+    // MENU FRONTEND -- kerangka menu saja
+    //   Struktur dibaca dari config/frontend.php; setiap menu sementara
+    //   menampilkan halaman placeholder. Semua mengikuti module 'menu-frontend'.
+    // ==========================================
+    $daftarkanFrontend = function (array $nodes, $moduleInduk) use (&$daftarkanFrontend) {
+        foreach ($nodes as $n) {
+            $module = $n['module'] ?? $moduleInduk;
+
+            if (isset($n['children'])) {
+                $daftarkanFrontend($n['children'], $module);
+                continue;
+            }
+
+            Route::get('/' . $n['url'], [MenuPlaceholderController::class, 'show'])
+                ->middleware('module:' . implode(',', (array) $module))
+                ->defaults('judul', 'Menu Frontend')
+                ->defaults('label', $n['label'])
+                ->name($n['route']);
+        }
+    };
+    $daftarkanFrontend(config('frontend', []), 'menu-frontend');
+
+    // ==========================================
     // REHABSOS -- Dashboard + PPKS + Rumah Singgah + Data Permohonan Bantuan
     //   Struktur menu dibaca dari config/rehabsos.php
     //   module rehabsos-ppks / rehabsos-rumah-singgah / rehabsos-bantuan
