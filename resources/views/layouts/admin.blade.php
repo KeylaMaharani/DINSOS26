@@ -147,40 +147,6 @@
 
 <body class="bg-brand-soft font-body-md text-on-surface antialiased">
     @php
-        // Peta menu => info tampilan, dipakai untuk render sidebar & cek "aktif"
-        $sidebarMenus = [
-            [
-                'key' => 'asesmen-spmb',
-                'label' => 'Asesmen SPMB',
-                'icon' => 'fact_check',
-                'route_prefix' => 'asesmen_spmb.',
-            ],
-            [
-                'key' => 'pbi-apbd',
-                'label' => 'PBI APBD',
-                'icon' => 'health_and_safety',
-                'route_prefix' => 'pbi-apbd.',
-            ],
-            [
-                'key' => 'kedaruratan-medis',
-                'label' => 'Kedaruratan Medis',
-                'icon' => 'emergency',
-                'route_prefix' => 'kedaruratan_medis.',
-            ],
-            [
-                'key' => 'kartu-kks',
-                'label' => 'Kartu KKS',
-                'icon' => 'credit_card',
-                'route_prefix' => 'kartu-kks.',
-            ],
-            [
-                'key' => 'dtsen',
-                'label' => 'DTSEN',
-                'icon' => 'database',
-                'route_prefix' => 'dtsen.',
-            ],
-        ];
-
         // Role user yang sedang login, dipakai untuk menyaring menu sidebar
         // sesuai kolom `permissions`-nya. Super Admin (isSuperAdmin()) selalu
         // lolos semua pengecekan hasModule() di bawah.
@@ -190,23 +156,243 @@
         // Taruh file PDF-nya di public/assets/help/panduan-penggunaan.pdf,
         // atau ganti path di bawah ini sesuai lokasi file kamu.
         $helpPdfUrl = asset('assets/help/panduan-penggunaan.pdf');
+
+        /* ====================================================================
+         |  PETA MENU SIDEBAR (bertingkat, per bidang)
+         |
+         |  Satu node bisa berisi:
+         |    label            teks menu
+         |    icon             ikon (hanya untuk menu paling atas)
+         |    route            nama route -> node ini menjadi LINK
+         |    match            pola route tambahan agar menu tetap "aktif" (opsional)
+         |    children         anak menu -> node ini menjadi FOLDER
+         |    module           key di Role::MODULES (string / array = salah satu).
+         |                     Anak menu otomatis mengikuti modul induknya.
+         |    superadmin_only  hanya Super Admin
+         |    hide_for_superadmin  disembunyikan untuk Super Admin
+         |  Menu yang route-nya belum terdaftar otomatis disembunyikan.
+         * ==================================================================== */
+
+        // --- Rehabsos: anak menu dibaca dari config/rehabsos.php ---
+        $rehabChildren = [
+            [
+                'label' => 'Beranda',
+                'route' => 'rehabsos.dashboard',
+                'module' => ['rehabsos-ppks', 'rehabsos-rumah-singgah', 'rehabsos-bantuan'],
+            ],
+        ];
+        foreach (config('rehabsos.groups', []) as $gk => $g) {
+            $rehabChildren[] = [
+                'label' => $g['label'],
+                'module' => $g['module'],
+                'children' => collect($g['items'])
+                    ->map(fn($label, $ik) => ['label' => $label, 'route' => "rehabsos.{$gk}.{$ik}"])
+                    ->values()
+                    ->all(),
+            ];
+        }
+
+        $sidebar = [
+            [
+                'label' => 'Beranda',
+                'icon' => 'dashboard',
+                'route' => 'dashboard',
+                'module' => 'beranda',
+            ],
+
+            // ---------- PFM ----------
+            [
+                'label' => 'PFM',
+                'icon' => 'account_balance_wallet',
+                'children' => [
+                    ['label' => 'Beranda', 'route' => 'pfm.beranda', 'module' => ['pbi-apbd', 'kartu-kks', 'dtsen']],
+                    [
+                        'label' => 'PBI APBD',
+                        'module' => 'pbi-apbd',
+                        'children' => [
+                            ['label' => 'Ajuan', 'route' => 'pbi-apbd.ajuan.index', 'match' => ['pbi-apbd.ajuan.*']],
+                            ['label' => 'Arsip', 'route' => 'pbi-apbd.arsip.index', 'match' => ['pbi-apbd.arsip.*']],
+                            ['label' => 'Monitoring', 'route' => 'pbi-apbd.monitoring.index'],
+                        ],
+                    ],
+                    [
+                        'label' => 'Kartu KKS',
+                        'module' => 'kartu-kks',
+                        'children' => [
+                            ['label' => 'Ajuan', 'route' => 'kartu-kks.ajuan', 'match' => ['kartu-kks.show', 'kartu-kks.detail*', 'kartu-kks.proses']],
+                            ['label' => 'Arsip', 'route' => 'kartu-kks.arsip'],
+                            ['label' => 'Monitoring', 'route' => 'kartu-kks.monitoring'],
+                        ],
+                    ],
+                    [
+                        'label' => 'DTSEN',
+                        'module' => 'dtsen',
+                        'children' => [
+                            ['label' => 'Ajuan', 'route' => 'dtsen.ajuan', 'match' => ['dtsen.show', 'dtsen.detail*', 'dtsen.bansos.*', 'dtsen.lampiran.*', 'dtsen.proses']],
+                            ['label' => 'Arsip', 'route' => 'dtsen.arsip'],
+                            ['label' => 'Monitoring', 'route' => 'dtsen.monitoring'],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ---------- Dayasos (kerangka menu, dibaca dari config/dayasos.php) ----------
+            [
+                'label' => 'Dayasos',
+                'icon' => 'groups',
+                'children' => config('dayasos', []),
+            ],
+
+            // ---------- Perlinsos ----------
+            [
+                'label' => 'Perlinsos',
+                'icon' => 'crisis_alert',
+                'children' => [
+                    ['label' => 'Beranda', 'route' => 'perlinsos.dashboard', 'module' => 'sigap-bencana'],
+                    [
+                        'label' => 'Sigap Bencana',
+                        'module' => 'sigap-bencana',
+                        'children' => [
+                            ['label' => 'Laporan Bantuan Bencana', 'route' => 'sigap.index', 'match' => ['sigap.show', 'sigap.create']],
+                            ['label' => 'Stock Barang', 'route' => 'sigap.stok.index', 'match' => ['sigap.stok.*']],
+                            ['label' => 'Laporan', 'route' => 'perlinsos.laporan'],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ---------- Rehabsos ----------
+            [
+                'label' => 'Rehabsos',
+                'icon' => 'diversity_1',
+                'children' => $rehabChildren,
+            ],
+
+            // ---------- Menu tunggal ----------
+            [
+                'label' => 'Verifikasi Kelurahan',
+                'icon' => 'home_work',
+                'route' => 'pbi-kelurahan.index',
+                'match' => ['pbi-kelurahan.*'],
+                'module' => 'pbi-kelurahan',
+            ],
+            // Kelurahan / OPD wilayah: HANYA satu menu ini untuk SIGAP
+            [
+                'label' => 'Proses Bantuan Kebencanaan',
+                'icon' => 'volunteer_activism',
+                'route' => 'sigap.proses.index',
+                'match' => ['sigap.proses.*', 'sigap.show'],
+                'module' => 'sigap-proses',
+                'hide_for_superadmin' => true,
+            ],
+            // Kelola Akses & Master Kriteria SENGAJA tidak ada di Role::MODULES (khusus Super Admin)
+            [
+                'label' => 'Kelola Akses',
+                'icon' => 'manage_accounts',
+                'route' => 'akun.index',
+                'match' => ['akun.*'],
+                'superadmin_only' => true,
+            ],
+            [
+                'label' => 'Master Kriteria',
+                'icon' => 'rule',
+                'route' => 'master.kriteria.index',
+                'match' => ['master.kriteria.*'],
+                'superadmin_only' => true,
+            ],
+            [
+                'label' => 'Asesmen SPMB',
+                'icon' => 'fact_check',
+                'route' => 'asesmen_spmb.ajuan',
+                'match' => ['asesmen_spmb.*'],
+                'module' => 'asesmen-spmb',
+            ],
+        ];
+
+        // ---------- Fungsi bantu render menu ----------
+        $hasMod = fn($m) => $currentRole && collect((array) $m)->contains(fn($k) => $currentRole->hasModule($k));
+
+        // Node tampil jika: lolos aturan akses, dan (link -> route-nya ada) / (folder -> ada anak yang tampil)
+        $visible = function (array $n) use (&$visible, $currentRole, $hasMod) {
+            if (!$currentRole) {
+                return false;
+            }
+            if (!empty($n['superadmin_only']) && !$currentRole->isSuperAdmin()) {
+                return false;
+            }
+            if (!empty($n['hide_for_superadmin']) && $currentRole->isSuperAdmin()) {
+                return false;
+            }
+            if (isset($n['module']) && !$hasMod($n['module'])) {
+                return false;
+            }
+            if (isset($n['children'])) {
+                return collect($n['children'])->contains(fn($c) => $visible($c));
+            }
+
+            return isset($n['route']) && \Illuminate\Support\Facades\Route::has($n['route']);
+        };
+
+        // Node aktif jika halaman sekarang ada di dalamnya (folder: salah satu turunannya)
+        $active = function (array $n) use (&$active) {
+            if (isset($n['children'])) {
+                return collect($n['children'])->contains(fn($c) => $active($c));
+            }
+
+            return request()->routeIs(...array_merge([$n['route']], $n['match'] ?? []));
+        };
+
+        // Render anak menu (rekursif, kedalaman berapa pun). $floating = versi panel melayang (sidebar ciut)
+        $renderChildren = function (array $nodes, bool $floating) use (&$renderChildren, $visible, $active) {
+            $on = $floating ? 'bg-brand/10 text-brand font-semibold' : 'bg-white/20 text-white font-semibold';
+            $off = $floating
+                ? 'text-on-surface-variant hover:bg-surface-container'
+                : 'text-white/70 hover:bg-white/10 hover:text-white';
+            $head = $floating ? 'text-on-surface hover:bg-surface-container' : 'text-white/90 hover:bg-white/10';
+            $line = $floating ? 'border-outline-variant/40' : 'border-white/20';
+
+            $html = '';
+            foreach ($nodes as $n) {
+                if (!$visible($n)) {
+                    continue;
+                }
+
+                if (isset($n['children'])) {
+                    $open = $active($n) ? 'true' : 'false';
+                    $html .=
+                        '<div x-data="{ g: ' . $open . ' }">' .
+                        '<button type="button" x-on:click="g = !g" class="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-[13px] font-semibold transition-colors ' . $head . '">' .
+                        '<span class="text-left">' . e($n['label']) . '</span>' .
+                        '<span class="material-symbols-outlined text-[16px] transition-transform" :class="g ? \'rotate-180\' : \'\'">expand_more</span>' .
+                        '</button>' .
+                        '<div x-show="g" x-cloak class="ml-3 pl-3 border-l ' . $line . ' space-y-0.5">' .
+                        $renderChildren($n['children'], $floating) .
+                        '</div></div>';
+                } else {
+                    $html .=
+                        '<a href="' . route($n['route']) . '" class="block px-3 py-1.5 rounded-lg text-[13px] transition-colors ' .
+                        ($active($n) ? $on : $off) . '">' . e($n['label']) . '</a>';
+                }
+            }
+
+            return $html;
+        };
     @endphp
 
     {{-- Status sidebar:
          - collapsedPref : pilihan pengguna (disimpan di localStorage), true = hanya ikon
          - desktop       : true di layar >= lg. Di layar kecil sidebar selalu tampil penuh (ikon + nama)
          - collapsed     : hasil gabungan keduanya, dipakai oleh seluruh isi sidebar --}}
-    <div class="flex h-screen overflow-hidden"
-        x-data="{
-            sidebarOpen: false,
-            collapsedPref: (function() { try { return localStorage.getItem('sidebarCollapsed') === '1'; } catch (e) { return false; } })(),
-            desktop: window.innerWidth >= 1024,
-            get collapsed() { return this.collapsedPref && this.desktop; },
-            toggleSidebar() {
-                this.collapsedPref = !this.collapsedPref;
-                try { localStorage.setItem('sidebarCollapsed', this.collapsedPref ? '1' : '0'); } catch (e) {}
-            }
-        }"
+    <div class="flex h-screen overflow-hidden" x-data="{
+        sidebarOpen: false,
+        collapsedPref: (function() { try { return localStorage.getItem('sidebarCollapsed') === '1'; } catch (e) { return false; } })(),
+        desktop: window.innerWidth >= 1024,
+        get collapsed() { return this.collapsedPref && this.desktop; },
+        toggleSidebar() {
+            this.collapsedPref = !this.collapsedPref;
+            try { localStorage.setItem('sidebarCollapsed', this.collapsedPref ? '1' : '0'); } catch (e) {}
+        }
+    }"
         @resize.window="desktop = window.innerWidth >= 1024">
 
         <!-- Overlay (mobile) -->
@@ -220,8 +406,7 @@
                    transition-[width,transform] duration-200 ease-in-out lg:translate-x-0">
 
             {{-- Tombol ciutkan / lebarkan (hanya di layar besar) --}}
-            <button type="button" @click="toggleSidebar()"
-                :title="collapsed ? 'Lebarkan sidebar' : 'Ciutkan sidebar'"
+            <button type="button" @click="toggleSidebar()" :title="collapsed ? 'Lebarkan sidebar' : 'Ciutkan sidebar'"
                 class="hidden lg:flex absolute -right-3 top-7 z-50 w-6 h-6 rounded-full bg-white text-brand shadow-md ring-1 ring-brand/20 items-center justify-center hover:bg-brand hover:text-white transition-colors">
                 <span class="material-symbols-outlined text-[18px]"
                     x-text="collapsed ? 'chevron_right' : 'chevron_left'">chevron_left</span>
@@ -239,195 +424,64 @@
                 </div>
             </div>
 
+            {{-- ========== MENU (dibangun dari $sidebar di atas) ==========
+                 - Sidebar lebar : folder membuka ke bawah (accordion bertingkat)
+                 - Sidebar ciut  : isi folder muncul sebagai panel melayang di samping ikon --}}
             <nav class="flex-1 min-h-0 px-3 py-2 space-y-1.5"
                 :class="collapsed ? 'overflow-visible' : 'overflow-y-auto'">
-                @if ($currentRole && $currentRole->hasModule('beranda'))
-                    <a href="{{ route('dashboard') }}" :title="collapsed ? 'Beranda' : null"
-                        :class="collapsed ? 'w-12 mx-auto justify-center' : 'w-full px-3 gap-3'"
-                        class="h-12 rounded-xl flex items-center transition-colors
-                            {{ request()->routeIs('dashboard') ? 'bg-white/25 text-white shadow-inner' : 'text-white/80 hover:bg-white/15 hover:text-white' }}">
-                        <span class="material-symbols-outlined text-[24px] shrink-0">dashboard</span>
-                        <span x-show="!collapsed" class="text-sm font-medium truncate">Beranda</span>
-                    </a>
-                @endif
+                @foreach ($sidebar as $top)
+                    @continue(!$visible($top))
+                    @php $isAct = $active($top); @endphp
 
-                {{-- ========== Menu layanan (Asesmen SPMB, PBI APBD, Kedaruratan Medis, Kartu KKS, DTSEN) ==========
-                     Hanya dirender kalau role user punya izin ke modul itu.
-                     - Sidebar lebar : sub-menu (Ajuan / Arsip / Monitoring) membuka ke bawah (accordion)
-                     - Sidebar ciut  : sub-menu muncul sebagai panel melayang di samping ikon --}}
-                @foreach ($sidebarMenus as $menu)
-                    @continue(!$currentRole || !$currentRole->hasModule($menu['key']))
-                    @php
-                        $isMenuActive = request()->routeIs($menu['route_prefix'] . '*');
-                        $subRoutes = [
-                            'ajuan' => 'Ajuan',
-                            'arsip' => 'Arsip',
-                            'monitoring' => 'Monitoring',
-                            // 'log' => 'Log',
-                        ];
-                    @endphp
-                    <div class="relative" x-data="{ open: false }"
-                        x-init="open = {{ $isMenuActive ? 'true' : 'false' }} && !collapsed;
-                        $watch('collapsed', function(v) { open = v ? false : {{ $isMenuActive ? 'true' : 'false' }}; })"
-                        @click.outside="if (collapsed) open = false">
-
-                        <button @click="open = !open" type="button" :title="collapsed ? '{{ $menu['label'] }}' : null"
+                    @if (!isset($top['children']))
+                        {{-- Menu tunggal (link langsung) --}}
+                        <a href="{{ route($top['route']) }}" :title="collapsed ? '{{ $top['label'] }}' : null"
                             :class="collapsed ? 'w-12 mx-auto justify-center' : 'w-full px-3 gap-3'"
                             class="h-12 rounded-xl flex items-center transition-colors
-                                {{ $isMenuActive ? 'bg-white/25 text-white shadow-inner' : 'text-white/80 hover:bg-white/15 hover:text-white' }}">
-                            <span class="material-symbols-outlined text-[24px] shrink-0">{{ $menu['icon'] }}</span>
-                            <span x-show="!collapsed"
-                                class="flex-1 text-left text-sm font-medium truncate">{{ $menu['label'] }}</span>
-                            <span x-show="!collapsed" class="material-symbols-outlined text-[18px] transition-transform"
-                                :class="open ? 'rotate-180' : ''">expand_more</span>
-                        </button>
+                                {{ $isAct ? 'bg-white/25 text-white shadow-inner' : 'text-white/80 hover:bg-white/15 hover:text-white' }}">
+                            <span class="material-symbols-outlined text-[24px] shrink-0">{{ $top['icon'] }}</span>
+                            <span x-show="!collapsed" class="text-sm font-medium truncate">{{ $top['label'] }}</span>
+                        </a>
+                    @else
+                        {{-- Folder (PFM, Dayasos, Perlinsos, Rehabsos) --}}
+                        <div class="relative" x-data="{ open: false }"
+                            x-init="open = {{ $isAct ? 'true' : 'false' }} && !collapsed;
+                            $watch('collapsed', function(v) { open = v ? false : {{ $isAct ? 'true' : 'false' }}; })"
+                            @click.outside="if (collapsed) open = false">
 
-                        {{-- Accordion (sidebar lebar) --}}
-                        <div x-show="open && !collapsed" x-cloak x-transition:enter="transition ease-out duration-150"
-                            x-transition:enter-start="opacity-0 -translate-y-1"
-                            x-transition:enter-end="opacity-100 translate-y-0"
-                            class="mt-1 ml-6 pl-4 border-l border-white/20 space-y-0.5">
-                            @foreach ($subRoutes as $subKey => $subLabel)
-                                @php
-                                    $subRouteName =
-                                        $menu['route_prefix'] . $subKey . ($menu['key'] === 'pbi-apbd' ? '.index' : '');
-                                @endphp
-                                <a href="{{ route($subRouteName) }}"
-                                    class="block px-3 py-2 rounded-lg text-[13px] transition-colors
-                                        {{ request()->routeIs($subRouteName) ? 'bg-white/20 text-white font-semibold' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
-                                    {{ $subLabel }}
-                                </a>
-                            @endforeach
-                        </div>
+                            <button @click="open = !open" type="button" :title="collapsed ? '{{ $top['label'] }}' : null"
+                                :class="collapsed ? 'w-12 mx-auto justify-center' : 'w-full px-3 gap-3'"
+                                class="h-12 rounded-xl flex items-center transition-colors
+                                    {{ $isAct ? 'bg-white/25 text-white shadow-inner' : 'text-white/80 hover:bg-white/15 hover:text-white' }}">
+                                <span class="material-symbols-outlined text-[24px] shrink-0">{{ $top['icon'] }}</span>
+                                <span x-show="!collapsed"
+                                    class="flex-1 text-left text-sm font-medium truncate">{{ $top['label'] }}</span>
+                                <span x-show="!collapsed"
+                                    class="material-symbols-outlined text-[18px] transition-transform"
+                                    :class="open ? 'rotate-180' : ''">expand_more</span>
+                            </button>
 
-                        {{-- Panel melayang (sidebar ciut) --}}
-                        <div x-show="open && collapsed" x-cloak x-transition:enter="transition ease-out duration-150"
-                            x-transition:enter-start="opacity-0 -translate-x-1"
-                            x-transition:enter-end="opacity-100 translate-x-0"
-                            class="absolute left-full top-0 ml-5 w-52 bg-white text-on-surface rounded-2xl shadow-xl border border-outline-variant/30 p-2 z-50">
-                            <p class="px-3 py-1.5 text-xs font-bold text-brand">{{ $menu['label'] }}</p>
-                            @foreach ($subRoutes as $subKey => $subLabel)
-                                @php
-                                    $subRouteName =
-                                        $menu['route_prefix'] . $subKey . ($menu['key'] === 'pbi-apbd' ? '.index' : '');
-                                @endphp
-                                <a href="{{ route($subRouteName) }}"
-                                    class="block px-3 py-2 rounded-lg text-[13px] transition-colors
-                                        {{ request()->routeIs($subRouteName) ? 'bg-brand/10 text-brand font-semibold' : 'text-on-surface-variant hover:bg-surface-container' }}">
-                                    {{ $subLabel }}
-                                </a>
-                            @endforeach
+                            {{-- Accordion (sidebar lebar) --}}
+                            <div x-show="open && !collapsed" x-cloak
+                                x-transition:enter="transition ease-out duration-150"
+                                x-transition:enter-start="opacity-0 -translate-y-1"
+                                x-transition:enter-end="opacity-100 translate-y-0"
+                                class="mt-1 ml-6 pl-4 border-l border-white/20 space-y-0.5">
+                                {!! $renderChildren($top['children'], false) !!}
+                            </div>
+
+                            {{-- Panel melayang (sidebar ciut) --}}
+                            <div x-show="open && collapsed" x-cloak
+                                x-transition:enter="transition ease-out duration-150"
+                                x-transition:enter-start="opacity-0 -translate-x-1"
+                                x-transition:enter-end="opacity-100 translate-x-0"
+                                class="absolute left-full top-0 ml-5 w-64 max-h-[80vh] overflow-y-auto bg-white text-on-surface rounded-2xl shadow-xl border border-outline-variant/30 p-2 z-50">
+                                <p class="px-3 py-1.5 text-xs font-bold text-brand">{{ $top['label'] }}</p>
+                                {!! $renderChildren($top['children'], true) !!}
+                            </div>
                         </div>
-                    </div>
+                    @endif
                 @endforeach
-
-                @if ($currentRole && $currentRole->hasModule('pbi-kelurahan'))
-                    <a href="{{ route('pbi-kelurahan.index') }}" :title="collapsed ? 'Verifikasi Kelurahan' : null"
-                        :class="collapsed ? 'w-12 mx-auto justify-center' : 'w-full px-3 gap-3'"
-                        class="h-12 rounded-xl flex items-center transition-colors
-                            {{ request()->routeIs('pbi-kelurahan.*') ? 'bg-white/25 text-white shadow-inner' : 'text-white/80 hover:bg-white/15 hover:text-white' }}">
-                        <span class="material-symbols-outlined text-[24px] shrink-0">home_work</span>
-                        <span x-show="!collapsed" class="text-sm font-medium truncate">Verifikasi Kelurahan</span>
-                    </a>
-                @endif
-
-                {{-- ========== SIGAP BENCANA -- staf Dinsos (folder dengan 2 sub-menu) ========== --}}
-                @if ($currentRole && $currentRole->hasModule('sigap-bencana'))
-                    @php
-                        $sigapActive = request()->routeIs('sigap.*') && !request()->routeIs('sigap.proses.*');
-                        $sigapSub = [
-                            ['route' => 'sigap.index', 'label' => 'Laporan Bantuan Bencana', 'match' => ['sigap.index', 'sigap.show', 'sigap.create']],
-                            ['route' => 'sigap.stok.index', 'label' => 'Stok Barang', 'match' => ['sigap.stok.*']],
-                        ];
-                    @endphp
-                    <div class="relative" x-data="{ open: false }"
-                        x-init="open = {{ $sigapActive ? 'true' : 'false' }} && !collapsed;
-                        $watch('collapsed', function(v) { open = v ? false : {{ $sigapActive ? 'true' : 'false' }}; })"
-                        @click.outside="if (collapsed) open = false">
-
-                        <button @click="open = !open" type="button" :title="collapsed ? 'SIGAP Bencana' : null"
-                            :class="collapsed ? 'w-12 mx-auto justify-center' : 'w-full px-3 gap-3'"
-                            class="h-12 rounded-xl flex items-center transition-colors
-                                {{ $sigapActive ? 'bg-white/25 text-white shadow-inner' : 'text-white/80 hover:bg-white/15 hover:text-white' }}">
-                            <span class="material-symbols-outlined text-[24px] shrink-0">crisis_alert</span>
-                            <span x-show="!collapsed" class="flex-1 text-left text-sm font-medium truncate">SIGAP Bencana</span>
-                            <span x-show="!collapsed" class="material-symbols-outlined text-[18px] transition-transform"
-                                :class="open ? 'rotate-180' : ''">expand_more</span>
-                        </button>
-
-                        {{-- Accordion (sidebar lebar) --}}
-                        <div x-show="open && !collapsed" x-cloak x-transition:enter="transition ease-out duration-150"
-                            x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0"
-                            class="mt-1 ml-6 pl-4 border-l border-white/20 space-y-0.5">
-                            @foreach ($sigapSub as $s)
-                                <a href="{{ route($s['route']) }}"
-                                    class="block px-3 py-2 rounded-lg text-[13px] transition-colors
-                                        {{ request()->routeIs(...$s['match']) ? 'bg-white/20 text-white font-semibold' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
-                                    {{ $s['label'] }}
-                                </a>
-                            @endforeach
-                        </div>
-
-                        {{-- Panel melayang (sidebar ciut) --}}
-                        <div x-show="open && collapsed" x-cloak x-transition:enter="transition ease-out duration-150"
-                            x-transition:enter-start="opacity-0 -translate-x-1" x-transition:enter-end="opacity-100 translate-x-0"
-                            class="absolute left-full top-0 ml-5 w-56 bg-white text-on-surface rounded-2xl shadow-xl border border-outline-variant/30 p-2 z-50">
-                            <p class="px-3 py-1.5 text-xs font-bold text-brand">SIGAP Bencana</p>
-                            @foreach ($sigapSub as $s)
-                                <a href="{{ route($s['route']) }}"
-                                    class="block px-3 py-2 rounded-lg text-[13px] transition-colors
-                                        {{ request()->routeIs(...$s['match']) ? 'bg-brand/10 text-brand font-semibold' : 'text-on-surface-variant hover:bg-surface-container' }}">
-                                    {{ $s['label'] }}
-                                </a>
-                            @endforeach
-                        </div>
-                    </div>
-                @endif
-
-                {{-- ========== SIGAP BENCANA -- Kelurahan / OPD wilayah: HANYA satu menu ========== --}}
-                @if ($currentRole && $currentRole->hasModule('sigap-proses') && !$currentRole->isSuperAdmin())
-                    <a href="{{ route('sigap.proses.index') }}" :title="collapsed ? 'Proses Bantuan Kebencanaan' : null"
-                        :class="collapsed ? 'w-12 mx-auto justify-center' : 'w-full px-3 gap-3'"
-                        class="h-12 rounded-xl flex items-center transition-colors
-                            {{ request()->routeIs('sigap.proses.*') || request()->routeIs('sigap.show') ? 'bg-white/25 text-white shadow-inner' : 'text-white/80 hover:bg-white/15 hover:text-white' }}">
-                        <span class="material-symbols-outlined text-[24px] shrink-0">volunteer_activism</span>
-                        <span x-show="!collapsed" class="text-sm font-medium truncate">Proses Bantuan Kebencanaan</span>
-                    </a>
-                @endif
-
-                {{-- ========== Dokumen ========== --}}
-                @if ($currentRole && $currentRole->hasModule('dokumen'))
-                    <a href="{{ route('dokumen.index') }}" :title="collapsed ? 'Dokumen' : null"
-                        :class="collapsed ? 'w-12 mx-auto justify-center' : 'w-full px-3 gap-3'"
-                        class="h-12 rounded-xl flex items-center transition-colors
-                            {{ request()->routeIs('dokumen.*') ? 'bg-white/25 text-white shadow-inner' : 'text-white/80 hover:bg-white/15 hover:text-white' }}">
-                        <span class="material-symbols-outlined text-[24px] shrink-0">description</span>
-                        <span x-show="!collapsed" class="text-sm font-medium truncate">Dokumen</span>
-                    </a>
-                @endif
-
-                {{-- ========== Kelola Akses & Master Kriteria ==========
-                     Menu ini SENGAJA tidak ada di Role::MODULES, jadi cuma dicek
-                     lewat isSuperAdmin(). --}}
-                @if ($currentRole && $currentRole->isSuperAdmin())
-                    <div class="w-8 mx-auto border-t border-white/20 my-2"></div>
-
-                    <a href="{{ route('akun.index') }}" :title="collapsed ? 'Kelola Akses' : null"
-                        :class="collapsed ? 'w-12 mx-auto justify-center' : 'w-full px-3 gap-3'"
-                        class="h-12 rounded-xl flex items-center transition-colors
-                            {{ request()->routeIs('akun.*') ? 'bg-white/25 text-white shadow-inner' : 'text-white/80 hover:bg-white/15 hover:text-white' }}">
-                        <span class="material-symbols-outlined text-[24px] shrink-0">manage_accounts</span>
-                        <span x-show="!collapsed" class="text-sm font-medium truncate">Kelola Akses</span>
-                    </a>
-
-                    <a href="{{ route('master.kriteria.index') }}" :title="collapsed ? 'Master Kriteria' : null"
-                        :class="collapsed ? 'w-12 mx-auto justify-center' : 'w-full px-3 gap-3'"
-                        class="h-12 rounded-xl flex items-center transition-colors
-                            {{ request()->routeIs('master.kriteria.*') ? 'bg-white/25 text-white shadow-inner' : 'text-white/80 hover:bg-white/15 hover:text-white' }}">
-                        <span class="material-symbols-outlined text-[24px] shrink-0">rule</span>
-                        <span x-show="!collapsed" class="text-sm font-medium truncate">Master Kriteria</span>
-                    </a>
-                @endif
             </nav>
 
             {{-- Logout (bagian bawah sidebar) --}}
@@ -523,91 +577,93 @@
                             </div>
                         </div>
 
-                    {{-- Modal Edit Profil (akun milik pengguna yang sedang login) --}}
-                    <div x-show="profileModalOpen" x-cloak
-                        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-                        <div @click.outside="profileModalOpen = false"
-                            x-transition:enter="transition ease-out duration-150"
-                            x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
-                            class="bg-surface-container-lowest w-full max-w-md rounded-xl shadow-lg overflow-hidden">
+                        {{-- Modal Edit Profil (akun milik pengguna yang sedang login) --}}
+                        <div x-show="profileModalOpen" x-cloak
+                            class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                            <div @click.outside="profileModalOpen = false"
+                                x-transition:enter="transition ease-out duration-150"
+                                x-transition:enter-start="opacity-0 scale-95"
+                                x-transition:enter-end="opacity-100 scale-100"
+                                class="bg-surface-container-lowest w-full max-w-md rounded-xl shadow-lg overflow-hidden">
 
-                            <div
-                                class="flex items-center justify-between px-5 py-4 border-b border-outline-variant/40">
-                                <h3 class="text-base font-semibold text-on-surface">Edit Profil</h3>
-                                <button @click="profileModalOpen = false" class="text-on-surface-variant">
-                                    <span class="material-symbols-outlined">close</span>
-                                </button>
+                                <div
+                                    class="flex items-center justify-between px-5 py-4 border-b border-outline-variant/40">
+                                    <h3 class="text-base font-semibold text-on-surface">Edit Profil</h3>
+                                    <button @click="profileModalOpen = false" class="text-on-surface-variant">
+                                        <span class="material-symbols-outlined">close</span>
+                                    </button>
+                                </div>
+
+                                <form method="POST" action="{{ route('profil.update') }}" class="p-5 space-y-4">
+                                    @csrf
+                                    @method('PUT')
+
+                                    <div>
+                                        <label class="block text-sm font-medium mb-1">Username</label>
+                                        <input name="username" type="text"
+                                            value="{{ old('username', auth()->user()->username ?? '') }}"
+                                            class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm"
+                                            required />
+                                        @error('username', 'profil')
+                                            <p class="text-xs text-error mt-1">{{ $message }}</p>
+                                        @enderror
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-sm font-medium mb-1">Email</label>
+                                        <input name="email" type="email"
+                                            value="{{ old('email', auth()->user()->email ?? '') }}"
+                                            class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm"
+                                            required />
+                                        @error('email', 'profil')
+                                            <p class="text-xs text-error mt-1">{{ $message }}</p>
+                                        @enderror
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-sm font-medium mb-1">Kata Sandi Baru</label>
+                                        <p class="text-xs text-red-600 font-medium mb-1">Kosongkan jika tidak ingin
+                                            mengubah
+                                            kata sandi.</p>
+                                        <div class="relative" x-data="{ show: false }">
+                                            <input name="password" :type="show ? 'text' : 'password'"
+                                                class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 pr-10 text-sm" />
+                                            <button type="button" @click="show = !show" tabindex="-1"
+                                                class="absolute inset-y-0 right-0 flex items-center px-3 text-on-surface-variant"
+                                                :aria-label="show ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'">
+                                                <span class="material-symbols-outlined text-[16px]"
+                                                    x-text="show ? 'visibility_off' : 'visibility'"></span>
+                                            </button>
+                                        </div>
+                                        @error('password', 'profil')
+                                            <p class="text-xs text-error mt-1">{{ $message }}</p>
+                                        @enderror
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-sm font-medium mb-1">Konfirmasi Kata Sandi
+                                            Baru</label>
+                                        <div class="relative" x-data="{ show: false }">
+                                            <input name="password_confirmation" :type="show ? 'text' : 'password'"
+                                                class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 pr-10 text-sm" />
+                                            <button type="button" @click="show = !show" tabindex="-1"
+                                                class="absolute inset-y-0 right-0 flex items-center px-3 text-on-surface-variant"
+                                                :aria-label="show ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'">
+                                                <span class="material-symbols-outlined text-[16px]"
+                                                    x-text="show ? 'visibility_off' : 'visibility'"></span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div class="flex justify-end gap-2 pt-2">
+                                        <button type="button" @click="profileModalOpen = false"
+                                            class="px-4 py-2 rounded-lg text-sm border border-outline-variant/50">Batal</button>
+                                        <button type="submit"
+                                            class="px-4 py-2 rounded-lg text-sm bg-primary text-on-primary">Simpan</button>
+                                    </div>
+                                </form>
                             </div>
-
-                            <form method="POST" action="{{ route('profil.update') }}" class="p-5 space-y-4">
-                                @csrf
-                                @method('PUT')
-
-                                <div>
-                                    <label class="block text-sm font-medium mb-1">Username</label>
-                                    <input name="username" type="text"
-                                        value="{{ old('username', auth()->user()->username ?? '') }}"
-                                        class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm"
-                                        required />
-                                    @error('username', 'profil')
-                                        <p class="text-xs text-error mt-1">{{ $message }}</p>
-                                    @enderror
-                                </div>
-
-                                <div>
-                                    <label class="block text-sm font-medium mb-1">Email</label>
-                                    <input name="email" type="email"
-                                        value="{{ old('email', auth()->user()->email ?? '') }}"
-                                        class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm"
-                                        required />
-                                    @error('email', 'profil')
-                                        <p class="text-xs text-error mt-1">{{ $message }}</p>
-                                    @enderror
-                                </div>
-
-                                <div>
-                                    <label class="block text-sm font-medium mb-1">Kata Sandi Baru</label>
-                                    <p class="text-xs text-red-600 font-medium mb-1">Kosongkan jika tidak ingin
-                                        mengubah
-                                        kata sandi.</p>
-                                    <div class="relative" x-data="{ show: false }">
-                                        <input name="password" :type="show ? 'text' : 'password'"
-                                            class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 pr-10 text-sm" />
-                                        <button type="button" @click="show = !show" tabindex="-1"
-                                            class="absolute inset-y-0 right-0 flex items-center px-3 text-on-surface-variant"
-                                            :aria-label="show ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'">
-                                            <span class="material-symbols-outlined text-[16px]"
-                                                x-text="show ? 'visibility_off' : 'visibility'"></span>
-                                        </button>
-                                    </div>
-                                    @error('password', 'profil')
-                                        <p class="text-xs text-error mt-1">{{ $message }}</p>
-                                    @enderror
-                                </div>
-
-                                <div>
-                                    <label class="block text-sm font-medium mb-1">Konfirmasi Kata Sandi Baru</label>
-                                    <div class="relative" x-data="{ show: false }">
-                                        <input name="password_confirmation" :type="show ? 'text' : 'password'"
-                                            class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 pr-10 text-sm" />
-                                        <button type="button" @click="show = !show" tabindex="-1"
-                                            class="absolute inset-y-0 right-0 flex items-center px-3 text-on-surface-variant"
-                                            :aria-label="show ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'">
-                                            <span class="material-symbols-outlined text-[16px]"
-                                                x-text="show ? 'visibility_off' : 'visibility'"></span>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div class="flex justify-end gap-2 pt-2">
-                                    <button type="button" @click="profileModalOpen = false"
-                                        class="px-4 py-2 rounded-lg text-sm border border-outline-variant/50">Batal</button>
-                                    <button type="submit"
-                                        class="px-4 py-2 rounded-lg text-sm bg-primary text-on-primary">Simpan</button>
-                                </div>
-                            </form>
                         </div>
-                    </div>
                     </div>
                 </div>
             </header>

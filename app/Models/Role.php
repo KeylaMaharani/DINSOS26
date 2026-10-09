@@ -15,25 +15,44 @@ class Role extends Model
 
     /**
      * Daftar modul yang bisa dicentang di form "Kelola Hak Akses".
-     * key = dipakai di middleware & pengecekan hasModule().
-     * value = label yang ditampilkan di checkbox.
+     * key   = dipakai di middleware module:xxx & pengecekan hasModule().
+     * value = label checkbox. Urutan di sini = urutan tampil, dan diberi
+     *         awalan nama bidang supaya otomatis terkelompok.
      *
-     * Tambahkan/hapus baris di sini kalau ada modul baru di kemudian hari —
-     * otomatis muncul di form Tambah/Edit Hak Akses tanpa perlu ubah view.
+     * Tambahkan/hapus baris di sini kalau ada modul baru: otomatis muncul di
+     * form Tambah/Edit Hak Akses tanpa perlu ubah view.
+     * (Key lama TIDAK diubah, jadi hak akses role yang sudah tersimpan tetap berlaku.)
      */
     public const MODULES = [
         'beranda' => 'Beranda',
+
+        // --- PFM (Monitoring) ---
+        'pbi-apbd' => 'PFM - PBI APBD',
+        'kartu-kks' => 'PFM - Kartu KKS',
+        'dtsen' => 'PFM - DTSEN',
+
+        // --- Dayasos ---
+        'dayasos-ngopi-pagi' => 'Dayasos - Ngopi Pagi',
+        'dayasos-kesan' => 'Dayasos - Kesan',
+
+        // --- Perlinsos ---
+        'sigap-bencana' => 'Perlinsos - SIGAP Bencana (Dinsos)',
+        'sigap-proses' => 'Perlinsos - Proses Bantuan (Kelurahan/OPD Wilayah)',
+
+        // --- Rehabsos ---
+        'rehabsos-ppks' => 'Rehabsos - PPKS',
+        'rehabsos-rumah-singgah' => 'Rehabsos - Rumah Singgah',
+        'rehabsos-bantuan' => 'Rehabsos - Data Permohonan Bantuan',
+
+        // --- Kelurahan ---
+        'pbi-kelurahan' => 'Verifikasi Kelurahan - PBI APBD',
+        'layanan-kartu-kks' => 'Layanan Kelurahan - Pengajuan Kartu KKS',
+        'layanan-dtsen' => 'Layanan Kelurahan - Pengajuan DTSEN',
+
+        // --- Lainnya ---
         'asesmen-spmb' => 'Asesmen SPMB',
-        'pbi-apbd' => 'PBI APBD',
-        'kedaruratan-medis' => 'Kedaruratan Medis',
-        'kartu-kks' => 'Kartu KKS',
-        'dtsen' => 'DTSEN',
-        'dokumen' => 'Dokumen',
-        'pbi-kelurahan' => 'PBI APBD - Verifikasi Kelurahan',
-        'layanan-kartu-kks' => 'Kartu KKS - Pengajuan Kelurahan',
-        'layanan-dtsen' => 'DTSEN - Pengajuan Kelurahan',
-        'sigap-bencana' => 'SIGAP Bencana - Laporan Bantuan Bencana (Dinsos)',
-        'sigap-proses'  => 'SIGAP Bencana - Proses Bantuan (Kelurahan/OPD Wilayah)',
+        'kedaruratan-medis' => 'Kedaruratan Medis (belum ada di menu)',
+        'dokumen' => 'Dokumen (belum ada di menu)',
     ];
 
     /**
@@ -60,7 +79,7 @@ class Role extends Model
 
     /**
      * Super Admin SELALU bypass semua pengecekan modul & bisa akses
-     * "Kelola Akses" (menu ini TIDAK termasuk di MODULES — sengaja
+     * "Kelola Akses" (menu ini TIDAK termasuk di MODULES -- sengaja
      * tidak bisa dicentang, khusus Super Admin saja).
      */
     public function isSuperAdmin(): bool
@@ -80,4 +99,4 @@ class Role extends Model
 
         return in_array($key, $this->permissions ?? [], true);
     }
-}
+} 

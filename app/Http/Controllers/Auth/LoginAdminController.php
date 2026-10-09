@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
 
 class LoginAdminController
@@ -72,6 +73,15 @@ class LoginAdminController
 
             $request->session()->regenerate();
 
+            // Role yang tidak punya modul Beranda (mis. Kelurahan SIGAP) tidak
+            // boleh dikirim ke /dashboard (akan 403). Buang juga tujuan
+            // "intended" yang tersimpan, karena bisa saja isinya /dashboard.
+            if (! ($user->role?->hasModule('beranda'))) {
+                $request->session()->forget('url.intended');
+
+                return redirect()->to($this->halamanAwal($user->role));
+            }
+
             return redirect()->intended('/dashboard');
         }
 
@@ -79,6 +89,38 @@ class LoginAdminController
         throw ValidationException::withMessages([
             'username' => 'Username atau kata sandi salah.',
         ]);
+    }
+
+    /**
+     * Halaman pertama setelah login untuk role yang TIDAK punya modul Beranda:
+     * modul pertama yang dimiliki role tersebut, sesuai urutan di bawah.
+     * Urutan = prioritas; ubah/tambah baris di sini kalau ada modul baru.
+     */
+    private function halamanAwal($role): string
+    {
+        $urutan = [
+            'sigap-proses' => 'sigap.proses.index',
+            'sigap-bencana' => 'sigap.index',
+            'pbi-kelurahan' => 'pbi-kelurahan.index',
+            'layanan-kartu-kks' => 'layanan.kartu-kks.ajukan',
+            'layanan-dtsen' => 'layanan.dtsen.ajukan',
+            'pbi-apbd' => 'pbi-apbd.ajuan.index',
+            'kartu-kks' => 'kartu-kks.ajuan',
+            'dtsen' => 'dtsen.ajuan',
+            'asesmen-spmb' => 'asesmen_spmb.ajuan',
+            'kedaruratan-medis' => 'kedaruratan_medis.ajuan',
+            'dokumen' => 'dokumen.index',
+        ];
+
+        foreach ($urutan as $modul => $namaRute) {
+            if ($role && $role->hasModule($modul) && Route::has($namaRute)) {
+                return route($namaRute);
+            }
+        }
+
+        // Role belum diberi modul apa pun: tampilkan pesan 403 yang jelas
+        // dari middleware (bukan error aneh).
+        return route('dashboard');
     }
 
     /**

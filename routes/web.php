@@ -15,7 +15,9 @@ use App\Http\Controllers\Layanan\KartuKksAjuanController;
 use App\Http\Controllers\Layanan\DtsenAjuanController;
 use App\Http\Controllers\Masyarakat\MasyarakatController;
 use App\Http\Controllers\Admin\KriteriaController;
+use App\Http\Controllers\Admin\MenuPlaceholderController;
 use App\Http\Controllers\Admin\PbiKelurahanController;
+use App\Http\Controllers\Admin\RehabsosController;
 use App\Http\Controllers\Admin\SigapBencanaController;
 use Illuminate\Support\Facades\Route;
 
@@ -221,6 +223,74 @@ Route::middleware(['auth', 'staff'])->group(function () {
             Route::patch('/{laporan}/lokasi', [SigapBencanaController::class, 'updateLokasi'])->name('lokasi');
             Route::post('/{laporan}/proses', [SigapBencanaController::class, 'aksi'])->name('aksi');
         });
+    });
+
+    // ==========================================
+    // PFM -- Beranda monitoring PFM (kerangka; tampilan menyusul)
+    // ==========================================
+    Route::get('/pfm/beranda', [MenuPlaceholderController::class, 'show'])
+        ->middleware('module:pbi-apbd,kartu-kks,dtsen')
+        ->defaults('judul', 'PFM')->defaults('label', 'Beranda')
+        ->name('pfm.beranda');
+
+    // ==========================================
+    // PERLINSOS -- menu tambahan (kerangka): Beranda & Laporan SIGAP
+    //   (Laporan Bantuan Bencana & Stock Barang sudah dibangun penuh di atas)
+    // ==========================================
+    Route::get('/perlinsos/dashboard', [MenuPlaceholderController::class, 'show'])
+        ->middleware('module:sigap-bencana')
+        ->defaults('judul', 'Perlinsos')->defaults('label', 'Beranda')
+        ->name('perlinsos.dashboard');
+
+    Route::get('/perlinsos/laporan', [MenuPlaceholderController::class, 'show'])
+        ->middleware('module:sigap-bencana')
+        ->defaults('judul', 'Perlinsos - SIGAP Bencana')->defaults('label', 'Laporan')
+        ->name('perlinsos.laporan');
+
+    // ==========================================
+    // DAYASOS -- kerangka menu saja (Dashboard, Ngopi Pagi, Kesan)
+    //   Struktur dibaca dari config/dayasos.php; setiap menu sementara
+    //   menampilkan halaman placeholder. Anak menu mengikuti module induknya.
+    // ==========================================
+    $daftarkanDayasos = function (array $nodes, $moduleInduk = null) use (&$daftarkanDayasos) {
+        foreach ($nodes as $n) {
+            $module = $n['module'] ?? $moduleInduk;
+
+            if (isset($n['children'])) {
+                $daftarkanDayasos($n['children'], $module);
+                continue;
+            }
+
+            Route::get('/' . $n['url'], [MenuPlaceholderController::class, 'show'])
+                ->middleware('module:' . implode(',', (array) $module))
+                ->defaults('judul', 'Dayasos')
+                ->defaults('label', $n['label'])
+                ->name($n['route']);
+        }
+    };
+    $daftarkanDayasos(config('dayasos', []));
+
+    // ==========================================
+    // REHABSOS -- Dashboard + PPKS + Rumah Singgah + Data Permohonan Bantuan
+    //   Struktur menu dibaca dari config/rehabsos.php
+    //   module rehabsos-ppks / rehabsos-rumah-singgah / rehabsos-bantuan
+    //   Dashboard terbuka untuk role yang punya salah satu dari ketiga modul.
+    // ==========================================
+    Route::prefix('rehabsos')->name('rehabsos.')->group(function () {
+        Route::get('/dashboard', [RehabsosController::class, 'dashboard'])
+            ->middleware('module:rehabsos-ppks,rehabsos-rumah-singgah,rehabsos-bantuan')
+            ->name('dashboard');
+
+        foreach (config('rehabsos.groups', []) as $gKey => $g) {
+            Route::prefix($gKey)->name($gKey . '.')->middleware('module:' . $g['module'])->group(function () use ($gKey, $g) {
+                foreach ($g['items'] as $iKey => $label) {
+                    Route::get("/{$iKey}", [RehabsosController::class, 'tab'])
+                        ->defaults('group', $gKey)
+                        ->defaults('item', $iKey)
+                        ->name($iKey);
+                }
+            });
+        }
     });
 
     // ==========================================
