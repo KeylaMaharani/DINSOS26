@@ -170,6 +170,9 @@
          |                     Anak menu otomatis mengikuti modul induknya.
          |    superadmin_only  hanya Super Admin
          |    hide_for_superadmin  disembunyikan untuk Super Admin
+         |    separator        node PEMISAH grup (hanya berisi teks label, mis.
+         |                     ['separator' => 'Data Master']). Tampil hanya jika
+         |                     ada menu di bawahnya yang boleh dilihat role.
          |  Menu yang route-nya belum terdaftar otomatis disembunyikan.
          * ==================================================================== */
 
@@ -200,12 +203,18 @@
                 'module' => 'beranda',
             ],
 
-            // ---------- Menu Frontend (langsung di bawah Beranda; dibaca dari config/frontend.php) ----------
+            // ==================== FRONT END ====================
+            ['separator' => 'Front End'],
+
+            // ---------- Menu Frontend (dibaca dari config/frontend.php) ----------
             ...config('frontend', []),
 
-            // ---------- Asesmen SPMB (tepat di bawah Menu Frontend) ----------
+            // ==================== MODUL ====================
+            ['separator' => 'Modul'],
+
+            // ---------- Modul Asesmen SPMB (tepat di bawah separator Modul) ----------
             [
-                'label' => 'Asesmen SPMB',
+                'label' => 'Modul Asesmen SPMB',
                 'icon' => 'fact_check',
                 'route' => 'asesmen_spmb.ajuan',
                 'match' => ['asesmen_spmb.*'],
@@ -214,7 +223,7 @@
 
             // ---------- PFM ----------
             [
-                'label' => 'PFM',
+                'label' => 'Modul P. Fakir Miskin',
                 'icon' => 'account_balance_wallet',
                 'children' => [
                     ['label' => 'Beranda', 'route' => 'pfm.beranda', 'module' => ['pbi-apbd', 'kartu-kks', 'dtsen']],
@@ -250,14 +259,14 @@
 
             // ---------- Dayasos (kerangka menu, dibaca dari config/dayasos.php) ----------
             [
-                'label' => 'Dayasos',
+                'label' => 'Modul Dayasos',
                 'icon' => 'groups',
                 'children' => config('dayasos', []),
             ],
 
             // ---------- Perlinsos ----------
             [
-                'label' => 'Perlinsos',
+                'label' => 'Modul Perlinsos',
                 'icon' => 'crisis_alert',
                 'children' => [
                     ['label' => 'Beranda', 'route' => 'perlinsos.dashboard', 'module' => 'sigap-bencana'],
@@ -275,7 +284,7 @@
 
             // ---------- Rehabsos ----------
             [
-                'label' => 'Rehabsos',
+                'label' => 'Modul Rehabsos',
                 'icon' => 'diversity_1',
                 'children' => $rehabChildren,
             ],
@@ -297,6 +306,9 @@
                 'module' => 'sigap-proses',
                 'hide_for_superadmin' => true,
             ],
+
+            // ==================== DATA MASTER ====================
+            ['separator' => 'Data Master'],
 
             // Kelola Akses & Master Kriteria SENGAJA tidak ada di Role::MODULES (khusus Super Admin)
             [
@@ -347,6 +359,26 @@
 
             return request()->routeIs(...array_merge([$n['route']], $n['match'] ?? []));
         };
+
+        // Susun daftar menu yang benar-benar ditampilkan di sidebar.
+        // Separator hanya ikut jika ada menu yang lolos $visible sesudahnya
+        // (sebelum separator berikutnya), jadi tidak ada label "kosong".
+        $menuItems = [];
+        $pendingSeparator = null;
+        foreach ($sidebar as $node) {
+            if (isset($node['separator'])) {
+                $pendingSeparator = $node;
+                continue;
+            }
+            if (!$visible($node)) {
+                continue;
+            }
+            if ($pendingSeparator) {
+                $menuItems[] = $pendingSeparator;
+                $pendingSeparator = null;
+            }
+            $menuItems[] = $node;
+        }
 
         // Render anak menu (rekursif, kedalaman berapa pun). $floating = versi panel melayang (sidebar ciut)
         $renderChildren = function (array $nodes, bool $floating) use (&$renderChildren, $visible, $active) {
@@ -430,13 +462,25 @@
                 </div>
             </div>
 
-            {{-- ========== MENU (dibangun dari $sidebar di atas) ==========
+            {{-- ========== MENU (dibangun dari $menuItems di atas) ==========
                  - Sidebar lebar : folder membuka ke bawah (accordion bertingkat)
-                 - Sidebar ciut  : isi folder muncul sebagai panel melayang di samping ikon --}}
+                 - Sidebar ciut  : isi folder muncul sebagai panel melayang di samping ikon
+                 - Separator     : label grup (Front End / Modul / Data Master) saat lebar, garis tipis saat ciut --}}
             <nav class="flex-1 min-h-0 px-3 py-2 space-y-1.5"
                 :class="collapsed ? 'overflow-visible' : 'overflow-y-auto'">
-                @foreach ($sidebar as $top)
-                    @continue(!$visible($top))
+                @foreach ($menuItems as $top)
+                    @if (isset($top['separator']))
+                        {{-- Pemisah grup menu --}}
+                        <div class="pt-2">
+                            <div class="mx-3 border-t border-white/15"></div>
+                            <p x-show="!collapsed"
+                                class="px-3 pt-2 pb-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-white/50">
+                                {{ $top['separator'] }}
+                            </p>
+                        </div>
+                        @continue
+                    @endif
+
                     @php $isAct = $active($top); @endphp
 
                     @if (!isset($top['children']))
