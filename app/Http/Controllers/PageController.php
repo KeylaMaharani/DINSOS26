@@ -206,6 +206,17 @@ class PageController extends Controller
     }
 
     /**
+     * Halaman Regulasi (tabel peraturan + unduh berkas).
+     * Saat ini data ada di view. Untuk data dari database kirim
+     * 'daftarRegulasi' => [['nama'=>..., 'jenis'=>..., 'nomor'=>...,
+     *                       'tentang'=>..., 'file'=>url|null], ...]
+     */
+    public function regulasi()
+    {
+        return view('regulasi');
+    }
+
+    /**
      * Halaman PPKS & PSKS (data per kecamatan / kelurahan).
      * Saat ini view memakai data contoh. Untuk data asli kirim:
      *   'dataPpks' => ['Bogor Barat' => ['Bubulak' => 120, ...], ...]
