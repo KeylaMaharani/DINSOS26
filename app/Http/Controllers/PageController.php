@@ -177,6 +177,116 @@ class PageController extends Controller
 
     public function tutorialPendaftaran()
     {
-        return view('tutorial-pendaftaran');
+        // View sudah diganti nama: tutorial-pendaftaran -> informasi-pbi
+        // (route name & URL tetap 'tutorial-pendaftaran').
+        //
+        // Jika form pendaftaran di halaman ini ingin langsung tampil
+        // (tanpa tombol "Mulai Pendaftaran"), aktifkan snippet captcha ini
+        // SETELAH memastikan key session-nya sama dengan yang dipakai
+        // RegistrasiController@step1Store:
+        //
+        // $a = random_int(1, 9);
+        // $b = random_int(1, 9);
+        // session()->put('captcha_a', $a);
+        // session()->put('captcha_b', $b);
+        // return view('informasi-pbi', ['captchaA' => $a, 'captchaB' => $b]);
+
+        return view('informasi-pbi');
+    }
+
+    /**
+     * Halaman PPID (Pejabat Pengelola Informasi dan Dokumentasi).
+     * Saat ini view memakai data dummy. Nanti kirim variabel
+     * 'dokumenPpid' dari database, mis.:
+     *   return view('ppid', ['dokumenPpid' => $dokumen]);
+     */
+    public function ppid()
+    {
+        return view('ppid');
+    }
+
+    /**
+     * Halaman PPKS & PSKS (data per kecamatan / kelurahan).
+     * Saat ini view memakai data contoh. Untuk data asli kirim:
+     *   'dataPpks' => ['Bogor Barat' => ['Bubulak' => 120, ...], ...]
+     *   'dataPsks' => (struktur sama)
+     * Query ?tahun=2025 dibaca oleh view (tahun yang tidak dikenal
+     * otomatis jatuh ke 2025).
+     */
+    public function ppksPsks(Request $request)
+    {
+        return view('ppks-psks', [
+            'tahun' => (int) $request->query('tahun', 2025),
+        ]);
+    }
+
+    /**
+     * Halaman Kontak / Hubungi Kami (form + info kontak).
+     */
+    public function kontak(Request $request)
+    {
+        $a = random_int(1, 9);
+        $b = random_int(1, 9);
+
+        // Key session khusus kontak, supaya tidak bentrok dengan captcha login.
+        $request->session()->put('kontak_captcha_a', $a);
+        $request->session()->put('kontak_captcha_b', $b);
+
+        return view('kontak', [
+            'captchaA' => $a,
+            'captchaB' => $b,
+        ]);
+    }
+
+    /**
+     * Proses form Hubungi Kami.
+     * Saat ini pesan dicatat ke log (storage/logs/laravel.log).
+     * TODO: simpan ke database (model Pesan) atau kirim email ke dinsos.
+     */
+    public function kontakStore(Request $request)
+    {
+        // Honeypot: bot biasanya mengisi field ini. Pura-pura sukses.
+        if ($request->filled('website')) {
+            return redirect()->route('kontak')->with('success', 'Terima kasih, pesan Anda telah terkirim.');
+        }
+
+        $expected = (int) $request->session()->get('kontak_captcha_a', 0)
+            + (int) $request->session()->get('kontak_captcha_b', 0);
+
+        $validated = $request->validate([
+            'nama' => ['required', 'string', 'max:100'],
+            'email' => ['required', 'email', 'max:150'],
+            'no_hp' => ['required', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{6,20}$/'],
+            'pesan' => ['required', 'string', 'max:2000'],
+            'captcha' => ['required', 'numeric'],
+        ], [
+            'nama.required' => 'Nama wajib diisi.',
+            'email.required' => 'Email wajib diisi.',
+            'email.email' => 'Format email tidak valid.',
+            'no_hp.required' => 'No. HP wajib diisi.',
+            'no_hp.regex' => 'Format No. HP tidak valid.',
+            'pesan.required' => 'Isi pesan wajib diisi.',
+            'captcha.required' => 'Jawaban verifikasi wajib diisi.',
+            'captcha.numeric' => 'Jawaban verifikasi harus berupa angka.',
+        ]);
+
+        if ((int) $validated['captcha'] !== $expected) {
+            throw ValidationException::withMessages([
+                'captcha' => 'Jawaban verifikasi salah, silakan coba lagi.',
+            ]);
+        }
+
+        $request->session()->forget(['kontak_captcha_a', 'kontak_captcha_b']);
+
+        \Illuminate\Support\Facades\Log::info('Pesan Hubungi Kami', [
+            'nama' => $validated['nama'],
+            'email' => $validated['email'],
+            'no_hp' => $validated['no_hp'],
+            'pesan' => $validated['pesan'],
+            'ip' => $request->ip(),
+        ]);
+
+        return redirect()->route('kontak')
+            ->with('success', 'Terima kasih, pesan Anda telah terkirim. Kami akan segera menanggapi.');
     }
 }
