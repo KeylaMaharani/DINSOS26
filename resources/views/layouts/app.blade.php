@@ -172,6 +172,95 @@
     {{-- style.css dimuat SETELAH Tailwind CDN supaya aturan custom tidak kalah --}}
     <link href="{{ asset('css/style.css') }}" rel="stylesheet" />
 
+    {{-- ===== [BARU] Gaya dropdown bertingkat (panel + flyout ke kanan) =====
+         Warna aksen lewat --nav-accent. Ganti ke #c8102e kalau mau merah seperti referensi. --}}
+    <style>
+        :root {
+            --nav-accent: #136299;
+        }
+
+        .dd-panel {
+            background: #fff;
+            border-radius: 0.75rem;
+            border-top: 2px solid var(--nav-accent);
+            box-shadow: 0 10px 30px rgba(18, 29, 38, .12);
+            padding: .5rem 0;
+        }
+
+        .dd-flyout {
+            border-top: 0;
+            border-left: 3px solid var(--nav-accent);
+            border-radius: .75rem;
+        }
+
+        .dd-item {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: .5rem;
+            padding: .7rem 1.25rem;
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            color: #42474e;
+            transition: color .15s, background .15s;
+        }
+
+        .dd-item .material-symbols-outlined {
+            font-size: 18px;
+            color: #9aa0a8;
+        }
+
+        .dd-item::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: var(--nav-accent);
+            opacity: 0;
+            transition: opacity .15s;
+        }
+
+        .dd-item:hover,
+        .dd-sub:hover>.dd-item,
+        .dd-item.is-active {
+            color: var(--nav-accent);
+            background: linear-gradient(90deg, rgba(19, 98, 153, .10), rgba(19, 98, 153, 0));
+        }
+
+        .dd-item:hover::before,
+        .dd-sub:hover>.dd-item::before,
+        .dd-item.is-active::before {
+            opacity: 1;
+        }
+
+        .dd-sub:hover>.dd-item .material-symbols-outlined {
+            color: var(--nav-accent);
+        }
+
+        /* Submenu mobile tidak terpotong tinggi tetap dari style.css */
+        .mobile-nav-group.open>.mobile-nav-submenu {
+            max-height: 2000px;
+        }
+
+        .mnav-sub summary {
+            list-style: none;
+            cursor: pointer;
+        }
+
+        .mnav-sub summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .mnav-sub[open]>summary .material-symbols-outlined {
+            transform: rotate(180deg);
+        }
+    </style>
+
     {{-- Tempat tiap halaman menambahkan <style>/meta/library tambahan (Leaflet, Highcharts, dll).
          Halaman WAJIB memakai @push('head') ... @endpush --}}
     @stack('head')
@@ -194,12 +283,53 @@
         $isInformasi = request()->routeIs('cek-densil');
     @endphp
 
+    {{-- ===== [BARU] Data menu baru sesuai sketsa ===== --}}
+    @php
+        $isPelayananBaru = request()->routeIs('login', 'tutorial-pendaftaran', 'cek-densil', 'ppks-psks');
+
+        $pelayananBaru = [
+            [
+                'label' => 'PBI',
+                'items' => [
+                    ['label' => 'Informasi BPJS PBI', 'url' => route('tutorial-pendaftaran'), 'route' => 'tutorial-pendaftaran'],
+                    ['label' => 'SK PBI APBD', 'url' => '#'],
+                    ['label' => 'Penonaktifan Kartu BPJS', 'url' => '#'],
+                ],
+            ],
+            [
+                'label' => 'Bantuan Sosial',
+                'items' => [
+                    ['label' => 'Cek Desil', 'url' => route('cek-densil'), 'route' => 'cek-densil'],
+                    ['label' => 'BLT BBM', 'url' => '#'],
+                    ['label' => 'PKH dan BPNT', 'url' => '#'],
+                    ['label' => 'E-Warong', 'url' => '#'],
+                ],
+            ],
+            [
+                'label' => 'Data dan Kunjungan',
+                'items' => [
+                    ['label' => 'DTSEN', 'url' => '#'],
+                    ['label' => 'PPKS & PSKS', 'url' => route('ppks-psks'), 'route' => 'ppks-psks'],
+                    ['label' => 'LKS', 'url' => '#'],
+                    ['label' => 'Data Suplier', 'url' => '#'],
+                    ['label' => 'Permohonan Kunjungan Dinas', 'url' => '#'],
+                ],
+            ],
+        ];
+
+        // !px-4 supaya padding seragam & tidak ditimpa style.css -> jarak antar menu sama rata
+        $linkBase = 'nav-link !px-4 !mx-0 py-1.5 text-[13px] flex items-center whitespace-nowrap transition-colors';
+        $linkIdle = 'text-on-surface-variant font-medium hover:text-primary';
+        $linkActive = 'text-primary font-bold active';
+    @endphp
+
     <header id="site-header"
         class="fixed top-0 w-full z-50 bg-surface/95 backdrop-blur-md shadow-[0_1px_8px_rgba(0,0,0,0.04)] {{ $isPelayanan || $isInformasi ? 'header-scrolled' : '' }}">
         <div class="w-full bg-surface-container-low border-b border-outline-variant/20"></div>
 
+        {{-- [DIUBAH] flex -> lg:grid 3 kolom supaya menu tepat di tengah --}}
         <div
-            class="h-24 w-full max-w-[1400px] mx-auto px-margin-mobile md:px-margin-tablet lg:px-margin-desktop flex items-center justify-between gap-space-md">
+            class="h-24 w-full max-w-[1400px] mx-auto px-margin-mobile md:px-margin-tablet lg:px-margin-desktop flex lg:grid lg:grid-cols-[auto_1fr_auto] items-center justify-between gap-space-md">
 
             <a href="{{ route('home') }}"
                 class="flex items-center gap-space-sm min-w-0 shrink mr-space-lg lg:mr-space-xl">
@@ -219,7 +349,103 @@
                 </div>
             </a>
 
-            <nav class="hidden lg:flex items-center gap-1 xl:gap-2 shrink-0">
+            {{-- =====================================================================
+                 [BARU] MENU DESKTOP — di tengah
+                 Beranda | Pelayanan (PBI / Bantuan Sosial / Data dan Kunjungan) | Berita | Regulasi | Kontak
+                 ===================================================================== --}}
+            <nav class="hidden lg:flex items-center justify-evenly gap-0 w-full lg:px-8 xl:px-12">
+
+                <a href="{{ route('home') }}"
+                    class="{{ $linkBase }} {{ $isHome ? $linkActive : $linkIdle }}">Beranda</a>
+
+                {{-- Pelayanan (dropdown bertingkat) --}}
+                <div class="relative group">
+                    <button type="button"
+                        class="{{ $linkBase }} gap-1 {{ $isPelayananBaru ? $linkActive : $linkIdle }}">
+                        <span>Pelayanan</span>
+                        <span
+                            class="material-symbols-outlined text-[16px] transition-transform group-hover:rotate-180">expand_more</span>
+                    </button>
+
+                    <div
+                        class="absolute left-0 top-full pt-2 w-72 opacity-0 invisible translate-y-1 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-150 z-50">
+                        <div class="dd-panel">
+                            @foreach ($pelayananBaru as $grup)
+                                <div class="dd-sub relative group/sub">
+                                    <a href="#" class="dd-item" onclick="return false;">
+                                        <span>{{ $grup['label'] }}</span>
+                                        <span class="material-symbols-outlined">chevron_right</span>
+                                    </a>
+
+                                    <div
+                                        class="absolute left-full top-0 pl-2 w-72 opacity-0 invisible translate-x-1 group-hover/sub:opacity-100 group-hover/sub:visible group-hover/sub:translate-x-0 transition-all duration-150 z-50">
+                                        <div class="dd-panel dd-flyout">
+                                            @foreach ($grup['items'] as $item)
+                                                <a href="{{ $item['url'] }}"
+                                                    class="dd-item {{ isset($item['route']) && request()->routeIs($item['route']) ? 'is-active' : '' }}">
+                                                    <span>{{ $item['label'] }}</span>
+                                                </a>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                </div>
+
+                <a href="{{ route('home') }}#berita" class="{{ $linkBase }} {{ $linkIdle }}">Berita</a>                <a href="#" class="{{ $linkBase }} {{ $linkIdle }}">Regulasi</a>
+                <a href="{{ route('ppid') }}"
+                    class="{{ $linkBase }} {{ request()->routeIs('ppid') ? $linkActive : $linkIdle }}">PPID</a>
+                <a href="{{ route('kontak') }}"
+                    class="{{ $linkBase }} {{ request()->routeIs('kontak') ? $linkActive : $linkIdle }}">Kontak</a>
+            </nav>
+
+            {{-- [BARU] Kanan: pemilih bahasa + login --}}
+            <div class="hidden lg:flex items-center justify-self-end gap-2">
+
+                {{-- Pemilih bahasa (desktop) --}}
+                <div class="relative group">
+                    <button id="lang-current-btn"
+                        class="px-2 py-1.5 text-[12px] text-primary font-bold inline-flex items-center gap-1.5"
+                        type="button">
+                        <img id="lang-current-flag" src="{{ asset('assets/img/bendera/id.png') }}" alt="Indonesia"
+                            class="w-4 h-4 rounded-full object-cover" />
+                        <span id="lang-current-label">ID</span>
+                        <span class="material-symbols-outlined text-[16px]">expand_more</span>
+                    </button>
+                    <div class="absolute right-0 top-full pt-2 w-40 opacity-0 invisible translate-y-1 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-150 z-50">
+                        <div class="dd-panel">
+                            <button class="lang-option dd-item w-full text-left" data-lang="id" data-flag="{{ asset('assets/img/bendera/id.png') }}" type="button">
+                                <span class="inline-flex items-center gap-space-xs">
+                                    <img src="{{ asset('assets/img/bendera/id.png') }}" alt="Indonesia" class="w-4 h-4 rounded-full object-cover" />
+                                    <span>Indonesia</span>
+                                </span>
+                            </button>
+                            <button class="lang-option dd-item w-full text-left" data-lang="en" data-flag="{{ asset('assets/img/bendera/en.png') }}" type="button">
+                                <span class="inline-flex items-center gap-space-xs">
+                                    <img src="{{ asset('assets/img/bendera/en.png') }}" alt="English" class="w-4 h-4 rounded-full object-cover" />
+                                    <span>English</span>
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Tombol Login --}}
+                <a href="{{ route('login') }}"
+                    class="nav-login-btn ml-2 shrink-0 inline-flex items-center justify-center px-4 py-1.5 rounded-md bg-primary hover:bg-secondary text-on-primary text-[13px] font-semibold transition-colors whitespace-nowrap">
+                    <span>Login</span>
+                </a>
+            </div>
+
+            {{-- =====================================================================
+                 [LAMA — DISEMBUNYIKAN] MENU DESKTOP ASLI, utuh tanpa dikurangi.
+                 Disembunyikan dengan class "hidden" + display:none.
+                 (id pemilih bahasa diberi akhiran -old agar tidak kembar dengan yang baru)
+                 Untuk menampilkan lagi: hapus "hidden", style="display:none", aria-hidden.
+                 ===================================================================== --}}
+            <nav class="hidden items-center gap-1 xl:gap-2 shrink-0" style="display:none" aria-hidden="true">
 
                 <a href="{{ route('home') }}"
                     class="nav-link px-2 py-1.5 text-[13px] flex items-center whitespace-nowrap transition-colors {{ $isHome ? 'text-primary font-bold active' : 'text-on-surface-variant font-medium hover:text-primary' }}">
@@ -328,12 +554,12 @@
 
                 {{-- Pemilih bahasa (desktop) --}}
                 <div class="relative group pl-3 ml-2 border-l border-outline-variant/30">
-                    <button id="lang-current-btn"
+                    <button id="lang-current-btn-old"
                         class="px-2 py-1.5 text-[12px] text-primary font-bold inline-flex items-center gap-1.5"
                         type="button">
-                        <img id="lang-current-flag" src="{{ asset('assets/img/bendera/id.png') }}" alt="Indonesia"
+                        <img id="lang-current-flag-old" src="{{ asset('assets/img/bendera/id.png') }}" alt="Indonesia"
                             class="w-4 h-4 rounded-full object-cover" />
-                        <span id="lang-current-label">ID</span>
+                        <span id="lang-current-label-old">ID</span>
                         <span class="material-symbols-outlined text-[16px]">expand_more</span>
                     </button>
                     <div class="absolute right-0 top-full pt-2 w-36 opacity-0 invisible translate-y-1 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-150 z-50">
@@ -356,6 +582,7 @@
                     <span>Login</span>
                 </a>
             </nav>
+            {{-- ===== END [LAMA — DISEMBUNYIKAN] MENU DESKTOP ===== --}}
 
             <button class="mobile-menu-toggle" id="mobile-menu-toggle" type="button"
                 aria-label="Buka Menu Navigasi" aria-controls="mobile-nav-panel" aria-expanded="false">
@@ -401,61 +628,107 @@
                 </div>
             </div>
 
-            <a href="{{ route('home') }}" class="mobile-nav-link {{ $isHome ? 'active' : '' }}">Home</a>
+            {{-- ===== [BARU] MENU MOBILE ===== --}}
+            <a href="{{ route('home') }}" class="mobile-nav-link {{ $isHome ? 'active' : '' }}">Beranda</a>
 
-            <div class="mobile-nav-group {{ $isPelayanan ? 'open' : '' }}">
+            <div class="mobile-nav-group {{ $isPelayananBaru ? 'open' : '' }}">
                 <button class="mobile-nav-group-toggle" type="button"
-                    aria-expanded="{{ $isPelayanan ? 'true' : 'false' }}">
+                    aria-expanded="{{ $isPelayananBaru ? 'true' : 'false' }}">
                     <span>Pelayanan</span>
                     <span class="material-symbols-outlined">expand_more</span>
                 </button>
                 <div class="mobile-nav-submenu">
-                    <a href="{{ route('login') }}"
-                        class="{{ request()->routeIs('login') ? 'text-secondary font-bold' : '' }}">Pendaftaran BPJS
-                        PBI APBD</a>
-                    <a href="{{ route('tutorial-pendaftaran') }}"
-                        class="{{ request()->routeIs('tutorial-pendaftaran') ? 'text-secondary font-bold' : '' }}">Tutorial
-                        Pendaftaran BPJS PBI</a>
-                    <a href="#">Informasi BPJS Kesehatan</a>
-                    <a href="#">Permohonan Kunjungan Dinas</a>
-                </div>
-            </div>
-
-            <div class="mobile-nav-group {{ $isInformasi ? 'open' : '' }}">
-                <button class="mobile-nav-group-toggle" type="button"
-                    aria-expanded="{{ $isInformasi ? 'true' : 'false' }}">
-                    <span>Informasi</span>
-                    <span class="material-symbols-outlined">expand_more</span>
-                </button>
-                <div class="mobile-nav-submenu">
-                    <a href="{{ route('cek-densil') }}"
-                        class="{{ request()->routeIs('cek-densil') ? 'text-secondary font-bold' : '' }}">Cek Desil</a>
-                    <a href="#">DTSEN</a>
-                    <a href="#">PPKS Dan PSKS</a>
-                    <a href="#">LKS</a>
-                    <a href="#">Penonaktifan Kartu BPJS</a>
-                    <a href="#">E-Warong</a>
-                    <a href="#">Data Suplier</a>
-                    <a href="#">SK PBI APBD</a>
+                    @foreach ($pelayananBaru as $grup)
+                        @php
+                            $grupAktif = collect($grup['items'])->contains(
+                                fn($i) => isset($i['route']) && request()->routeIs($i['route']),
+                            );
+                        @endphp
+                        <details class="mnav-sub" {{ $grupAktif ? 'open' : '' }}>
+                            <summary
+                                class="flex items-center justify-between py-2 font-label-md text-label-md text-on-surface">
+                                <span>{{ $grup['label'] }}</span>
+                                <span
+                                    class="material-symbols-outlined text-[18px] transition-transform">expand_more</span>
+                            </summary>
+                            <div class="pl-space-md border-l-2 border-secondary/40 ml-space-2xs flex flex-col">
+                                @foreach ($grup['items'] as $item)
+                                    <a href="{{ $item['url'] }}"
+                                        class="py-2 {{ isset($item['route']) && request()->routeIs($item['route']) ? 'text-secondary font-bold' : '' }}">{{ $item['label'] }}</a>
+                                @endforeach
+                            </div>
+                        </details>
+                    @endforeach
                 </div>
             </div>
 
             <a class="mobile-nav-link" href="{{ route('home') }}#berita">Berita</a>
-            <a class="mobile-nav-link" href="#">Gallery</a>
-            <a class="mobile-nav-link" href="#">Hubungi Kami</a>
-            <a class="mobile-nav-link" href="#">Bahan Paparan</a>
             <a class="mobile-nav-link" href="#">Regulasi</a>
+            <a class="mobile-nav-link" href="{{ route('ppid') }}">PPID</a>
+            <a class="mobile-nav-link" href="{{ route('kontak') }}">Kontak</a>
+            {{-- ===== END [BARU] MENU MOBILE ===== --}}
 
-            <div class="mobile-nav-group">
-                <button class="mobile-nav-group-toggle" type="button" aria-expanded="false">
-                    <span>Cek Bansos</span>
-                    <span class="material-symbols-outlined">expand_more</span>
-                </button>
-                <div class="mobile-nav-submenu">
-                    <a href="#">BLT BBM</a>
-                    <a href="#">PKH Dan BPNT</a>
+            {{-- =====================================================================
+                 [LAMA — DISEMBUNYIKAN] MENU MOBILE ASLI, utuh tanpa dikurangi.
+                 ===================================================================== --}}
+            <div class="hidden" style="display:none" aria-hidden="true">
+                <a href="{{ route('home') }}" class="mobile-nav-link {{ $isHome ? 'active' : '' }}">Home</a>
+
+                <div class="mobile-nav-group {{ $isPelayanan ? 'open' : '' }}">
+                    <button class="mobile-nav-group-toggle" type="button"
+                        aria-expanded="{{ $isPelayanan ? 'true' : 'false' }}">
+                        <span>Pelayanan</span>
+                        <span class="material-symbols-outlined">expand_more</span>
+                    </button>
+                    <div class="mobile-nav-submenu">
+                        <a href="{{ route('login') }}"
+                            class="{{ request()->routeIs('login') ? 'text-secondary font-bold' : '' }}">Pendaftaran BPJS
+                            PBI APBD</a>
+                        <a href="{{ route('tutorial-pendaftaran') }}"
+                            class="{{ request()->routeIs('tutorial-pendaftaran') ? 'text-secondary font-bold' : '' }}">Tutorial
+                            Pendaftaran BPJS PBI</a>
+                        <a href="#">Informasi BPJS Kesehatan</a>
+                        <a href="#">Permohonan Kunjungan Dinas</a>
+                    </div>
+                </div>
+
+                <div class="mobile-nav-group {{ $isInformasi ? 'open' : '' }}">
+                    <button class="mobile-nav-group-toggle" type="button"
+                        aria-expanded="{{ $isInformasi ? 'true' : 'false' }}">
+                        <span>Informasi</span>
+                        <span class="material-symbols-outlined">expand_more</span>
+                    </button>
+                    <div class="mobile-nav-submenu">
+                        <a href="{{ route('cek-densil') }}"
+                            class="{{ request()->routeIs('cek-densil') ? 'text-secondary font-bold' : '' }}">Cek Desil</a>
+                        <a href="#">DTSEN</a>
+                        <a href="#">PPKS Dan PSKS</a>
+                        <a href="#">LKS</a>
+                        <a href="#">Penonaktifan Kartu BPJS</a>
+                        <a href="#">E-Warong</a>
+                        <a href="#">Data Suplier</a>
+                        <a href="#">SK PBI APBD</a>
+                    </div>
+                </div>
+
+                <a class="mobile-nav-link" href="{{ route('home') }}#berita">Berita</a>
+                <a class="mobile-nav-link" href="#">Gallery</a>
+                <a class="mobile-nav-link" href="#">Hubungi Kami</a>
+                <a class="mobile-nav-link" href="#">Bahan Paparan</a>
+                <a class="mobile-nav-link" href="#">Regulasi</a>
+
+                <div class="mobile-nav-group">
+                    <button class="mobile-nav-group-toggle" type="button" aria-expanded="false">
+                        <span>Cek Bansos</span>
+                        <span class="material-symbols-outlined">expand_more</span>
+                    </button>
+                    <div class="mobile-nav-submenu">
+                        <a href="#">BLT BBM</a>
+                        <a href="#">PKH Dan BPNT</a>
+                    </div>
                 </div>
             </div>
+            {{-- ===== END [LAMA — DISEMBUNYIKAN] MENU MOBILE ===== --}}
 
             <a href="{{ route('login') }}"
                 class="mt-space-sm inline-flex items-center justify-center gap-space-2xs px-space-md py-3 rounded-lg bg-primary hover:bg-secondary text-on-primary font-label-md text-label-md transition-colors">
@@ -481,64 +754,97 @@
                     </a>
                 </div>
 
-                <div class="space-y-space-sm">
-                    <h4 class="font-label-lg text-label-lg text-on-primary font-bold">Pelayanan</h4>
-                    <ul class="space-y-space-xs font-body-sm text-body-sm text-on-primary/80">
-                        <li><a class="hover:text-secondary-fixed-dim transition-colors"
-                                href="{{ route('login') }}">Pendaftaran BPJS PBI APBD</a></li>
-                        <li><a class="hover:text-secondary-fixed-dim transition-colors"
-                                href="{{ route('tutorial-pendaftaran') }}">Tutorial Pendaftaran BPJS PBI</a></li>
-                        <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">Informasi BPJS
-                                Kesehatan</a></li>
-                        <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">Permohonan
-                                Kunjungan Dinas</a></li>
-                    </ul>
-                </div>
-
-                <div class="space-y-space-sm">
-                    <h4 class="font-label-lg text-label-lg text-on-primary font-bold">Informasi</h4>
-                    <ul class="space-y-space-xs font-body-sm text-body-sm text-on-primary/80">
-                        <li><a class="hover:text-secondary-fixed-dim transition-colors"
-                                href="{{ route('cek-densil') }}">Cek Desil</a></li>
-                        <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">DTSEN</a></li>
-                        <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">PPKS Dan
-                                PSKS</a></li>
-                        <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">LKS</a></li>
-                        <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">Penonaktifan
-                                Kartu BPJS</a></li>
-                        <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">E-Warong</a>
-                        </li>
-                        <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">Data
-                                Suplier</a></li>
-                        <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">SK PBI APBD</a>
-                        </li>
-                    </ul>
-                </div>
-
-                <div class="space-y-space-sm">
-                    <h4 class="font-label-lg text-label-lg text-on-primary font-bold">Cek Bansos</h4>
-                    <ul class="space-y-space-xs font-body-sm text-body-sm text-on-primary/80">
-                        <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">BLT BBM</a>
-                        </li>
-                        <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">PKH Dan
-                                BPNT</a></li>
-                    </ul>
-                </div>
+                {{-- ===== [BARU] KOLOM FOOTER (dari struktur menu baru) ===== --}}
+                @foreach ($pelayananBaru as $grup)
+                    <div class="space-y-space-sm">
+                        <h4 class="font-label-lg text-label-lg text-on-primary font-bold">{{ $grup['label'] }}</h4>
+                        <ul class="space-y-space-xs font-body-sm text-body-sm text-on-primary/80">
+                            @foreach ($grup['items'] as $item)
+                                <li><a class="hover:text-secondary-fixed-dim transition-colors"
+                                        href="{{ $item['url'] }}">{{ $item['label'] }}</a></li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endforeach
 
                 <div class="space-y-space-sm">
                     <h4 class="font-label-lg text-label-lg text-on-primary font-bold">Tentang Kami</h4>
                     <ul class="space-y-space-xs font-body-sm text-body-sm text-on-primary/80">
-                        <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">Berita</a></li>
-                        <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">Gallery</a>
-                        </li>
-                        <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">Hubungi
-                                Kami</a></li>
-                        <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">Bahan
-                                Paparan</a></li>
-                        <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">Regulasi</a>
-                        </li>
+                        <li><a class="hover:text-secondary-fixed-dim transition-colors"
+                                href="{{ route('home') }}#berita">Berita</a></li>
+                        <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">Regulasi</a></li>
+                        <li><a class="hover:text-secondary-fixed-dim transition-colors"
+                                href="{{ route('ppid') }}">PPID</a></li>
+                        <li><a class="hover:text-secondary-fixed-dim transition-colors"
+                                href="{{ route('kontak') }}">Kontak</a></li>
                     </ul>
                 </div>
+                {{-- ===== END [BARU] KOLOM FOOTER ===== --}}
+
+                {{-- =====================================================================
+                     [LAMA — DISEMBUNYIKAN] KOLOM FOOTER ASLI, utuh tanpa dikurangi.
+                     ===================================================================== --}}
+                <div class="hidden" style="display:none" aria-hidden="true">
+                    <div class="space-y-space-sm">
+                        <h4 class="font-label-lg text-label-lg text-on-primary font-bold">Pelayanan</h4>
+                        <ul class="space-y-space-xs font-body-sm text-body-sm text-on-primary/80">
+                            <li><a class="hover:text-secondary-fixed-dim transition-colors"
+                                    href="{{ route('login') }}">Pendaftaran BPJS PBI APBD</a></li>
+                            <li><a class="hover:text-secondary-fixed-dim transition-colors"
+                                    href="{{ route('tutorial-pendaftaran') }}">Tutorial Pendaftaran BPJS PBI</a></li>
+                            <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">Informasi BPJS
+                                    Kesehatan</a></li>
+                            <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">Permohonan
+                                    Kunjungan Dinas</a></li>
+                        </ul>
+                    </div>
+
+                    <div class="space-y-space-sm">
+                        <h4 class="font-label-lg text-label-lg text-on-primary font-bold">Informasi</h4>
+                        <ul class="space-y-space-xs font-body-sm text-body-sm text-on-primary/80">
+                            <li><a class="hover:text-secondary-fixed-dim transition-colors"
+                                    href="{{ route('cek-densil') }}">Cek Desil</a></li>
+                            <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">DTSEN</a></li>
+                            <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">PPKS Dan
+                                    PSKS</a></li>
+                            <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">LKS</a></li>
+                            <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">Penonaktifan
+                                    Kartu BPJS</a></li>
+                            <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">E-Warong</a>
+                            </li>
+                            <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">Data
+                                    Suplier</a></li>
+                            <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">SK PBI APBD</a>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="space-y-space-sm">
+                        <h4 class="font-label-lg text-label-lg text-on-primary font-bold">Cek Bansos</h4>
+                        <ul class="space-y-space-xs font-body-sm text-body-sm text-on-primary/80">
+                            <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">BLT BBM</a>
+                            </li>
+                            <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">PKH Dan
+                                    BPNT</a></li>
+                        </ul>
+                    </div>
+
+                    <div class="space-y-space-sm">
+                        <h4 class="font-label-lg text-label-lg text-on-primary font-bold">Tentang Kami</h4>
+                        <ul class="space-y-space-xs font-body-sm text-body-sm text-on-primary/80">
+                            <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">Berita</a></li>
+                            <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">Gallery</a>
+                            </li>
+                            <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">Hubungi
+                                    Kami</a></li>
+                            <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">Bahan
+                                    Paparan</a></li>
+                            <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">Regulasi</a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                {{-- ===== END [LAMA — DISEMBUNYIKAN] KOLOM FOOTER ===== --}}
 
                 <div class="space-y-space-sm footer-address-block">
                     <h4 class="font-label-lg text-label-lg text-on-primary font-bold">Alamat Kantor</h4>

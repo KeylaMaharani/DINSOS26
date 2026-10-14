@@ -38,6 +38,10 @@ Route::get('/cek-densil', [PageController::class, 'cekDensil'])->name('cek-densi
 Route::get('/kejadian-bencana', [PageController::class, 'kejadianBencana'])->name('kejadian-bencana');
 Route::get('/kesan', [PageController::class, 'kesan'])->name('kesan');
 Route::get('/tutorial-pendaftaran', [PageController::class, 'tutorialPendaftaran'])->name('tutorial-pendaftaran');
+Route::get('/ppid', [PageController::class, 'ppid'])->name('ppid');
+Route::get('/kontak', [PageController::class, 'kontak'])->name('kontak');
+Route::post('/kontak', [PageController::class, 'kontakStore'])->name('kontak.store')->middleware('throttle:5,1');
+Route::get('/ppks-psks', [PageController::class, 'ppksPsks'])->name('ppks-psks');
 
 
 // ==========================================
