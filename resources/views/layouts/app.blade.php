@@ -394,7 +394,9 @@
                     </div>
                 </div>
 
-                <a href="{{ route('home') }}#berita" class="{{ $linkBase }} {{ $linkIdle }}">Berita</a>                <a href="#" class="{{ $linkBase }} {{ $linkIdle }}">Regulasi</a>
+                <a href="{{ route('home') }}#berita" class="{{ $linkBase }} {{ $linkIdle }}">Berita</a>
+                <a href="{{ route('regulasi') }}"
+                    class="{{ $linkBase }} {{ request()->routeIs('regulasi') ? $linkActive : $linkIdle }}">Regulasi</a>
                 <a href="{{ route('ppid') }}"
                     class="{{ $linkBase }} {{ request()->routeIs('ppid') ? $linkActive : $linkIdle }}">PPID</a>
                 <a href="{{ route('kontak') }}"
@@ -663,7 +665,7 @@
             </div>
 
             <a class="mobile-nav-link" href="{{ route('home') }}#berita">Berita</a>
-            <a class="mobile-nav-link" href="#">Regulasi</a>
+            <a class="mobile-nav-link" href="{{ route('regulasi') }}">Regulasi</a>
             <a class="mobile-nav-link" href="{{ route('ppid') }}">PPID</a>
             <a class="mobile-nav-link" href="{{ route('kontak') }}">Kontak</a>
             {{-- ===== END [BARU] MENU MOBILE ===== --}}
@@ -772,7 +774,8 @@
                     <ul class="space-y-space-xs font-body-sm text-body-sm text-on-primary/80">
                         <li><a class="hover:text-secondary-fixed-dim transition-colors"
                                 href="{{ route('home') }}#berita">Berita</a></li>
-                        <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">Regulasi</a></li>
+                        <li><a class="hover:text-secondary-fixed-dim transition-colors"
+                                href="{{ route('regulasi') }}">Regulasi</a></li>
                         <li><a class="hover:text-secondary-fixed-dim transition-colors"
                                 href="{{ route('ppid') }}">PPID</a></li>
                         <li><a class="hover:text-secondary-fixed-dim transition-colors"
