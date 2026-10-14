@@ -170,7 +170,7 @@
     <div class="w-full bg-surface-container-lowest border-b border-outline-variant/20">
         <div
             class="max-w-[1400px] mx-auto px-margin-mobile md:px-margin-tablet lg:px-margin-desktop py-space-sm flex items-center gap-space-2xs font-label-sm text-label-sm text-on-surface-variant">
-            <a href="{{ route('home') }}" class="hover:text-secondary transition-colors">Home</a>
+            <a href="{{ route('home') }}" class="hover:text-secondary transition-colors">Beranda</a>
             <span class="material-symbols-outlined text-[16px]">chevron_right</span>
             <span class="text-primary font-bold">Kejadian Bencana</span>
         </div>

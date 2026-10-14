@@ -243,7 +243,7 @@
         <div class="max-w-[1400px] mx-auto px-6 md:px-12 py-4 flex items-center gap-2 text-sm text-gray-500 font-medium">
             <a href="{{ route('home') }}" class="hover:text-[#121358] transition-colors flex items-center gap-1">
                 <span class="material-symbols-outlined text-[18px]">home</span>
-                Home
+                Beranda
             </a>
             <span class="material-symbols-outlined text-[16px] text-gray-400">chevron_right</span>
             <span class="text-[#121358] font-bold">Hubungi Kami</span>
