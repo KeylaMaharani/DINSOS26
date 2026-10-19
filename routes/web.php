@@ -15,6 +15,8 @@ use App\Http\Controllers\Layanan\KartuKksAjuanController;
 use App\Http\Controllers\Layanan\DtsenAjuanController;
 use App\Http\Controllers\Masyarakat\MasyarakatController;
 use App\Http\Controllers\Admin\KriteriaController;
+use App\Http\Controllers\Admin\GcKriteriaController;
+use App\Http\Controllers\Admin\GroundCheckController;
 use App\Http\Controllers\Admin\MenuPlaceholderController;
 use App\Http\Controllers\Admin\PbiKelurahanController;
 use App\Http\Controllers\Admin\RehabsosController;
@@ -144,6 +146,30 @@ Route::middleware(['auth', 'staff'])->group(function () {
         Route::get('/{parameter}/edit', [KriteriaController::class, 'edit'])->name('edit');
         Route::put('/{parameter}', [KriteriaController::class, 'update'])->name('update');
         Route::delete('/{parameter}', [KriteriaController::class, 'destroy'])->name('destroy');
+    });
+
+    // Master Kriteria Ground Check (hanya Super Admin, sama seperti Master Kriteria PBI)
+    Route::prefix('master/kriteria-ground-check')->name('master.gc-kriteria.')->middleware('module:kelola-akses')->group(function () {
+        Route::get('/', [GcKriteriaController::class, 'index'])->name('index');
+        Route::get('/tambah', [GcKriteriaController::class, 'create'])->name('create');
+        Route::post('/', [GcKriteriaController::class, 'store'])->name('store');
+        Route::get('/{parameter}/edit', [GcKriteriaController::class, 'edit'])->name('edit');
+        Route::put('/{parameter}', [GcKriteriaController::class, 'update'])->name('update');
+        Route::delete('/{parameter}', [GcKriteriaController::class, 'destroy'])->name('destroy');
+    });
+
+    // ==========================================
+    // GROUND CHECK 2026 -- alur entry data (Panduan Entry Data SOLID)
+    //   Daftar sasaran -> keluarga -> verifikasi status -> form tab A-G -> submit.
+    //   Dibatasi modul 'ground-check' (centang di Kelola Hak Akses).
+    //   Rute statis (/keluarga/...) HARUS sebelum rute wildcard {sasaran}.
+    // ==========================================
+    Route::prefix('ground-check')->name('ground-check.')->middleware('module:ground-check')->group(function () {
+        Route::get('/', [GroundCheckController::class, 'index'])->name('index');
+        Route::get('/keluarga/{noKk}', [GroundCheckController::class, 'keluarga'])->name('keluarga');
+        Route::post('/{sasaran}/status', [GroundCheckController::class, 'statusStore'])->whereNumber('sasaran')->name('status');
+        Route::get('/{sasaran}/form', [GroundCheckController::class, 'form'])->whereNumber('sasaran')->name('form');
+        Route::post('/{sasaran}/form', [GroundCheckController::class, 'simpan'])->whereNumber('sasaran')->name('simpan');
     });
 
     // ==========================================

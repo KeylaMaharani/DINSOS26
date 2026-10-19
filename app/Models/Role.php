@@ -44,6 +44,9 @@ class Role extends Model
         'rehabsos-rumah-singgah' => 'Rehabsos - Rumah Singgah',
         'rehabsos-bantuan' => 'Rehabsos - Data Permohonan Bantuan',
 
+        // --- Ground Check ---
+        'ground-check' => 'Ground Check - Entry Data Ground Check 2026',
+
         // --- Kelurahan ---
         'pbi-kelurahan' => 'Verifikasi Kelurahan - PBI APBD',
         'layanan-kartu-kks' => 'Layanan Kelurahan - Pengajuan Kartu KKS',
@@ -99,4 +102,4 @@ class Role extends Model
 
         return in_array($key, $this->permissions ?? [], true);
     }
-} 
+}

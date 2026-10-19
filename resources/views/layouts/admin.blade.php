@@ -289,6 +289,16 @@
                 'children' => $rehabChildren,
             ],
 
+            // ---------- Ground Check (alur entry data SOLID) ----------
+            [
+                'label' => 'Modul Ground Check',
+                'icon' => 'task_alt',
+                'module' => 'ground-check',
+                'children' => [
+                    ['label' => 'Ground Check 2026', 'route' => 'ground-check.index', 'match' => ['ground-check.*']],
+                ],
+            ],
+
             // ---------- Menu tunggal ----------
             [
                 'label' => 'Verifikasi Kelurahan',
@@ -321,9 +331,11 @@
             [
                 'label' => 'Master Kriteria',
                 'icon' => 'rule',
-                'route' => 'master.kriteria.index',
-                'match' => ['master.kriteria.*'],
                 'superadmin_only' => true,
+                'children' => [
+                    ['label' => 'Kriteria PBI', 'route' => 'master.kriteria.index', 'match' => ['master.kriteria.*']],
+                    ['label' => 'Kriteria Ground Check', 'route' => 'master.gc-kriteria.index', 'match' => ['master.gc-kriteria.*']],
+                ],
             ],
         ];
 
@@ -493,7 +505,7 @@
                             <span x-show="!collapsed" class="text-sm font-medium truncate">{{ $top['label'] }}</span>
                         </a>
                     @else
-                        {{-- Folder (PFM, Dayasos, Perlinsos, Rehabsos, Menu Frontend) --}}
+                        {{-- Folder (PFM, Dayasos, Perlinsos, Rehabsos, Ground Check, Master Kriteria, Menu Frontend) --}}
                         <div class="relative" x-data="{ open: false }"
                             x-init="open = {{ $isAct ? 'true' : 'false' }} && !collapsed;
                             $watch('collapsed', function(v) { open = v ? false : {{ $isAct ? 'true' : 'false' }}; })"
@@ -847,8 +859,6 @@
     <div id="help-flipbook-search-highlight"
         class="hidden fixed pointer-events-none border-2 border-yellow-400 bg-yellow-300/40 rounded shadow-[0_0_10px_rgba(250,204,21,0.75)] z-[9995]">
     </div>
-
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
 
     {{-- pdf.js: merender tiap halaman PDF ke <canvas> lalu dikonversi ke gambar --}}
