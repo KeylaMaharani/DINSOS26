@@ -4,6 +4,11 @@
  * Struktur menu Rehabsos. Dipakai bersama oleh routes, sidebar, dan controller,
  * jadi menambah submenu cukup di satu tempat ini.
  *   module = key di Role::MODULES yang membuka grup tersebut
+ *
+ * Catatan penggabungan fitur:
+ *   - PPKS            : Ajuan Masuk + Validasi            -> 'Ajuan & Validasi'
+ *   - Rumah Singgah   : Penerimaan Klien                  -> 'Klien' (daftar + masalah klien)
+ *   - Permohonan      : Pengajuan + Verifikasi Jenis      -> 'Pengajuan & Verifikasi'
  */
 return [
     'groups' => [
@@ -12,11 +17,10 @@ return [
             'icon' => 'diversity_3',
             'module' => 'rehabsos-ppks',
             'items' => [
-                'ajuan-masuk'   => 'Ajuan Masuk',
-                'data-evakuasi' => 'Data Evakuasi',
-                'validasi'      => 'Validasi',
-                'asesmen'       => 'Asesmen',
-                'laporan'       => 'Laporan',
+                'ajuan-validasi' => 'Ajuan & Validasi',
+                'data-evakuasi'  => 'Data Evakuasi',
+                'asesmen'        => 'Asesmen',
+                'laporan'        => 'Laporan',
             ],
         ],
         'rumah-singgah' => [
@@ -24,10 +28,10 @@ return [
             'icon' => 'night_shelter',
             'module' => 'rehabsos-rumah-singgah',
             'items' => [
-                'penerimaan-klien'   => 'Penerimaan Klien',
-                'layanan-management' => 'Layanan Management',
-                'rujukan'            => 'Rujukan',
-                'laporan'            => 'Laporan',
+                'klien'             => 'Klien',
+                'manajemen-layanan' => 'Manajemen Layanan',
+                'rujukan'           => 'Rujukan',
+                'laporan'           => 'Laporan',
             ],
         ],
         'permohonan-bantuan' => [
@@ -35,9 +39,8 @@ return [
             'icon' => 'request_quote',
             'module' => 'rehabsos-bantuan',
             'items' => [
-                'pengajuan-bantuan'        => 'Pengajuan Bantuan',
-                'verifikasi-jenis-bantuan' => 'Verifikasi Jenis Bantuan',
-                'laporan'                  => 'Laporan',
+                'pengajuan-verifikasi' => 'Pengajuan & Verifikasi',
+                'laporan'              => 'Laporan',
             ],
         ],
     ],

@@ -4,6 +4,10 @@
  * Menu DAYASOS (kerangka menu saja, tampilan menyusul).
  * Dipakai oleh sidebar (layouts/admin.blade.php) dan routes/web.php.
  *   module = key di Role::MODULES. Anak menu otomatis mengikuti module induknya.
+ *
+ * Catatan penggabungan fitur (Ngopi Pagi):
+ *   - Jadwal + Penjadwalan -> 'Jadwal Konseling' (satu fitur)
+ *   - Masalah + Client     -> 'Klien' (daftar klien + masalah yang dihadapi)
  */
 $leaf = fn (string $label, string $path) => [
     'label' => $label,
@@ -22,12 +26,10 @@ return [
         'label'    => 'Ngopi Pagi',
         'module'   => 'dayasos-ngopi-pagi',
         'children' => [
-            $leaf('Live Chat', 'ngopi-pagi/live-chat'),
+            $leaf('Obrolan Langsung', 'ngopi-pagi/obrolan-langsung'),
             $leaf('Konselor', 'ngopi-pagi/konselor'),
-            $leaf('Jadwal', 'ngopi-pagi/jadwal'),
-            $leaf('Penjadwalan', 'ngopi-pagi/penjadwalan'),
-            $leaf('Masalah', 'ngopi-pagi/masalah'),
-            $leaf('Client', 'ngopi-pagi/client'),
+            $leaf('Jadwal Konseling', 'ngopi-pagi/jadwal-konseling'),
+            $leaf('Klien', 'ngopi-pagi/klien'),
             $leaf('Laporan', 'ngopi-pagi/laporan'),
         ],
     ],
@@ -84,7 +86,7 @@ return [
                 'label'    => 'Pelaporan',
                 'children' => [
                     $leaf('Laporan Kegiatan LKS', 'lks/pelaporan/laporan-kegiatan'),
-                    $leaf('Monitoring', 'lks/pelaporan/monitoring'),
+                    $leaf('Pemantauan', 'lks/pelaporan/monitoring'),
                 ],
             ],
             $leaf('Panduan & Format Surat', 'lks/panduan'),
