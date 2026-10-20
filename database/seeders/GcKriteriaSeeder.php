@@ -62,7 +62,7 @@ class GcKriteriaSeeder extends Seeder
             ['kependudukan', 'Apakah nama sama?', 1, 'pilihan', null, $yaTidak],
             ['kependudukan', 'Apakah wilayah sama?', 1, 'pilihan', null, $yaTidak],
             ['kependudukan', 'Nama gadis ibu kandung', 0.5, 'teks', null, []],
-            ['kependudukan', 'Alamat (isian)', 1, 'teks', null, []],
+            ['kependudukan', 'Alamat', 1, 'teks', null, []],
             ['kependudukan', 'Jenis kelamin', 0.5, 'pilihan', null, ['Laki-laki', 'Perempuan']],
             ['kependudukan', 'Tanggal lahir', 0.5, 'tanggal', null, []],
             ['kependudukan', 'Status perkawinan', 0.5, 'pilihan', null,

@@ -4,7 +4,7 @@
     use App\Models\GcKriteriaParameter as GcP;
 
     // Tab awal: tab pertama yang berisi galat validasi (jika ada), atau tab terakhir untuk galat pernyataan,
-    // atau tab yang terakhir dibuka saat menyimpan draf.
+    // atau tab yang terakhir dibuka sebelumnya.
     $mulai = $tabAwal ?? 0;
     if ($errors->any()) {
         $mulai = null;
@@ -53,7 +53,8 @@
 
     <form method="POST" action="{{ route('ground-check.simpan', $sasaran) }}" enctype="multipart/form-data" x-ref="form" novalidate>
         @csrf
-        <input type="hidden" name="aksi" value="draft" x-ref="aksi">
+        {{-- Simpan langsung (tanpa draf) --}}
+        <input type="hidden" name="aksi" value="submit" x-ref="aksi">
         <input type="hidden" name="tab_aktif" :value="tab">
 
         <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden">
@@ -92,7 +93,8 @@
                         @endforeach
 
                         @if ($loop->last)
-                            <label class="mt-5 flex items-start gap-2 px-4 py-3 rounded-lg bg-error-container/60 text-on-error-container text-xs leading-relaxed cursor-pointer" id="gc-pernyataan">
+                            <label class="mt-5 flex items-start gap-2 px-4 py-3 rounded-lg bg-error-container/60 text-on-error-container text-xs leading-relaxed cursor-pointer" id="gc-pernyataan"
+                                   @change="$el.classList.remove('ring-2', 'ring-error')">
                                 <input type="checkbox" name="pernyataan" value="1" x-ref="pernyataan" @checked(old('pernyataan', $v->pernyataan)) class="mt-0.5 rounded" />
                                 <span>Dengan ini saya menyatakan bahwa data yang saya kirim adalah benar dan valid.</span>
                             </label>
@@ -110,17 +112,13 @@
                        class="inline-flex px-4 py-2 rounded-lg text-sm border border-outline-variant/50 bg-white">Kembali</button>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button type="submit" @click="$refs.aksi.value = 'draft'"
-                        class="inline-flex items-center gap-1 px-4 py-2 rounded-lg text-sm border border-primary text-primary hover:bg-primary hover:text-on-primary transition-colors">
-                        <span class="material-symbols-outlined text-[16px]">save</span> Simpan Draf
-                    </button>
                     <button type="button" x-show="tab < total - 1" @click="lanjut()"
                         class="inline-flex items-center gap-1 px-5 py-2 rounded-lg text-sm bg-primary text-on-primary hover:bg-secondary font-semibold">
                         Lanjut <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
                     </button>
                     <button type="button" x-show="tab === total - 1" x-cloak @click="kirim()"
                         class="inline-flex items-center gap-1 px-5 py-2 rounded-lg text-sm bg-success text-white hover:opacity-90 font-semibold">
-                        <span class="material-symbols-outlined text-[16px]">send</span> Submit
+                        <span class="material-symbols-outlined text-[16px]">save</span> Simpan
                     </button>
                 </div>
             </div>
@@ -143,6 +141,30 @@
                 this.$watch('tab', () => {
                     setTimeout(() => { if (window.gcMap) window.gcMap.invalidateSize(); }, 150);
                 });
+
+                // Hilangkan border merah begitu isian diisi
+                const bersihkan = (e) => {
+                    const w = e.target.closest('[data-wajib]');
+                    if (w && !this.kosong(w)) {
+                        w.classList.remove('ring-1', 'ring-error');
+                    }
+                };
+                this.$el.addEventListener('input', bersihkan);
+                this.$el.addEventListener('change', bersihkan);
+            },
+
+            // true jika isian wajib pada baris w masih kosong
+            kosong(w) {
+                const t = w.dataset.wajib;
+                if (t === 'ganda') {
+                    return !w.querySelector('input[type=checkbox]:checked');
+                }
+                if (t === 'foto') {
+                    const f = w.querySelector('input[type=file]');
+                    return !(f.files && f.files.length) && !w.dataset.ada;
+                }
+                const el = w.querySelector('input,select,textarea');
+                return !el || String(el.value).trim() === '';
             },
 
             // true jika semua isian wajib (bertanda *) pada tab ke-i sudah terisi
@@ -150,17 +172,7 @@
                 const panel = document.getElementById('gc-panel-' + i);
                 let ok = true, pertama = null;
                 panel.querySelectorAll('[data-wajib]').forEach((w) => {
-                    const t = w.dataset.wajib;
-                    let kosong;
-                    if (t === 'ganda') {
-                        kosong = !w.querySelector('input[type=checkbox]:checked');
-                    } else if (t === 'foto') {
-                        const f = w.querySelector('input[type=file]');
-                        kosong = !(f.files && f.files.length) && !w.dataset.ada;
-                    } else {
-                        const el = w.querySelector('input,select,textarea');
-                        kosong = !el || String(el.value).trim() === '';
-                    }
+                    const kosong = this.kosong(w);
                     w.classList.toggle('ring-1', kosong);
                     w.classList.toggle('ring-error', kosong);
                     if (kosong && !pertama) pertama = w;
@@ -198,12 +210,14 @@
                 this.tab = i;
             },
 
+            // Simpan langsung (status submit)
             kirim() {
                 for (let k = 0; k < this.total; k++) {
                     if (!this.cekTab(k)) { this.tab = k; return; }
                 }
                 if (!this.$refs.pernyataan.checked) {
                     this.pesan = 'Centang pernyataan kebenaran data terlebih dahulu.';
+                    document.getElementById('gc-pernyataan').classList.add('ring-2', 'ring-error');
                     return;
                 }
                 this.$refs.aksi.value = 'submit';
@@ -254,6 +268,12 @@
             if (koor) koor.value = a + ', ' + b;
             if (lat) lat.value = a;
             if (lng) lng.value = b;
+
+            // Isian koordinat terisi lewat skrip (bukan ketikan), jadi bersihkan border merahnya manual
+            [koor, lat, lng].forEach((x) => {
+                const w = x && x.closest('[data-wajib]');
+                if (w) w.classList.remove('ring-1', 'ring-error');
+            });
         }
 
         if (marker) marker.on('dragend', () => set(marker.getLatLng(), false));

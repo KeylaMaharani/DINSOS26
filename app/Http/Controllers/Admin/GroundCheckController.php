@@ -8,6 +8,7 @@ use App\Models\GcKriteriaParameter;
 use App\Models\GcSasaran;
 use App\Models\GcVerifikasi;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -88,7 +89,7 @@ class GroundCheckController extends Controller
         $sebelumnya = $v->status_temuan;
 
         $v->status_temuan = $data['status_temuan'];
-        $v->user_id = auth()->id();
+        $v->user_id = Auth::id();
 
         if ($data['status_temuan'] === 'ditemukan') {
             // Baru ditemukan (atau sebelumnya pindah/meninggal): mulai ulang sebagai draf.
@@ -149,7 +150,7 @@ class GroundCheckController extends Controller
         return view('admin.ground-check.form', compact('sasaran', 'v', 'tabs', 'nilai', 'tabAwal'));
     }
 
-    /** Simpan draf / submit. */
+    /** Simpan draf / submit. Saat submit, semua isian wajib diisi. */
     public function simpan(Request $request, GcSasaran $sasaran)
     {
         $v = $this->verifikasiDitemukan($sasaran);
@@ -172,10 +173,11 @@ class GroundCheckController extends Controller
                 case 'pilihan':
                     $rules[$key] = $labels
                         ? [$req, 'string', Rule::in($labels)]
-                        : ['nullable', 'string', 'max:500'];
+                        : [$req, 'string', 'max:500'];
                     break;
 
                 case 'pilihan_ganda':
+                    // Tanpa opsi di master tidak ada yang bisa dicentang, jadi tidak diwajibkan.
                     $rules[$key] = $submit && $labels ? ['required', 'array', 'min:1'] : ['nullable', 'array'];
                     $rules["{$key}.*"] = $labels ? ['string', Rule::in($labels)] : ['string', 'max:255'];
                     $attributes["{$key}.*"] = $p->nama;
@@ -188,7 +190,7 @@ class GroundCheckController extends Controller
                     break;
 
                 case 'tanggal':
-                    $rules[$key] = ['nullable', 'date'];
+                    $rules[$key] = [$req, 'date'];
                     break;
 
                 case 'koordinat':
@@ -201,7 +203,7 @@ class GroundCheckController extends Controller
                     break;
 
                 default: // teks
-                    $rules[$key] = ['nullable', 'string', 'max:500'];
+                    $rules[$key] = [$req, 'string', 'max:500'];
             }
         }
 
@@ -264,7 +266,7 @@ class GroundCheckController extends Controller
             $v->pernyataan = $submit;
             $v->status_entry = $submit ? 'submit' : 'draft';
             $v->submitted_at = $submit ? now() : null;
-            $v->user_id = auth()->id();
+            $v->user_id = Auth::id();
             $v->save();
         });
 

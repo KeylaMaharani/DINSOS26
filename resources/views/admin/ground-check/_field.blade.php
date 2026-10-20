@@ -5,7 +5,9 @@
     $id = $p->id;
     $val = old("jawaban.{$id}", $nilai[$id] ?? null);
     $tipe = $p->tipe_input;
-    $wajib = in_array($tipe, ['pilihan', 'pilihan_ganda', 'angka', 'koordinat', 'foto'], true);
+    // Semua isian wajib (tanda * merah + border merah saat kosong),
+    // kecuali pilihan ganda yang belum punya opsi di master (tidak ada yang bisa dicentang).
+    $wajib = $tipe !== 'pilihan_ganda' || $p->opsis->isNotEmpty();
     $namaLower = Str::lower($p->nama);
     $lat = $tipe === 'angka' && Str::contains($namaLower, 'lintang');
     $lng = $tipe === 'angka' && Str::contains($namaLower, 'bujur');
