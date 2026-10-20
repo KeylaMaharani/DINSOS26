@@ -111,6 +111,61 @@
             height: 0;
         }
 
+        /* Scrollbar tipis yang tetap terlihat (khusus sidebar & panel melayang).
+           Diletakkan SETELAH aturan global di atas agar menimpanya. */
+        .sidebar-scroll {
+            scrollbar-width: thin;
+            /* Firefox */
+            scrollbar-color: rgba(255, 255, 255, 0.45) transparent;
+            /* thumb | track */
+            -ms-overflow-style: auto;
+        }
+
+        .sidebar-scroll::-webkit-scrollbar {
+            display: block;
+            width: 6px;
+            height: 6px;
+        }
+
+        .sidebar-scroll::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 9999px;
+            margin: 6px 0;
+        }
+
+        .sidebar-scroll::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.55);
+            border-radius: 9999px;
+        }
+
+        .sidebar-scroll::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        /* Versi untuk panel melayang (latar putih) saat sidebar diciutkan */
+        .sidebar-scroll-light {
+            scrollbar-width: thin;
+            scrollbar-color: #c2c7cf transparent;
+            -ms-overflow-style: auto;
+        }
+
+        .sidebar-scroll-light::-webkit-scrollbar {
+            display: block;
+            width: 6px;
+            height: 6px;
+        }
+
+        .sidebar-scroll-light::-webkit-scrollbar-track {
+            background: #edf4ff;
+            border-radius: 9999px;
+            margin: 6px 0;
+        }
+
+        .sidebar-scroll-light::-webkit-scrollbar-thumb {
+            background: #c2c7cf;
+            border-radius: 9999px;
+        }
+
         /* ====== Flipbook (buku panduan bantuan) ====== */
         #help-flipbook .page {
             background-color: #ffffff;
@@ -455,31 +510,60 @@
                    shadow-[0_10px_30px_rgba(10,92,168,0.35)] ring-1 ring-white/20
                    transition-[width,transform] duration-200 ease-in-out lg:translate-x-0">
 
-            {{-- Tombol ciutkan / lebarkan (hanya di layar besar) --}}
-            <button type="button" @click="toggleSidebar()" :title="collapsed ? 'Lebarkan sidebar' : 'Ciutkan sidebar'"
-                class="hidden lg:flex absolute -right-3 top-7 z-50 w-6 h-6 rounded-full bg-white text-brand shadow-md ring-1 ring-brand/20 items-center justify-center hover:bg-brand hover:text-white transition-colors">
-                <span class="material-symbols-outlined text-[18px]"
-                    x-text="collapsed ? 'chevron_right' : 'chevron_left'">chevron_left</span>
-            </button>
-
-            {{-- Logo --}}
-            <div class="h-20 shrink-0 flex items-center" :class="collapsed ? 'justify-center' : 'px-5 gap-3'">
+            {{-- Logo + tombol ciutkan (di DALAM card) --}}
+            <div class="h-20 shrink-0 flex items-center" :class="collapsed ? 'justify-center' : 'pl-5 pr-3 gap-3'">
                 <div class="w-11 h-11 shrink-0 rounded-xl bg-white flex items-center justify-center shadow-sm">
                     <img alt="Logo SOLID" src="{{ asset('assets/img/logo/logo.png') }}"
                         class="w-8 h-8 object-contain" />
                 </div>
-                <div x-show="!collapsed" class="leading-tight min-w-0">
+                <div x-show="!collapsed" class="leading-tight min-w-0 flex-1">
                     <p class="text-sm font-bold">SOLID</p>
                     <p class="text-[11px] text-white/70 truncate">Dinas Sosial Kota Bogor</p>
                 </div>
+
+                {{-- Sidebar lebar: tombol ciutkan di kanan logo (hanya layar besar) --}}
+                <button type="button" x-show="!collapsed" @click="toggleSidebar()" title="Ciutkan sidebar"
+                    class="hidden lg:flex w-8 h-8 shrink-0 rounded-lg items-center justify-center text-white/80 hover:bg-white/15 hover:text-white transition-colors">
+                    <span class="material-symbols-outlined text-[20px]">chevron_left</span>
+                </button>
             </div>
+
+            {{-- Sidebar ciut: tombol lebarkan tepat di bawah logo --}}
+            <button type="button" x-show="collapsed" x-cloak @click="toggleSidebar()" title="Lebarkan sidebar"
+                class="flex w-12 h-8 mx-auto mb-1 shrink-0 rounded-lg items-center justify-center text-white/80 hover:bg-white/15 hover:text-white transition-colors">
+                <span class="material-symbols-outlined text-[20px]">chevron_right</span>
+            </button>
 
             {{-- ========== MENU (dibangun dari $menuItems di atas) ==========
                  - Sidebar lebar : folder membuka ke bawah (accordion bertingkat)
                  - Sidebar ciut  : isi folder muncul sebagai panel melayang di samping ikon
+                                   (position: fixed, acuannya <aside>, jadi tidak terpotong
+                                   oleh overflow nav)
+                 - Nav SELALU bisa di-scroll vertikal agar ikon tidak tumpah keluar card
+                 - Class `sidebar-scroll` memunculkan scrollbar tipis (lihat <style> di atas)
                  - Separator     : label grup (Front End / Modul / Data Master) saat lebar, garis tipis saat ciut --}}
-            <nav class="flex-1 min-h-0 px-3 py-2 space-y-1.5"
-                :class="collapsed ? 'overflow-visible' : 'overflow-y-auto'">
+            {{-- Pembungkus nav + indikator scroll:
+                 - up/down   : true jika masih ada menu tersembunyi di atas/bawah
+                 - check()   : dihitung ulang saat scroll, resize, accordion dibuka/ditutup,
+                               atau sidebar diciutkan/dilebarkan --}}
+            <div class="relative flex-1 min-h-0" x-data="{
+                up: false,
+                down: false,
+                check() {
+                    const n = this.$refs.nav;
+                    if (!n) return;
+                    this.up = n.scrollTop > 4;
+                    this.down = n.scrollTop + n.clientHeight < n.scrollHeight - 4;
+                }
+            }"
+                x-init="$nextTick(() => check());
+                new ResizeObserver(() => check()).observe($refs.nav);
+                new MutationObserver(() => $nextTick(() => check())).observe($refs.nav, { childList: true, subtree: true, attributes: true });
+                $watch('collapsed', () => setTimeout(() => check(), 250));"
+                @resize.window="check()">
+
+            <nav x-ref="nav" @scroll.passive="check()"
+                class="sidebar-scroll h-full px-3 pt-2 pb-12 space-y-1.5 overflow-y-auto overflow-x-hidden">
                 @foreach ($menuItems as $top)
                     @if (isset($top['separator']))
                         {{-- Pemisah grup menu --}}
@@ -506,12 +590,22 @@
                         </a>
                     @else
                         {{-- Folder (PFM, Dayasos, Perlinsos, Rehabsos, Ground Check, Master Kriteria, Menu Frontend) --}}
-                        <div class="relative" x-data="{ open: false }"
+                        <div class="relative" x-data="{ open: false, top: 0, maxH: 400 }"
                             x-init="open = {{ $isAct ? 'true' : 'false' }} && !collapsed;
                             $watch('collapsed', function(v) { open = v ? false : {{ $isAct ? 'true' : 'false' }}; })"
                             @click.outside="if (collapsed) open = false">
 
-                            <button @click="open = !open" type="button" :title="collapsed ? '{{ $top['label'] }}' : null"
+                            <button
+                                @click="
+                                    if (collapsed) {
+                                        const r = $el.getBoundingClientRect();
+                                        const a = $el.closest('aside').getBoundingClientRect();
+                                        top = r.top - a.top;
+                                        maxH = window.innerHeight - r.top - 16;
+                                    }
+                                    open = !open
+                                "
+                                type="button" :title="collapsed ? '{{ $top['label'] }}' : null"
                                 :class="collapsed ? 'w-12 mx-auto justify-center' : 'w-full px-3 gap-3'"
                                 class="h-12 rounded-xl flex items-center transition-colors
                                     {{ $isAct ? 'bg-white/25 text-white shadow-inner' : 'text-white/80 hover:bg-white/15 hover:text-white' }}">
@@ -532,12 +626,16 @@
                                 {!! $renderChildren($top['children'], false) !!}
                             </div>
 
-                            {{-- Panel melayang (sidebar ciut) --}}
+                            {{-- Panel melayang (sidebar ciut).
+                                 `fixed` + <aside> ber-transform => posisinya mengacu ke aside,
+                                 sehingga top dihitung relatif terhadap aside (lihat @click tombol di atas).
+                                 Class `sidebar-scroll-light` = scrollbar tipis untuk latar putih. --}}
                             <div x-show="open && collapsed" x-cloak
+                                :style="`top:${top}px; max-height:${maxH}px`"
                                 x-transition:enter="transition ease-out duration-150"
                                 x-transition:enter-start="opacity-0 -translate-x-1"
                                 x-transition:enter-end="opacity-100 translate-x-0"
-                                class="absolute left-full top-0 ml-5 w-64 max-h-[80vh] overflow-y-auto bg-white text-on-surface rounded-2xl shadow-xl border border-outline-variant/30 p-2 z-50">
+                                class="sidebar-scroll-light fixed left-full ml-5 w-64 overflow-y-auto bg-white text-on-surface rounded-2xl shadow-xl border border-outline-variant/30 p-2 z-50">
                                 <p class="px-3 py-1.5 text-xs font-bold text-brand">{{ $top['label'] }}</p>
                                 {!! $renderChildren($top['children'], true) !!}
                             </div>
@@ -545,6 +643,22 @@
                     @endif
                 @endforeach
             </nav>
+
+                {{-- Indikator: masih ada menu di ATAS (muncul setelah di-scroll ke bawah) --}}
+                <div x-show="up" x-cloak x-transition.opacity
+                    class="pointer-events-none absolute top-0 inset-x-0 h-8 bg-gradient-to-b from-brand to-transparent z-10">
+                </div>
+
+                {{-- Indikator: masih ada menu di BAWAH (pudar + panah naik-turun, bisa diklik) --}}
+                <div x-show="down" x-cloak x-transition.opacity
+                    class="pointer-events-none absolute bottom-0 inset-x-0 h-14 bg-gradient-to-t from-brand via-brand/90 to-transparent z-10 flex items-end justify-center pb-1.5">
+                    <button type="button" @click="$refs.nav.scrollBy({ top: 220, behavior: 'smooth' })"
+                        title="Scroll untuk melihat menu lainnya"
+                        class="pointer-events-auto w-7 h-7 rounded-full bg-white/25 hover:bg-white/40 text-white flex items-center justify-center animate-bounce transition-colors">
+                        <span class="material-symbols-outlined text-[20px]">keyboard_arrow_down</span>
+                    </button>
+                </div>
+            </div>
 
             {{-- Logout (bagian bawah sidebar) --}}
             <form method="POST" action="{{ route('logout') }}" class="px-3 py-4 shrink-0">
@@ -560,13 +674,13 @@
 
         <!-- Spacer agar konten tidak ketutup sidebar fixed di layar besar (lebarnya ikut sidebar) -->
         <div class="hidden lg:block shrink-0 transition-[width] duration-200"
-            :class="collapsed ? 'w-24' : 'w-[17rem]'"></div>
+            :class="collapsed ? 'w-28' : 'w-[18rem]'"></div>
 
         <!-- Main -->
         <div class="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
 
             <!-- Topbar -->
-            <header class="shrink-0 flex items-center gap-4 px-4 pt-4 pb-2 lg:pl-2">
+            <header class="shrink-0 flex items-center gap-4 pl-4 pr-6 pt-4 pb-2 lg:pl-6 lg:pr-8">
                 <button @click="sidebarOpen = true"
                     class="lg:hidden w-11 h-11 shrink-0 rounded-xl bg-brand text-white flex items-center justify-center">
                     <span class="material-symbols-outlined">menu</span>
@@ -578,11 +692,11 @@
 
                 {{-- Bar biru: pencarian + notifikasi + bantuan + pengguna --}}
                 <div
-                    class="flex-1 min-w-0 h-14 rounded-xl bg-brand shadow-[0_6px_18px_rgba(10,92,168,0.30)] ring-1 ring-white/20 flex items-center gap-3 px-3 sm:px-5">
+                    class="ml-auto min-w-0 max-w-full h-14 rounded-xl bg-brand shadow-[0_6px_18px_rgba(10,92,168,0.30)] ring-1 ring-white/20 flex items-center gap-3 px-3 sm:px-5">
 
-                    <div class="flex-1 flex justify-center min-w-0">
+                    <div class="flex min-w-0">
                         <label
-                            class="w-full max-w-md h-9 rounded-lg bg-surface-container-low flex items-center gap-2 px-3 shadow-inner">
+                            class="w-40 sm:w-56 max-w-full h-9 rounded-lg bg-surface-container-low flex items-center gap-2 px-3 shadow-inner">
                             <span class="material-symbols-outlined text-[18px] text-on-surface-variant">search</span>
                             <input type="text" placeholder="Cari data, ajuan, atau dokumen..."
                                 class="w-full min-w-0 bg-transparent border-0 outline-none text-xs text-on-surface placeholder:text-on-surface-variant/70 focus:ring-0" />
@@ -731,7 +845,7 @@
             </header>
 
             <!-- Content -->
-            <main class="flex-1 overflow-y-auto px-4 pb-24 pt-2 lg:pl-2">
+            <main class="flex-1 overflow-y-auto pl-4 pr-6 pb-24 pt-2 lg:pl-6 lg:pr-8">
                 @if (session('success'))
                     <div class="mb-4 px-4 py-3 rounded-lg bg-success-container text-on-success-container text-sm">
                         {{ session('success') }}
