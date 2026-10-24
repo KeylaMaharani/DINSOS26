@@ -106,6 +106,20 @@ class PbiApbd extends Model
         return in_array($this->status, ['disetujui', 'ditolak']);
     }
 
+    /**
+     * Apakah masyarakat (pemilik pengajuan) masih boleh mengisi / memperbaiki data.
+     *
+     * Aturan sementara: terkunci HANYA kalau sudah disetujui.
+     * Status lain (termasuk "ditolak") masih boleh diisi ulang.
+     *
+     * Kalau nanti mau dibatasi lagi, cukup ubah di sini, contoh:
+     *   return in_array($this->status, ['kelurahan', 'ditolak'], true);
+     */
+    public function masyarakatBisaEdit(): bool
+    {
+        return $this->status !== 'disetujui';
+    }
+
     /** Urutan key tahap, dipakai untuk hitung next/back */
     public static function stageKeys(): array
     {

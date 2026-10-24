@@ -1565,7 +1565,6 @@
             window.addEventListener('help-flipbook-open', initFlipbook);
         })();
     </script>
-    {{-- ====== Akhir blok flipbook PDF ====== --}}
 
     @stack('scripts')
 </body>

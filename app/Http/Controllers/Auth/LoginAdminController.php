@@ -124,15 +124,20 @@ class LoginAdminController
     }
 
     /**
-     * Proses logout user.
+     * Proses logout user (masyarakat maupun petugas).
+     *  - Masyarakat -> halaman home
+     *  - Petugas    -> halaman login petugas
      */
     public function destroy(Request $request)
     {
+        // Role HARUS dibaca sebelum Auth::logout(), setelahnya user sudah tidak ada.
+        $isMasyarakat = ($request->user()?->role?->slug ?? null) === 'masyarakat';
+
         Auth::logout();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('admin.login');
+        return redirect()->route($isMasyarakat ? 'home' : 'admin.login');
     }
 }

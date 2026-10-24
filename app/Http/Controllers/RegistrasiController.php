@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DtsenPermohonan;
 use App\Models\PbiApbd;
 use App\Models\Role;
 use App\Models\User;
@@ -119,6 +120,12 @@ class RegistrasiController extends Controller
                 'password' => Hash::make($validated['password']),
                 'role_id' => $masyarakatRole->id,
             ]);
+
+            // Tautkan pengajuan DTSEN yang sebelumnya dibuat petugas atas NIK ini
+            // (saat itu warga belum punya akun, jadi user_id masih kosong).
+            DtsenPermohonan::whereNull('user_id')
+                ->whereHas('detail', fn ($q) => $q->where('nik', $user->username))
+                ->update(['user_id' => $user->id]);
 
             $pbiApbd = PbiApbd::create([
                 'user_id' => $user->id,
