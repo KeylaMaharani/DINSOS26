@@ -1,10 +1,16 @@
 <?php
 
 /**
- * Menu FRONTEND / WEBSITE (kerangka menu saja, halaman menyusul).
- * Ditampilkan langsung di sidebar admin (di bawah Beranda) dan didaftarkan
- * di routes/web.php. Tiap menu paling atas mengikuti module 'menu-frontend'
- * (key di Role::MODULES), anak menu otomatis mengikuti induknya.
+ * Menu PORTAL (dulu bernama "Front End" / "Website"). Kerangka menu saja,
+ * halaman menyusul.
+ *
+ * Di sidebar admin semua menu ini dibungkus satu folder bernama "Portal"
+ * (lihat resources/views/layouts/admin.blade.php) dan didaftarkan di
+ * routes/web.php. Tiap menu paling atas mengikuti module 'menu-frontend'
+ * (key di Role::MODULES, labelnya "Portal - Kelola Menu Website"), anak menu
+ * otomatis mengikuti induknya. Key module 'menu-frontend' sengaja TIDAK diganti
+ * supaya data hak akses yang sudah tersimpan tetap berlaku. Nama route-nya
+ * 'portal.*' dan URL-nya '/portal/...'.
  *
  * Struktur ini HARUS sama dengan navbar website depan
  * (resources/views/layouts/app.blade.php -> variabel $pelayananBaru):
@@ -19,7 +25,7 @@
  *   PPID
  *   Kontak
  *
- * Catatan: 'Beranda Website' = pengaturan isi homepage website,
+ * Catatan: 'Beranda Portal' = pengaturan isi homepage website,
  *          beda dengan 'Beranda' paling atas (dashboard monitoring admin).
  *
  * Kedalaman menu bebas (sidebar & routes dibaca rekursif), jadi grup
@@ -27,8 +33,8 @@
  */
 $leaf = fn (string $label, string $path) => [
     'label' => $label,
-    'route' => 'frontend.' . str_replace('/', '.', $path),
-    'url'   => 'frontend/' . $path,
+    'route' => 'portal.' . str_replace('/', '.', $path),
+    'url'   => 'portal/' . $path,
 ];
 
 // Menu paling atas butuh ikon + module (anak menu tidak perlu)
@@ -39,7 +45,7 @@ $top = fn (array $node, string $icon) => $node + [
 
 return [
     // Beranda
-    $top($leaf('Beranda Website', 'beranda'), 'language'),
+    $top($leaf('Beranda Portal', 'beranda'), 'language'),
 
     // Pelayanan (dropdown bertingkat: grup -> item)
     $top([

@@ -1,11 +1,13 @@
 <?php
 
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\DokumenController;
 use App\Http\Controllers\Admin\DtsenController;
 use App\Http\Controllers\Admin\KartuKksController;
 use App\Http\Controllers\Admin\PbiApbdController;
 use App\Http\Controllers\Admin\PlaceholderController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
+use App\Http\Controllers\Auth\ImpersonateController;
 use App\Http\Controllers\Auth\LoginAdminController;
 use App\Http\Controllers\Auth\ProfileController;
 use App\Http\Controllers\Auth\UserController;
@@ -21,6 +23,9 @@ use App\Http\Controllers\Admin\MenuPlaceholderController;
 use App\Http\Controllers\Admin\PbiKelurahanController;
 use App\Http\Controllers\Admin\RehabsosController;
 use App\Http\Controllers\Admin\SigapBencanaController;
+use App\Http\Controllers\Admin\GcLapanganUsahaController;
+use App\Http\Controllers\Admin\GcKeterampilanController;
+use App\Http\Controllers\Admin\GcPenyakitKronisController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -36,7 +41,9 @@ Route::prefix('registrasi')->name('registrasi.')->group(function () {
     Route::post('/step-2', [RegistrasiController::class, 'step2Store'])->name('step2.store');
 });
 
-Route::get('/cek-densil', [PageController::class, 'cekDensil'])->name('cek-densil');
+// Cek Desil di website sudah dialihkan ke Cek Bansos Kemensos.
+// Nama route 'cek-densil' dipertahankan supaya route('cek-densil') / bookmark lama tidak error.
+Route::redirect('/cek-densil', 'https://cekbansos.kemensos.go.id/')->name('cek-densil');
 Route::get('/kejadian-bencana', [PageController::class, 'kejadianBencana'])->name('kejadian-bencana');
 Route::get('/kesan', [PageController::class, 'kesan'])->name('kesan');
 Route::get('/tutorial-pendaftaran', [PageController::class, 'tutorialPendaftaran'])->name('tutorial-pendaftaran');
@@ -59,6 +66,18 @@ Route::get('/lupa-password', [ForgotPasswordController::class, 'showLinkRequestF
 Route::post('/lupa-password', [ForgotPasswordController::class, 'sendResetLink'])->name('password.email');
 Route::get('/reset-password/{token}', [ForgotPasswordController::class, 'showResetForm'])->name('password.reset');
 Route::post('/reset-password', [ForgotPasswordController::class, 'reset'])->name('password.update');
+
+
+// ==========================================
+// KEMBALI KE SUPER ADMIN (setelah "Masuk sebagai")
+//   Sengaja HANYA middleware 'auth' -- tidak di dalam grup 'staff' atau
+//   module:kelola-akses -- karena saat impersonate, user aktif adalah akun
+//   yang ditiru (bisa staf, bisa masyarakat). Keamanannya dijaga di
+//   controller: butuh session 'impersonator_id' dan pemiliknya harus Super Admin.
+// ==========================================
+Route::post('/kembali-ke-admin', [ImpersonateController::class, 'stop'])
+    ->middleware('auth')
+    ->name('impersonate.stop');
 
 
 // ==========================================
@@ -87,6 +106,9 @@ Route::middleware(['auth', 'staff'])->group(function () {
         Route::get('/{akun:id}/edit', [UserController::class, 'edit'])->name('edit');
         Route::put('/{akun:id}', [UserController::class, 'update'])->name('update');
         Route::delete('/{akun:id}', [UserController::class, 'destroy'])->name('destroy');
+
+        // Super Admin: "Masuk sebagai" akun staf/masyarakat (lihat ImpersonateController)
+        Route::post('/{akun:id}/masuk-sebagai', [ImpersonateController::class, 'start'])->name('impersonate');
 
         // Tab Hak Akses (Role)
         Route::post('/role', [UserController::class, 'storeRole'])->name('role.store');
@@ -158,6 +180,32 @@ Route::middleware(['auth', 'staff'])->group(function () {
         Route::delete('/{parameter}', [GcKriteriaController::class, 'destroy'])->name('destroy');
     });
 
+    // Master Lapangan Usaha + Pekerjaan (hanya Super Admin)
+    Route::prefix('master/lapangan-usaha')->name('master.lapangan-usaha.')->middleware('module:kelola-akses')->group(function () {
+        Route::get('/', [GcLapanganUsahaController::class, 'index'])->name('index');
+        Route::get('/tambah', [GcLapanganUsahaController::class, 'create'])->name('create');
+        Route::post('/', [GcLapanganUsahaController::class, 'store'])->name('store');
+        Route::get('/{lapanganUsaha}/edit', [GcLapanganUsahaController::class, 'edit'])->name('edit');
+        Route::put('/{lapanganUsaha}', [GcLapanganUsahaController::class, 'update'])->name('update');
+        Route::delete('/{lapanganUsaha}', [GcLapanganUsahaController::class, 'destroy'])->name('destroy');
+    });
+
+    // Master Keterampilan Khusus (hanya Super Admin)
+    Route::prefix('master/keterampilan')->name('master.keterampilan.')->middleware('module:kelola-akses')->group(function () {
+        Route::get('/', [GcKeterampilanController::class, 'index'])->name('index');
+        Route::post('/', [GcKeterampilanController::class, 'store'])->name('store');
+        Route::put('/{keterampilan}', [GcKeterampilanController::class, 'update'])->name('update');
+        Route::delete('/{keterampilan}', [GcKeterampilanController::class, 'destroy'])->name('destroy');
+    });
+
+    // Master Penyakit Kronis/Menahun (hanya Super Admin)
+    Route::prefix('master/penyakit-kronis')->name('master.penyakit-kronis.')->middleware('module:kelola-akses')->group(function () {
+        Route::get('/', [GcPenyakitKronisController::class, 'index'])->name('index');
+        Route::post('/', [GcPenyakitKronisController::class, 'store'])->name('store');
+        Route::put('/{penyakit}', [GcPenyakitKronisController::class, 'update'])->name('update');
+        Route::delete('/{penyakit}', [GcPenyakitKronisController::class, 'destroy'])->name('destroy');
+    });
+
     // ==========================================
     // GROUND CHECK 2026 -- alur entry data (Panduan Entry Data SOLID)
     //   Daftar sasaran -> keluarga -> verifikasi status -> form tab A-G -> submit.
@@ -170,6 +218,7 @@ Route::middleware(['auth', 'staff'])->group(function () {
         Route::post('/{sasaran}/status', [GroundCheckController::class, 'statusStore'])->whereNumber('sasaran')->name('status');
         Route::get('/{sasaran}/form', [GroundCheckController::class, 'form'])->whereNumber('sasaran')->name('form');
         Route::post('/{sasaran}/form', [GroundCheckController::class, 'simpan'])->whereNumber('sasaran')->name('simpan');
+        Route::post('/', [GroundCheckController::class, 'store'])->name('store');
     });
 
     // ==========================================
@@ -302,38 +351,46 @@ Route::middleware(['auth', 'staff'])->group(function () {
     $daftarkanDayasos(config('dayasos', []));
 
     // ==========================================
-    // MENU FRONTEND -- kerangka menu saja
-    //   Struktur dibaca dari config/frontend.php; setiap menu sementara
+    // PORTAL (dulu "Menu Frontend") -- kerangka menu saja
+    //   Struktur dibaca dari config/portal.php; setiap menu sementara
     //   menampilkan halaman placeholder. Semua mengikuti module 'menu-frontend'.
     // ==========================================
-    $daftarkanFrontend = function (array $nodes, $moduleInduk) use (&$daftarkanFrontend) {
+    $daftarkanPortal = function (array $nodes, $moduleInduk) use (&$daftarkanPortal) {
         foreach ($nodes as $n) {
             $module = $n['module'] ?? $moduleInduk;
 
             if (isset($n['children'])) {
-                $daftarkanFrontend($n['children'], $module);
+                $daftarkanPortal($n['children'], $module);
                 continue;
             }
 
             Route::get('/' . $n['url'], [MenuPlaceholderController::class, 'show'])
                 ->middleware('module:' . implode(',', (array) $module))
-                ->defaults('judul', 'Menu Frontend')
+                ->defaults('judul', 'Portal')
                 ->defaults('label', $n['label'])
                 ->name($n['route']);
         }
     };
-    $daftarkanFrontend(config('frontend', []), 'menu-frontend');
+    $daftarkanPortal(config('portal', []), 'menu-frontend');
 
     // ==========================================
-    // REHABSOS -- Dashboard + PPKS + Rumah Singgah + Data Permohonan Bantuan
+    // REHABSOS -- Dashboard + PPKS + Rumah Singgah + Data Permohonan Bantuan + Ground Check
     //   Struktur menu dibaca dari config/rehabsos.php
-    //   module rehabsos-ppks / rehabsos-rumah-singgah / rehabsos-bantuan
-    //   Dashboard terbuka untuk role yang punya salah satu dari ketiga modul.
+    //   module rehabsos-ppks / rehabsos-rumah-singgah / rehabsos-bantuan / rehabsos-ground-check
+    //   Dashboard terbuka untuk role yang punya salah satu dari ketiga modul pertama.
     // ==========================================
     Route::prefix('rehabsos')->name('rehabsos.')->group(function () {
         Route::get('/dashboard', [RehabsosController::class, 'dashboard'])
             ->middleware('module:rehabsos-ppks,rehabsos-rumah-singgah,rehabsos-bantuan')
             ->name('dashboard');
+
+        // Ground Check khusus data Rehabsos (kerangka menu dulu, halaman menyusul).
+        // Didaftarkan SEBELUM loop grup di bawah supaya tidak tertimpa.
+        Route::get('/ground-check', [MenuPlaceholderController::class, 'show'])
+            ->middleware('module:rehabsos-ground-check')
+            ->defaults('judul', 'Rehabsos')
+            ->defaults('label', 'Ground Check 2026')
+            ->name('ground-check');
 
         foreach (config('rehabsos.groups', []) as $gKey => $g) {
             Route::prefix($gKey)->name($gKey . '.')->middleware('module:' . $g['module'])->group(function () use ($gKey, $g) {
@@ -348,9 +405,21 @@ Route::middleware(['auth', 'staff'])->group(function () {
     });
 
     // ==========================================
-    // 7. Dokumen — template dokumen
+    // 7. Dokumen — template dokumen (lihat, preview & unduh)
+    //   Semua role ber-modul 'dokumen' boleh melihat, preview & mengunduh.
+    //   Tambah/hapus hanya Super Admin (module:kelola-akses hanya meloloskan
+    //   Super Admin; DokumenController mengecek ulang sebagai lapis kedua).
     // ==========================================
-    Route::get('/dokumen', [PlaceholderController::class, 'dokumen'])->middleware('module:dokumen')->name('dokumen.index');
+    Route::prefix('dokumen')->name('dokumen.')->middleware('module:dokumen')->group(function () {
+        Route::get('/', [DokumenController::class, 'index'])->name('index');
+        Route::get('/{dokumen}/preview', [DokumenController::class, 'preview'])->name('preview');
+        Route::get('/{dokumen}/unduh', [DokumenController::class, 'unduh'])->name('unduh');
+
+        Route::middleware('module:kelola-akses')->group(function () {
+            Route::post('/', [DokumenController::class, 'store'])->name('store');
+            Route::delete('/{dokumen}', [DokumenController::class, 'destroy'])->name('destroy');
+        });
+    });
 }); // <-- GRUP ADMIN DITUTUP DI SINI
 
 

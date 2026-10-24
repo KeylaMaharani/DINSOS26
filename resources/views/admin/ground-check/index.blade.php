@@ -19,10 +19,13 @@
 
         return [$label, 'bg-surface-container-highest text-on-surface-variant'];
     };
+
+    $galatTambah = $errors->getBag('tambah');
+    $in = 'w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30';
 @endphp
 
 @section('content')
-<div class="space-y-5 max-w-7xl">
+<div class="space-y-5 max-w-7xl" x-data="{ tambah: {{ $galatTambah->any() ? 'true' : 'false' }} }" @keydown.escape.window="tambah = false">
 
     {{-- Ringkasan --}}
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -47,7 +50,7 @@
     </div>
 
     <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-2xl overflow-hidden shadow-sm">
-        {{-- Header & pencarian --}}
+        {{-- Header, tombol Tambah & pencarian --}}
         <div class="px-5 py-4 flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant/30">
             <div>
                 <h2 class="text-sm font-bold text-on-surface">Daftar Sasaran Ground Check 2026</h2>
@@ -55,22 +58,29 @@
                     Klik <span class="font-semibold">Detail</span> pada kolom Aksi untuk melihat anggota KK dan mulai memasukkan data.
                 </p>
             </div>
-            <form method="GET" class="flex items-center gap-2">
-                <select name="per_page" onchange="this.form.submit()"
-                        class="rounded-lg border border-outline-variant/50 px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary/30">
-                    @foreach ([10, 25, 50] as $n)
-                        <option value="{{ $n }}" @selected($perPage === $n)>{{ $n }} / halaman</option>
-                    @endforeach
-                </select>
-                <div class="relative">
-                    <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[16px] text-on-surface-variant">search</span>
-                    <input type="text" name="q" value="{{ $q }}" placeholder="Cari nama, NIK, atau No KK"
-                           class="w-60 rounded-lg border border-outline-variant/50 pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30" />
-                </div>
-                <button type="submit" class="px-3.5 py-1.5 rounded-lg bg-primary text-on-primary text-xs font-semibold hover:bg-secondary transition-colors">
-                    Cari
+            <div class="flex flex-wrap items-center gap-2">
+                <button type="button" @click="tambah = true"
+                        class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-success text-white text-xs font-semibold shadow-sm hover:opacity-90 active:scale-95 transition-all">
+                    <span class="material-symbols-outlined text-[16px]">person_add</span> Tambah
                 </button>
-            </form>
+
+                <form method="GET" class="flex items-center gap-2">
+                    <select name="per_page" onchange="this.form.submit()"
+                            class="rounded-lg border border-outline-variant/50 px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary/30">
+                        @foreach ([10, 25, 50] as $n)
+                            <option value="{{ $n }}" @selected($perPage === $n)>{{ $n }} / halaman</option>
+                        @endforeach
+                    </select>
+                    <div class="relative">
+                        <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[16px] text-on-surface-variant">search</span>
+                        <input type="text" name="q" value="{{ $q }}" placeholder="Cari nama, NIK, atau No KK"
+                               class="w-60 rounded-lg border border-outline-variant/50 pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                    </div>
+                    <button type="submit" class="px-3.5 py-1.5 rounded-lg bg-primary text-on-primary text-xs font-semibold hover:bg-secondary transition-colors">
+                        Cari
+                    </button>
+                </form>
+            </div>
         </div>
 
         {{-- Tabel tanpa scroll horizontal --}}
@@ -176,6 +186,114 @@
         <div class="px-5 py-3 border-t border-outline-variant/30 flex flex-wrap items-center justify-between gap-2 text-xs text-on-surface-variant">
             <span>Menampilkan {{ $sasarans->firstItem() ?? 0 }} sampai {{ $sasarans->lastItem() ?? 0 }} dari {{ number_format($sasarans->total(), 0, ',', '.') }} data</span>
             <div>{{ $sasarans->links() }}</div>
+        </div>
+    </div>
+
+    {{-- ================= Modal TAMBAH sasaran ================= --}}
+    <div x-show="tambah" x-cloak
+         x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div @click.outside="tambah = false"
+             x-show="tambah"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 scale-95 translate-y-2"
+             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+             class="bg-surface-container-lowest w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl shadow-xl">
+
+            <div class="flex items-center justify-between px-5 py-4 border-b border-outline-variant/40 sticky top-0 bg-surface-container-lowest z-10">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-9 h-9 rounded-xl bg-success/10 text-success flex items-center justify-center">
+                        <span class="material-symbols-outlined text-[20px]">person_add</span>
+                    </span>
+                    <div>
+                        <h3 class="text-sm font-bold text-on-surface">Tambah Sasaran Ground Check</h3>
+                        <p class="text-[11px] text-on-surface-variant">Jika No KK sudah ada, orang ini otomatis menjadi anggota KK tersebut.</p>
+                    </div>
+                </div>
+                <button type="button" @click="tambah = false" class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container transition-colors">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+
+            <form method="POST" action="{{ route('ground-check.store') }}" class="p-5 space-y-4">
+                @csrf
+
+                @if ($galatTambah->any())
+                    <div class="px-4 py-3 rounded-lg bg-error-container text-on-error-container text-xs">
+                        <p class="font-semibold mb-1">Data belum dapat disimpan:</p>
+                        <ul class="list-disc list-inside space-y-0.5">
+                            @foreach (array_unique($galatTambah->all()) as $e)<li>{{ $e }}</li>@endforeach
+                        </ul>
+                    </div>
+                @endif
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold mb-1">NIK <span class="text-error">*</span></label>
+                        <input type="text" name="nik" value="{{ old('nik') }}" inputmode="numeric" maxlength="16" placeholder="16 digit"
+                               oninput="this.value = this.value.replace(/\D/g, '')" class="{{ $in }} tabular-nums" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold mb-1">No KK <span class="text-error">*</span></label>
+                        <input type="text" name="no_kk" value="{{ old('no_kk') }}" inputmode="numeric" maxlength="16" placeholder="16 digit"
+                               oninput="this.value = this.value.replace(/\D/g, '')" class="{{ $in }} tabular-nums" />
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold mb-1">Nama <span class="text-error">*</span></label>
+                        <input type="text" name="nama" value="{{ old('nama') }}" class="{{ $in }} uppercase" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold mb-1">Tanggal Lahir</label>
+                        <input type="date" name="tanggal_lahir" value="{{ old('tanggal_lahir') }}" max="{{ now()->format('Y-m-d') }}" class="{{ $in }}" />
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold mb-1">Kecamatan</label>
+                        <input type="text" name="kecamatan" value="{{ old('kecamatan') }}" list="gc-kecamatan" class="{{ $in }}" />
+                        <datalist id="gc-kecamatan">@foreach ($kecamatanList as $k)<option value="{{ $k }}">@endforeach</datalist>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold mb-1">Kelurahan</label>
+                        <input type="text" name="kelurahan" value="{{ old('kelurahan') }}" list="gc-kelurahan" class="{{ $in }}" />
+                        <datalist id="gc-kelurahan">@foreach ($kelurahanList as $k)<option value="{{ $k }}">@endforeach</datalist>
+                    </div>
+
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs font-semibold mb-1">Alamat</label>
+                        <textarea name="alamat" rows="2" class="{{ $in }}">{{ old('alamat') }}</textarea>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-3 sm:col-span-2">
+                        <div>
+                            <label class="block text-xs font-semibold mb-1">RT</label>
+                            <input type="text" name="rt" value="{{ old('rt') }}" maxlength="5" class="{{ $in }}" />
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold mb-1">RW</label>
+                            <input type="text" name="rw" value="{{ old('rw') }}" maxlength="5" class="{{ $in }}" />
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold mb-1">Desil</label>
+                            <select name="desil" class="{{ $in }}">
+                                <option value="">-- Pilih --</option>
+                                @for ($d = 1; $d <= 10; $d++)
+                                    <option value="{{ $d }}" @selected((string) old('desil') === (string) $d)>{{ $d }}</option>
+                                @endfor
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <p class="text-[11px] text-on-surface-variant">Kecamatan, kelurahan, alamat, RT/RW, dan desil yang dikosongkan akan diisi otomatis dari anggota KK yang sama (bila ada).</p>
+
+                <div class="flex justify-end gap-2 pt-2 border-t border-outline-variant/40">
+                    <button type="button" @click="tambah = false" class="px-4 py-2 rounded-lg text-sm border border-outline-variant/50 hover:bg-surface-container-low transition-colors">Batal</button>
+                    <button type="submit" class="inline-flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm bg-success text-white font-semibold hover:opacity-90 active:scale-95 transition-all">
+                        <span class="material-symbols-outlined text-[16px]">save</span> Simpan
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

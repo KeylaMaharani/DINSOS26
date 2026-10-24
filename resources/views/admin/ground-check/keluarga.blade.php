@@ -21,12 +21,17 @@
     };
 
     $statusUrl = route('ground-check.status', ['sasaran' => '__ID__']);
+
+    // Galat form Tambah anggota (bag 'tambah') -> modal dibuka otomatis.
+    $galatTambah = $errors->getBag('tambah');
+    $in = 'w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30';
 @endphp
 
 @section('content')
 <div class="space-y-5 max-w-6xl"
      x-data="{
         open: false,
+        tambah: {{ $galatTambah->any() ? 'true' : 'false' }},
         row: { id: null, nik: '', nama: '', alamat: '', status: '' },
         url: '',
         buka(r, status) {
@@ -35,7 +40,8 @@
             this.url = '{{ $statusUrl }}'.replace('__ID__', r.id);
             this.open = true;
         }
-     }">
+     }"
+     @keydown.escape.window="open = false; tambah = false">
 
     <a href="{{ route('ground-check.index') }}" class="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary transition-colors">
         <span class="material-symbols-outlined text-[18px]">arrow_back</span> Kembali
@@ -64,9 +70,15 @@
                     </p>
                 </div>
             </div>
-            <span class="px-3 py-1 rounded-full bg-surface-container text-xs font-semibold text-on-surface-variant">
-                {{ $anggota->count() }} anggota
-            </span>
+            <div class="flex items-center gap-2">
+                <span class="px-3 py-1 rounded-full bg-surface-container text-xs font-semibold text-on-surface-variant">
+                    {{ $anggota->count() }} anggota
+                </span>
+                <button type="button" @click="tambah = true"
+                        class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-success text-white text-xs font-semibold shadow-sm hover:opacity-90 active:scale-95 transition-all">
+                    <span class="material-symbols-outlined text-[16px]">person_add</span> Tambah Anggota
+                </button>
+            </div>
         </div>
 
         {{-- Tabel tanpa scroll horizontal --}}
@@ -155,7 +167,7 @@
 
     {{-- Modal: Form Verifikasi Data --}}
     <div x-show="open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-        <div @click.outside="open = false" @keydown.escape.window="open = false"
+        <div @click.outside="open = false"
              x-transition:enter="transition ease-out duration-150"
              x-transition:enter-start="opacity-0 scale-95"
              x-transition:enter-end="opacity-100 scale-100"
@@ -185,7 +197,7 @@
                 <div>
                     <label class="block text-xs font-semibold mb-1">Status</label>
                     <select name="status_temuan" x-model="row.status" required class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30">
-                        <option value="">-Pilih-</option>
+                        <option value="">-- Pilih --</option>
                         @foreach (GcVerifikasi::STATUS_TEMUAN as $key => $label)
                             <option value="{{ $key }}">{{ $label }}</option>
                         @endforeach
@@ -198,6 +210,70 @@
                 <div class="flex justify-end gap-2 pt-1">
                     <button type="button" @click="open = false" class="px-4 py-2 rounded-lg text-sm border border-outline-variant/50 hover:bg-surface-container transition-colors">Close</button>
                     <button type="submit" class="px-5 py-2 rounded-lg text-sm bg-primary text-on-primary hover:bg-secondary font-semibold transition-colors">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {{-- Modal: TAMBAH anggota KK (No KK terkunci; wilayah/alamat/desil otomatis dari anggota yang sudah ada) --}}
+    <div x-show="tambah" x-cloak
+         x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div @click.outside="tambah = false"
+             x-show="tambah"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 scale-95 translate-y-2"
+             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+             class="bg-surface-container-lowest w-full max-w-md rounded-2xl shadow-xl overflow-hidden">
+
+            <div class="flex items-center justify-between px-5 py-4 border-b border-outline-variant/40">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-9 h-9 rounded-xl bg-success/10 text-success flex items-center justify-center">
+                        <span class="material-symbols-outlined text-[20px]">person_add</span>
+                    </span>
+                    <div>
+                        <h3 class="text-sm font-bold text-on-surface">Tambah Anggota Keluarga</h3>
+                        <p class="text-[11px] text-on-surface-variant tabular-nums">No KK {{ $noKk }}</p>
+                    </div>
+                </div>
+                <button type="button" @click="tambah = false" class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container transition-colors">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+
+            <form method="POST" action="{{ route('ground-check.store') }}" class="p-5 space-y-4">
+                @csrf
+                <input type="hidden" name="no_kk" value="{{ $noKk }}">
+
+                @if ($galatTambah->any())
+                    <div class="px-4 py-3 rounded-lg bg-error-container text-on-error-container text-xs">
+                        <ul class="list-disc list-inside space-y-0.5">
+                            @foreach (array_unique($galatTambah->all()) as $e)<li>{{ $e }}</li>@endforeach
+                        </ul>
+                    </div>
+                @endif
+
+                <div>
+                    <label class="block text-xs font-semibold mb-1">NIK <span class="text-error">*</span></label>
+                    <input type="text" name="nik" value="{{ old('nik') }}" inputmode="numeric" maxlength="16" placeholder="16 digit"
+                           oninput="this.value = this.value.replace(/\D/g, '')" class="{{ $in }} tabular-nums" />
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold mb-1">Nama <span class="text-error">*</span></label>
+                    <input type="text" name="nama" value="{{ old('nama') }}" class="{{ $in }} uppercase" />
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold mb-1">Tanggal Lahir</label>
+                    <input type="date" name="tanggal_lahir" value="{{ old('tanggal_lahir') }}" max="{{ now()->format('Y-m-d') }}" class="{{ $in }}" />
+                </div>
+
+                <p class="text-[11px] text-on-surface-variant">Alamat, wilayah, RT/RW, dan desil otomatis mengikuti anggota keluarga yang sudah ada.</p>
+
+                <div class="flex justify-end gap-2 pt-2 border-t border-outline-variant/40">
+                    <button type="button" @click="tambah = false" class="px-4 py-2 rounded-lg text-sm border border-outline-variant/50 hover:bg-surface-container-low transition-colors">Batal</button>
+                    <button type="submit" class="inline-flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm bg-success text-white font-semibold hover:opacity-90 active:scale-95 transition-all">
+                        <span class="material-symbols-outlined text-[16px]">save</span> Simpan
+                    </button>
                 </div>
             </form>
         </div>

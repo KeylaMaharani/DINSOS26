@@ -66,7 +66,13 @@ class GcKriteriaController extends Controller
 
     private function simpan(Request $request, GcKriteriaParameter $parameter): void
     {
-        $butuhOpsi = in_array($request->input('tipe_input'), ['pilihan', 'pilihan_ganda'], true);
+        // Parameter bersumber master: jenis isian dikunci dan opsi tidak dikelola di sini.
+        if ($parameter->sumber) {
+            $request->merge(['tipe_input' => $parameter->tipe_input]);
+        }
+
+        $butuhOpsi = ! $parameter->sumber
+            && in_array($request->input('tipe_input'), ['pilihan', 'pilihan_ganda'], true);
 
         // Tipe non-pilihan tidak punya opsi: buang baris opsi dari input sebelum validasi.
         if (! $butuhOpsi) {
@@ -98,6 +104,7 @@ class GcKriteriaController extends Controller
         ]);
 
         DB::transaction(function () use ($request, $data, $parameter, $butuhOpsi) {
+            // 'sumber' sengaja tidak ada di sini supaya tidak tertimpa dari form.
             $parameter->fill([
                 'kelompok' => $data['kelompok'],
                 'nama' => $data['nama'],

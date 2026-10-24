@@ -60,63 +60,95 @@
                 </div>
             @endif
 
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="text-left text-on-surface-variant border-b border-outline-variant/40">
-                        <th class="py-2 w-12">No</th>
-                        <th class="py-2">Username</th>
-                        <th class="py-2">Email</th>
-                        <th class="py-2">Hak Akses</th>
-                        <th class="py-2 text-center">Aksi</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach ($users as $user)
-                        <tr class="border-b border-outline-variant/20">
-                            <td class="py-2">{{ $users->firstItem() + $loop->index }}</td>
-                            <td class="py-2">
-                                <div class="flex items-center gap-3">
-                                    <div
-                                        class="w-8 h-8 shrink-0 rounded-full bg-primary text-on-primary flex items-center justify-center text-xs font-semibold uppercase">
-                                        {{ substr($user->username, 0, 1) }}
-                                    </div>
-                                    <p class="leading-tight">{{ $user->username }}</p>
-                                </div>
-                            </td>
-                            <td class="py-2">{{ $user->email }}</td>
-                            <td class="py-2">
-                                @if ($user->role)
-                                    <span
-                                        class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-secondary-fixed text-on-secondary-container">
-                                        {{ $user->role->name }}
-                                    </span>
-                                @else
-                                    <span class="text-xs text-on-surface-variant italic">Belum ada role</span>
-                                @endif
-                            </td>
-                            <td class="py-2 text-center">
-                                <div class="inline-flex items-center justify-center gap-2">
-                                    <button @click="openEdit({{ $user->id }})"
-                                        class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-100 text-amber-700 hover:bg-amber-200 transition">
-                                        <span class="material-symbols-outlined text-[14px]">edit</span>
-                                        Edit
-                                    </button>
-                                    <form action="{{ route('akun.destroy', $user) }}?tab=pengguna" method="POST"
-                                        class="inline" onsubmit="return confirm('Yakin hapus akun ini?')">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit"
-                                            class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 transition">
-                                            <span class="material-symbols-outlined text-[14px]">delete</span>
-                                            Hapus
-                                        </button>
-                                    </form>
-                                </div>
-                            </td>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-on-surface-variant border-b border-outline-variant/40">
+                            <th class="py-2 w-12">No</th>
+                            <th class="py-2">Username</th>
+                            <th class="py-2">Email</th>
+                            <th class="py-2">Hak Akses</th>
+                            <th class="py-2">Password Default</th>
+                            <th class="py-2 text-center">Aksi</th>
                         </tr>
-                    @endforeach
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @foreach ($users as $user)
+                            <tr class="border-b border-outline-variant/20">
+                                <td class="py-2">{{ $users->firstItem() + $loop->index }}</td>
+                                <td class="py-2">
+                                    <div class="flex items-center gap-3">
+                                        <div
+                                            class="w-8 h-8 shrink-0 rounded-full bg-primary text-on-primary flex items-center justify-center text-xs font-semibold uppercase">
+                                            {{ substr($user->username, 0, 1) }}
+                                        </div>
+                                        <p class="leading-tight">{{ $user->username }}</p>
+                                    </div>
+                                </td>
+                                <td class="py-2">{{ $user->email }}</td>
+                                <td class="py-2">
+                                    @if ($user->role)
+                                        <span
+                                            class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-secondary-fixed text-on-secondary-container">
+                                            {{ $user->role->name }}
+                                        </span>
+                                    @else
+                                        <span class="text-xs text-on-surface-variant italic">Belum ada role</span>
+                                    @endif
+                                </td>
+
+                                {{-- Password default: halaman ini hanya bisa dibuka Super Admin (module:kelola-akses) --}}
+                                <td class="py-2 whitespace-nowrap" x-data="{ show: false }">
+                                    @php $defaultPw = $user->defaultPasswordOrNull(); @endphp
+                                    @if ($defaultPw)
+                                        <span class="font-mono text-xs"
+                                            x-text="show ? @js($defaultPw) : '••••••••'"></span>
+                                        <button type="button" @click="show = !show" tabindex="-1"
+                                            class="ml-1 align-middle text-on-surface-variant"
+                                            :aria-label="show ? 'Sembunyikan password default' : 'Tampilkan password default'">
+                                            <span class="material-symbols-outlined text-[16px]"
+                                                x-text="show ? 'visibility_off' : 'visibility'"></span>
+                                        </button>
+                                    @else
+                                        <span class="text-on-surface-variant" title="Reset password sekali untuk mengisinya">—</span>
+                                    @endif
+                                </td>
+
+                                <td class="py-2 text-center">
+                                    <div class="inline-flex items-center justify-center gap-2">
+                                        @if ($user->id !== auth()->id())
+                                            <form action="{{ route('akun.impersonate', ['akun' => $user->id]) }}"
+                                                method="POST" class="inline">
+                                                @csrf
+                                                <button type="submit" title="Masuk sebagai {{ $user->username }}"
+                                                    class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-brand text-white hover:opacity-90 transition">
+                                                    <span class="material-symbols-outlined text-[14px]">login</span>
+                                                    Masuk sebagai
+                                                </button>
+                                            </form>
+                                        @endif
+                                        <button @click="openEdit({{ $user->id }})"
+                                            class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-100 text-amber-700 hover:bg-amber-200 transition">
+                                            <span class="material-symbols-outlined text-[14px]">edit</span>
+                                            Edit
+                                        </button>
+                                        <form action="{{ route('akun.destroy', $user) }}?tab=pengguna" method="POST"
+                                            class="inline" onsubmit="return confirm('Yakin hapus akun ini?')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit"
+                                                class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 transition">
+                                                <span class="material-symbols-outlined text-[14px]">delete</span>
+                                                Hapus
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
 
             <div class="mt-4">
                 {{ $users->links() }}
@@ -368,12 +400,12 @@
                              modul baru ditambahkan di sana, otomatis muncul di sini tanpa
                              perlu ubah view ini lagi. --}}
                         <div>
-                            <label class="block text-sm font-medium mb-2">Hak Akses Modul</label>
+                            <label class="block text-sm font-medium mb-2">Hak Akses Menu</label>
 
                             <template x-if="isSuperAdminEdit">
                                 <p
                                     class="text-xs text-on-surface-variant italic bg-surface-container rounded-lg px-3 py-2">
-                                    Super Admin otomatis memiliki akses ke seluruh modul dan tidak bisa diubah.
+                                    Super Admin otomatis memiliki akses ke seluruh menu dan tidak bisa diubah.
                                 </p>
                             </template>
 
@@ -388,7 +420,7 @@
                                 @endforeach
                             </div>
                             @if (\App\Models\Role::MODULES === [])
-                                <p class="text-xs text-on-surface-variant italic">Belum ada modul yang bisa dipilih.</p>
+                                <p class="text-xs text-on-surface-variant italic">Belum ada menu yang bisa dipilih.</p>
                             @endif
                         </div>
 

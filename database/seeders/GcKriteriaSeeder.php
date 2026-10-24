@@ -22,6 +22,8 @@ use Illuminate\Support\Facades\DB;
  *  3. Variabel isian bebas                -> tipe teks / tanggal / foto.
  *  4. Variabel tanpa padanan PBI          -> opsi SEMENTARA, nilai dikosongkan (null),
  *                                            nanti diisi Super Admin lewat menu master.
+ *  5. Variabel bersumber master terpisah  -> kolom 'sumber' diisi, TANPA opsi di gc_kriteria_opsis
+ *                                            (mis. keluhan kronis -> Master Penyakit Kronis).
  *
  * Seeder hanya berjalan jika master GC masih kosong, jadi tidak menimpa hasil edit Super Admin.
  *
@@ -29,9 +31,22 @@ use Illuminate\Support\Facades\DB;
  *  - Opsi "yatim" (parameter_id tidak lagi ada di tabel parameter) dibersihkan di awal,
  *    supaya tidak menempel ke parameter baru yang kebetulan memakai id yang sama.
  *  - Opsi dibuat dengan updateOrCreate per label, jadi tidak bisa tercipta dua kali.
+ *
+ * Perubahan tab D Kesehatan: pertanyaan "Apakah penderita stunting?" DIHAPUS dari seeder, dan
+ * "Apakah memiliki keluhan kesehatan kronis/menahun?" kini dropdown dari Master Penyakit Kronis.
+ *
+ * Perubahan tab E Keluarga: "Jenis kloset" dan "Tempat pembuangan akhir tinja" DIHAPUS;
+ * "Kepemilikan fasilitas BAB" memakai 6 opsi sesuai SOLID (nilai diisi Super Admin di menu master).
+ * Perubahan tab F2: "Jumlah ternak kuda yang dimiliki" AKTIF.
+ * Perubahan tab G: foto tabung gas, kamar mandi, dan individu DIHAPUS.
  */
 class GcKriteriaSeeder extends Seeder
 {
+    /** Nama (huruf kecil) parameter yang pilihannya berasal dari master terpisah -> nilai kolom 'sumber'. */
+    private const SUMBER_MASTER = [
+        'apakah memiliki keluhan kesehatan kronis/menahun?' => 'penyakit_kronis',
+    ];
+
     public function run(): void
     {
         // Bersihkan opsi yatim (sisa dari parameter yang sudah dihapus/di-truncate).
@@ -93,8 +108,8 @@ class GcKriteriaSeeder extends Seeder
             // ================= D. KESEHATAN =================
             ['kesehatan', 'Status disabilitas', 4, 'pilihan_ganda', null,
                 ['Tidak ada', 'Tuna netra', 'Tuna rungu', 'Tuna wicara', 'Tuna daksa', 'Tuna grahita', 'Disabilitas mental', 'Disabilitas ganda']],
-            ['kesehatan', 'Apakah penderita stunting?', 3, 'pilihan', null, $yaTidak],
-            ['kesehatan', 'Apakah memiliki keluhan kesehatan kronis/menahun?', 3, 'pilihan', null, ['Tidak ada', 'Ada']],
+            // Pilihan berasal dari Master Penyakit Kronis (lihat SUMBER_MASTER), bukan dari gc_kriteria_opsis.
+            ['kesehatan', 'Apakah memiliki keluhan kesehatan kronis/menahun?', 3, 'pilihan', null, []],
 
             // ================= E. KELUARGA =================
             ['keluarga', 'Jumlah keluarga yang tinggal dalam satu rumah', 2, 'angka', 'Jumlah tanggungan keluarga', []],
@@ -105,9 +120,15 @@ class GcKriteriaSeeder extends Seeder
             ['keluarga', 'Sumber air minum utama', 3, 'pilihan', 'Sumber air minum', []],
             ['keluarga', 'Sumber penerangan utama', 2, 'pilihan', 'Sumber penerangan utama', []],
             ['keluarga', 'Bahan bakar/energi utama untuk memasak', 2, 'pilihan', 'Bahan bakar/energi utama untuk memasak', []],
-            ['keluarga', 'Kepemilikan fasilitas BAB', 2, 'pilihan', 'Penggunaan fasilitas tempat buang air besar', []],
-            ['keluarga', 'Jenis kloset', 2, 'pilihan', 'Jenis kloset', []],
-            ['keluarga', 'Tempat pembuangan akhir tinja', 2, 'pilihan', 'Tempat pembuangan akhir tinja', []],
+            // 6 opsi sesuai form SOLID; nilai/skor diisi Super Admin lewat menu master.
+            ['keluarga', 'Kepemilikan fasilitas BAB', 2, 'pilihan', null, [
+                'Ada, digunakan hanya Anggota Keluarga sendiri',
+                'Ada, digunakan bersama Anggota Keluarga dari keluarga tertentu',
+                'Ada, di MCK komunal',
+                'Ada, di MCK umum/siapapun menggunakan',
+                'Ada, Anggota Keluarga tidak menggunakan',
+                'Tidak ada fasilitas',
+            ]],
 
             // ================= F1. ASET BERGERAK (semua isian angka) =================
             ['aset_bergerak', 'Jumlah tabung gas 5,5 kg atau lebih', 1, 'angka', null, []],
@@ -132,8 +153,8 @@ class GcKriteriaSeeder extends Seeder
             ['aset_tidak_bergerak', 'Memiliki rumah/bangunan di tempat lain', 1.5, 'pilihan', null, $yaTidak],
             ['aset_tidak_bergerak', 'Jumlah ternak sapi yang dimiliki', 0.5, 'angka', null, []],
             ['aset_tidak_bergerak', 'Jumlah ternak kerbau yang dimiliki', 0.5, 'angka', null, []],
-            // Ada di form SOLID (Buku Saku hal. 8) tetapi tidak ada di dokumen 39 variabel -> nonaktif, bobot 0.
-            ['aset_tidak_bergerak', 'Jumlah ternak kuda yang dimiliki', 0, 'angka', null, [], false],
+            // Ada di form SOLID (Buku Saku hal. 8) tetapi tidak ada di dokumen 39 variabel -> tampil di form, bobot 0 (belum ditentukan).
+            ['aset_tidak_bergerak', 'Jumlah ternak kuda yang dimiliki', 0, 'angka', null, []],
             ['aset_tidak_bergerak', 'Jumlah ternak babi yang dimiliki', 0.5, 'angka', null, []],
             ['aset_tidak_bergerak', 'Jumlah ternak kambing/domba yang dimiliki', 0.5, 'angka', null, []],
 
@@ -144,15 +165,13 @@ class GcKriteriaSeeder extends Seeder
             ['dokumentasi', 'Foto tampak depan', 2, 'foto', null, []],
             ['dokumentasi', 'Foto tampak dalam', 1, 'foto', null, []],
             ['dokumentasi', 'Foto kartu keluarga', 2, 'foto', null, []],
-            ['dokumentasi', 'Foto tabung gas', 0.5, 'foto', null, []],
-            ['dokumentasi', 'Foto kamar mandi', 0.5, 'foto', null, []],
-            ['dokumentasi', 'Foto individu', 1, 'foto', null, []],
         ];
 
         DB::transaction(function () use ($data) {
             foreach ($data as $i => $row) {
                 [$kelompok, $nama, $bobot, $tipe, $pbiNama, $opsiSementara] = $row;
                 $aktif = $row[6] ?? true;
+                $sumber = self::SUMBER_MASTER[mb_strtolower(trim($nama))] ?? null;
 
                 $pbi = null;
                 if ($pbiNama) {
@@ -168,12 +187,13 @@ class GcKriteriaSeeder extends Seeder
                     'nama' => $nama,
                     'bobot' => $bobot,
                     'tipe_input' => $tipe,
+                    'sumber' => $sumber,
                     'pbi_parameter_id' => $pbi?->id,
-                    'keterangan' => $this->keterangan($tipe, $pbi, $opsiSementara, $aktif),
+                    'keterangan' => $this->keterangan($tipe, $pbi, $opsiSementara, $aktif, $sumber),
                     'aktif' => $aktif,
                 ]);
 
-                // Opsi hanya untuk tipe pilihan / pilihan_ganda.
+                // Opsi hanya untuk tipe pilihan / pilihan_ganda yang TIDAK bersumber master.
                 if (!$param->butuhOpsi()) {
                     continue;
                 }
@@ -201,10 +221,13 @@ class GcKriteriaSeeder extends Seeder
         $this->command?->info(count($data) . ' parameter kriteria Ground Check berhasil di-seed.');
     }
 
-    private function keterangan(string $tipe, ?PbiKriteriaParameter $pbi, array $opsiSementara, bool $aktif): ?string
+    private function keterangan(string $tipe, ?PbiKriteriaParameter $pbi, array $opsiSementara, bool $aktif, ?string $sumber = null): ?string
     {
         if (!$aktif) {
             return 'Ada di form SOLID tetapi tidak tercantum di dokumen 39 variabel; bobot belum ditentukan.';
+        }
+        if ($sumber === 'penyakit_kronis') {
+            return 'Pilihan dikelola di Master Penyakit Kronis/Menahun.';
         }
         if ($pbi && $tipe === 'angka') {
             return "Padanan PBI: {$pbi->nama}. Isian angka, opsi PBI tidak disalin; aturan konversi angka ke indeks belum ditentukan.";

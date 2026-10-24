@@ -87,6 +87,21 @@
     </header>
 
     <main class="max-w-3xl mx-auto px-4 sm:px-6 py-5 sm:py-8 lg:py-10">
+        {{-- Banner "Masuk sebagai": tampil hanya saat Super Admin sedang melihat akun ini --}}
+        @if (session('impersonator_id'))
+            <div
+                class="mb-4 px-4 py-3 rounded-lg bg-warning-container text-on-warning-container text-sm flex flex-wrap items-center justify-between gap-3">
+                <span class="break-words">Anda sedang masuk sebagai <b>{{ auth()->user()->name }}</b>.</span>
+                <form method="POST" action="{{ route('impersonate.stop') }}">
+                    @csrf
+                    <button type="submit"
+                        class="px-3 py-1.5 rounded-lg bg-primary text-on-primary text-xs font-medium hover:bg-secondary transition-colors">
+                        Kembali ke Super Admin
+                    </button>
+                </form>
+            </div>
+        @endif
+
         @if (session('success'))
             <div class="mb-4 px-4 py-3 rounded-lg bg-success-container text-on-success-container text-sm break-words">
                 {{ session('success') }}
@@ -104,4 +119,4 @@
     @stack('scripts')
 </body>
 
-</html>
+</html>         

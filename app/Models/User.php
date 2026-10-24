@@ -20,12 +20,14 @@ class User extends Authenticatable
         'email',
         'role_id',
         'password',
+        'default_password',
         'kecamatan',
         'kelurahan',
     ];
 
     protected $hidden = [
         'password',
+        'default_password',
         'remember_token',
     ];
 
@@ -39,6 +41,8 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            // Terenkripsi (APP_KEY) di database, otomatis didekripsi saat dibaca.
+            'default_password' => 'encrypted',
         ];
     }
 
@@ -59,6 +63,20 @@ class User extends Authenticatable
     public function role(): BelongsTo
     {
         return $this->belongsTo(Role::class);
+    }
+
+    /**
+     * Password default yang tampil di Kelola Akses (khusus Super Admin).
+     * Kalau gagal didekripsi (misalnya APP_KEY pernah diganti), kembalikan
+     * null supaya halaman Kelola Akses tidak error.
+     */
+    public function defaultPasswordOrNull(): ?string
+    {
+        try {
+            return $this->default_password;
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     /**

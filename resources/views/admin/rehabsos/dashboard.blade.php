@@ -29,7 +29,7 @@
 
         @if ($groups->isEmpty())
             <div class="{{ $card }} p-8 text-center text-sm text-on-surface-variant">
-                Role Anda belum memiliki akses ke sub-modul Rehabsos.
+                Role Anda belum memiliki akses ke sub-bidang Rehabsos.
             </div>
         @endif
     </div>

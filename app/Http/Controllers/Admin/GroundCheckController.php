@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\GcJawaban;
+use App\Models\GcKeterampilan;
 use App\Models\GcKriteriaParameter;
+use App\Models\GcLapanganUsaha;
+use App\Models\GcPenyakitKronis;
 use App\Models\GcSasaran;
 use App\Models\GcVerifikasi;
 use Illuminate\Http\Request;
@@ -18,6 +21,10 @@ use Illuminate\Validation\Rule;
  * Alur entry Ground Check 2026 (mengikuti Panduan Entry Data SOLID):
  *  daftar sasaran -> klik ikon keluarga -> daftar anggota KK -> klik pensil (Form Verifikasi Data)
  *  -> pilih status -> bila Ditemukan: form tab A-G -> centang pernyataan -> Submit.
+ *
+ * Draft: setiap saat petugas bisa menekan "Simpan Draft". Validasi wajib TIDAK dijalankan,
+ * semua jawaban yang sudah terisi disimpan, dan terisi otomatis saat form dibuka lagi.
+ * Kewajiban semua field baru ditegakkan saat Submit.
  */
 class GroundCheckController extends Controller
 {
@@ -57,7 +64,62 @@ class GroundCheckController extends Controller
         $belum = max($total - $sudah, 0);
         $progres = $total > 0 ? round($sudah / $total * 100, 1) : 0;
 
-        return view('admin.ground-check.index', compact('sasarans', 'total', 'sudah', 'belum', 'progres', 'q', 'perPage'));
+        // Saran isian untuk form Tambah (diambil dari wilayah yang sudah ada di daftar sasaran).
+        $kecamatanList = GcSasaran::whereNotNull('kecamatan')->distinct()->orderBy('kecamatan')->pluck('kecamatan');
+        $kelurahanList = GcSasaran::whereNotNull('kelurahan')->distinct()->orderBy('kelurahan')->pluck('kelurahan');
+
+        return view('admin.ground-check.index', compact(
+            'sasarans', 'total', 'sudah', 'belum', 'progres', 'q', 'perPage', 'kecamatanList', 'kelurahanList'
+        ));
+    }
+
+    /**
+     * TAMBAH sasaran baru ke Daftar Sasaran Ground Check.
+     * Bila No KK sudah ada, orang ini otomatis menjadi anggota KK tersebut dan
+     * wilayah/alamat/desil yang dikosongkan diambil dari anggota KK yang sudah ada.
+     */
+    public function store(Request $request)
+    {
+        $data = $request->validateWithBag('tambah', [
+            'nik' => ['required', 'digits:16', 'unique:gc_sasarans,nik'],
+            'nama' => ['required', 'string', 'max:255'],
+            'no_kk' => ['required', 'digits:16'],
+            'tanggal_lahir' => ['nullable', 'date', 'before_or_equal:today'],
+            'kecamatan' => ['nullable', 'string', 'max:255'],
+            'kelurahan' => ['nullable', 'string', 'max:255'],
+            'alamat' => ['nullable', 'string', 'max:1000'],
+            'rt' => ['nullable', 'string', 'max:5'],
+            'rw' => ['nullable', 'string', 'max:5'],
+            'desil' => ['nullable', 'integer', 'between:1,10'],
+        ], [
+            'nik.required' => 'NIK wajib diisi.',
+            'nik.digits' => 'NIK harus 16 digit angka.',
+            'nik.unique' => 'NIK sudah terdaftar di Daftar Sasaran.',
+            'nama.required' => 'Nama wajib diisi.',
+            'no_kk.required' => 'No KK wajib diisi.',
+            'no_kk.digits' => 'No KK harus 16 digit angka.',
+            'tanggal_lahir.date' => 'Tanggal lahir tidak valid.',
+            'tanggal_lahir.before_or_equal' => 'Tanggal lahir tidak boleh melebihi hari ini.',
+            'desil.integer' => 'Desil harus berupa angka.',
+            'desil.between' => 'Desil harus antara 1 sampai 10.',
+        ]);
+
+        $data['nama'] = Str::upper(trim($data['nama']));
+
+        // Anggota KK yang sudah ada -> lengkapi data wilayah yang kosong.
+        $anggotaLama = GcSasaran::where('no_kk', $data['no_kk'])->first();
+        if ($anggotaLama) {
+            foreach (['kecamatan', 'kelurahan', 'alamat', 'rt', 'rw', 'desil'] as $f) {
+                if (blank($data[$f] ?? null)) {
+                    $data[$f] = $anggotaLama->{$f};
+                }
+            }
+        }
+
+        $sasaran = GcSasaran::create($data);
+
+        return redirect()->route('ground-check.keluarga', $sasaran->no_kk)
+            ->with('success', $sasaran->nama . ' berhasil ditambahkan ke Daftar Sasaran. Klik ikon pensil untuk mulai mengisi data.');
     }
 
     /** Langkah 5: anggota satu KK. */
@@ -125,6 +187,7 @@ class GroundCheckController extends Controller
         }
 
         $params = GcKriteriaParameter::aktif()->with('opsis')->get();
+        $master = $this->masterKetenagakerjaan();
 
         $tabs = [];
         foreach (GcKriteriaParameter::TAB as $key => $tab) {
@@ -134,20 +197,32 @@ class GroundCheckController extends Controller
             }
         }
 
-        $nilai = [];
+        // Hanya jawaban yang benar-benar terisi (draf yang berisi null/kosong tidak dihitung).
+        $tersimpan = [];
         foreach ($v->jawabans()->get() as $j) {
-            if ($j->parameter_id) {
-                $nilai[$j->parameter_id] = $j->jawaban;
+            if ($j->parameter_id && $j->jawaban !== null && $j->jawaban !== '') {
+                $tersimpan[$j->parameter_id] = $j->jawaban;
             }
         }
 
-        if (empty($nilai)) {
-            $nilai = $this->prefill($sasaran, $params);
-        }
+        // Prefill (identitas & data keluarga) hanya bila belum ada satu pun jawaban tersimpan.
+        $nilai = $tersimpan ?: $this->prefill($sasaran, $params);
+
+        // Pertanyaan pemicu di tab Ketenagakerjaan + daftar field yang bergantung padanya.
+        $gate = $this->gateKerja($params);
+        $kerja = $gate ? [
+            'gate' => $gate->id,
+            'dependen' => $params->where('kelompok', 'ketenagakerjaan')
+                ->where('id', '!=', $gate->id)->pluck('id')->values()->all(),
+        ] : null;
+
+        $statusTab = $this->statusTab($tabs, $tersimpan, $kerja);
 
         $tabAwal = (int) session('tab', 0);
 
-        return view('admin.ground-check.form', compact('sasaran', 'v', 'tabs', 'nilai', 'tabAwal'));
+        return view('admin.ground-check.form', compact(
+            'sasaran', 'v', 'tabs', 'nilai', 'tabAwal', 'master', 'kerja', 'statusTab'
+        ));
     }
 
     /** Simpan draf / submit. Saat submit, semua isian wajib diisi. */
@@ -159,6 +234,15 @@ class GroundCheckController extends Controller
         $submit = $request->input('aksi') === 'submit';
         $params = GcKriteriaParameter::aktif()->with('opsis')->get();
         $existing = $v->jawabans()->get()->keyBy('parameter_id');
+        $master = $this->masterKetenagakerjaan();
+        $lapParam = $params->firstWhere('sumber', 'lapangan_usaha');
+
+        // Field Ketenagakerjaan lain hanya berlaku jika responden bekerja ("Ya").
+        $gate = $this->gateKerja($params);
+        $bekerja = $gate && $request->input("jawaban.{$gate->id}") === 'Ya';
+        $dependenIds = $gate
+            ? $params->where('kelompok', 'ketenagakerjaan')->where('id', '!=', $gate->id)->pluck('id')->all()
+            : [];
 
         $rules = [];
         $attributes = [];
@@ -166,8 +250,15 @@ class GroundCheckController extends Controller
         foreach ($params as $p) {
             $key = "jawaban.{$p->id}";
             $attributes[$key] = $p->nama;
+
+            // Responden tidak bekerja -> field turunan tidak diwajibkan & akan dikosongkan.
+            if (in_array($p->id, $dependenIds, true) && ! $bekerja) {
+                $rules[$key] = ['nullable'];
+                continue;
+            }
+
             $req = $submit ? 'required' : 'nullable';
-            $labels = $p->opsis->pluck('label')->all();
+            $labels = $this->labelOpsi($p, $master);
 
             switch ($p->tipe_input) {
                 case 'pilihan':
@@ -177,7 +268,7 @@ class GroundCheckController extends Controller
                     break;
 
                 case 'pilihan_ganda':
-                    // Tanpa opsi di master tidak ada yang bisa dicentang, jadi tidak diwajibkan.
+                    // Tanpa opsi di master tidak ada yang bisa dipilih, jadi tidak diwajibkan.
                     $rules[$key] = $submit && $labels ? ['required', 'array', 'min:1'] : ['nullable', 'array'];
                     $rules["{$key}.*"] = $labels ? ['string', Rule::in($labels)] : ['string', 'max:255'];
                     $attributes["{$key}.*"] = $p->nama;
@@ -205,6 +296,33 @@ class GroundCheckController extends Controller
                 default: // teks
                     $rules[$key] = [$req, 'string', 'max:500'];
             }
+
+            // Keterampilan bertanda eksklusif (mis. "Belum Ada") tidak boleh digabung dengan pilihan lain.
+            if ($p->sumber === 'keterampilan') {
+                $eksklusif = $master['keterampilan']->where('eksklusif', true)->pluck('nama')->all();
+                $rules[$key][] = function ($attr, $value, $fail) use ($eksklusif) {
+                    if (! is_array($value) || count($value) < 2) {
+                        return;
+                    }
+                    $bentrok = array_intersect($value, $eksklusif);
+                    if ($bentrok) {
+                        $fail('Pilihan "' . implode('", "', $bentrok) . '" tidak boleh digabung dengan pilihan lain.');
+                    }
+                };
+            }
+
+            // Pekerjaan harus termasuk dalam lapangan usaha yang dipilih.
+            if ($p->sumber === 'pekerjaan' && $lapParam) {
+                $rules[$key][] = function ($attr, $value, $fail) use ($request, $lapParam, $master) {
+                    if ($value === null || $value === '') {
+                        return;
+                    }
+                    $lap = $master['lapangan']->firstWhere('nama', $request->input("jawaban.{$lapParam->id}"));
+                    if (! $lap || ! $lap->pekerjaansAktif->contains('nama', $value)) {
+                        $fail('Pekerjaan tidak sesuai dengan lapangan usaha yang dipilih.');
+                    }
+                };
+            }
         }
 
         if ($submit) {
@@ -223,10 +341,13 @@ class GroundCheckController extends Controller
             'accepted' => 'Centang pernyataan kebenaran data terlebih dahulu.',
         ], $attributes);
 
-        DB::transaction(function () use ($request, $params, $existing, $v, $submit) {
+        DB::transaction(function () use ($request, $params, $existing, $v, $submit, $bekerja, $dependenIds) {
             foreach ($params as $p) {
                 $row = $existing->get($p->id) ?? new GcJawaban(['verifikasi_id' => $v->id, 'parameter_id' => $p->id]);
-                $input = $request->input("jawaban.{$p->id}");
+
+                // Responden tidak bekerja -> jawaban field turunan dikosongkan.
+                $kosongkan = in_array($p->id, $dependenIds, true) && ! $bekerja;
+                $input = $kosongkan ? null : $request->input("jawaban.{$p->id}");
                 $jawaban = null;
                 $skor = null;
 
@@ -291,6 +412,73 @@ class GroundCheckController extends Controller
     private function koordinatAngka(GcKriteriaParameter $p): bool
     {
         return Str::contains(Str::lower($p->nama), ['lintang', 'bujur']);
+    }
+
+    /** Pertanyaan pemicu di tab Ketenagakerjaan ("Apakah responden bekerja ... seminggu yang lalu?"). */
+    private function gateKerja($params): ?GcKriteriaParameter
+    {
+        return $params->first(fn ($p) => $p->kelompok === 'ketenagakerjaan'
+            && Str::startsWith(Str::lower(trim($p->nama)), 'apakah responden bekerja'));
+    }
+
+    /**
+     * Progres tiap tab dari jawaban yang sudah tersimpan: kosong | draft | lengkap.
+     * Field Ketenagakerjaan turunan tidak dihitung bila responden tidak bekerja.
+     */
+    private function statusTab(array $tabs, array $tersimpan, ?array $kerja): array
+    {
+        $bekerja = $kerja && (($tersimpan[$kerja['gate']] ?? null) === 'Ya');
+        $hasil = [];
+
+        foreach ($tabs as $i => $t) {
+            $total = 0;
+            $isi = 0;
+
+            foreach ($t['params'] as $p) {
+                if ($kerja && ! $bekerja && in_array($p->id, $kerja['dependen'], true)) {
+                    continue;
+                }
+                // Pilihan ganda tanpa opsi tidak bisa diisi -> tidak dihitung.
+                if ($p->tipe_input === 'pilihan_ganda' && ! $p->sumber && $p->opsis->isEmpty()) {
+                    continue;
+                }
+
+                $total++;
+                if (isset($tersimpan[$p->id])) {
+                    $isi++;
+                }
+            }
+
+            $hasil[$i] = [
+                'isi' => $isi,
+                'total' => $total,
+                'status' => ($total === 0 || $isi >= $total) ? 'lengkap' : ($isi === 0 ? 'kosong' : 'draft'),
+            ];
+        }
+
+        return $hasil;
+    }
+
+    /** Data master (hanya yang aktif). */
+    private function masterKetenagakerjaan(): array
+    {
+        return [
+            'lapangan' => GcLapanganUsaha::aktif()->with('pekerjaansAktif')->get(),
+            'keterampilan' => GcKeterampilan::aktif()->get(),
+            'penyakit' => GcPenyakitKronis::aktif()->get(),
+        ];
+    }
+
+    /** Daftar jawaban yang sah untuk sebuah parameter (dari master atau dari opsi). */
+    private function labelOpsi(GcKriteriaParameter $p, array $master): array
+    {
+        return match ($p->sumber) {
+            'lapangan_usaha' => $master['lapangan']->pluck('nama')->all(),
+            'pekerjaan' => $master['lapangan']->flatMap(fn ($l) => $l->pekerjaansAktif->pluck('nama'))->unique()->values()->all(),
+            'keterampilan' => $master['keterampilan']->pluck('nama')->all(),
+            'penyakit_kronis' => $master['penyakit']->pluck('nama')->all(),
+            default => $p->opsis->pluck('label')->all(),
+        };
     }
 
     /**
