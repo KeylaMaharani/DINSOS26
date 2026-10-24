@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Layanan;
 use App\Http\Controllers\Controller;
 use App\Models\DtsenPermohonan;
 use App\Models\Role;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -22,7 +23,7 @@ class DtsenAjuanController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'nik' => 'required|string|max:20',
+            'nik' => 'required|digits:16',
             'nama' => 'required|string|max:150',
             'no_kk' => 'required|string|max:20',
             'alamat' => 'required|string|max:255',
@@ -45,9 +46,13 @@ class DtsenAjuanController extends Controller
             ['name' => 'Kelurahan', 'slug' => 'kelurahan']
         );
 
-        $permohonan = DB::transaction(function () use ($validated, $request, $kelurahanRole) {
+        // Akun warga pemilik pengajuan: username warga = NIK (lihat RegistrasiController).
+        // Null kalau warganya belum punya akun; nanti ditautkan otomatis saat registrasi.
+        $wargaId = User::where('username', $validated['nik'])->value('id');
+
+        $permohonan = DB::transaction(function () use ($validated, $request, $kelurahanRole, $wargaId) {
             $permohonan = DtsenPermohonan::create([
-                'user_id' => Auth::id(),
+                'user_id' => $wargaId,          // pemilik (warga)
                 'nik' => $validated['nik'],
                 'nama_pemohon' => $validated['nama'],
                 'alamat' => $validated['alamat'],
@@ -56,7 +61,7 @@ class DtsenAjuanController extends Controller
                 'current_role_id' => $kelurahanRole->id,
                 'kelurahan' => $validated['kelurahan'],
                 'tanggal_insert' => now(),
-                'created_by' => Auth::id(),
+                'created_by' => Auth::id(),     // pembuat (petugas)
             ]);
 
             $permohonan->detail()->create([
@@ -91,10 +96,10 @@ class DtsenAjuanController extends Controller
             ->with('success', 'Pengajuan DTSEN berhasil dikirim, nomor permohonan #' . $permohonan->id);
     }
 
-    /** GET /layanan/dtsen/riwayat */
+    /** GET /layanan/dtsen/riwayat — riwayat pengajuan yang DIBUAT petugas yang login */
     public function riwayat()
     {
-        $data = DtsenPermohonan::where('user_id', Auth::id())
+        $data = DtsenPermohonan::where('created_by', Auth::id())
             ->latest('tanggal_insert')
             ->get();
 

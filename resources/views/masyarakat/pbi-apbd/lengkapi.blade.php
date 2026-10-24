@@ -18,6 +18,21 @@
         </div>
     @endif
 
+    @if ($pbiApbd->status === 'ditolak' && $bisaEdit)
+        <div class="mb-4 px-4 py-3 rounded-lg bg-warning-container text-on-warning-container text-sm">
+            <p class="font-semibold">Pengajuan Anda ditolak.</p>
+            <p class="mt-1">Anda dapat memperbaiki data lalu menyimpannya kembali untuk diajukan ulang.</p>
+            @if ($pbiApbd->catatan_kelurahan)<p class="mt-1 break-words">Catatan: {{ $pbiApbd->catatan_kelurahan }}</p>@endif
+        </div>
+    @endif
+
+    @unless ($bisaEdit)
+        <div class="mb-4 px-4 py-3 rounded-lg bg-success-container text-on-success-container text-sm flex items-start gap-2">
+            <span class="material-symbols-outlined text-[18px] shrink-0 mt-px">lock</span>
+            <p>Pengajuan sudah disetujui, sehingga data tidak dapat diubah lagi.</p>
+        </div>
+    @endunless
+
     @if ($errors->any())
         <div class="mb-4 px-4 py-3 rounded-lg bg-error-container text-on-error-container text-sm">
             <p class="font-semibold mb-1">Periksa kembali data Anda:</p>
@@ -29,8 +44,9 @@
         </div>
     @endif
 
+    {{-- pb-28 di mobile: ruang kosong supaya konten terakhir tidak tertutup tombol Simpan yang fixed --}}
     <form method="POST" action="{{ route('masyarakat.pbi-apbd.lengkapi.store', $pbiApbd) }}"
-          class="space-y-4 sm:space-y-6" id="form-lengkapi">
+          class="space-y-4 sm:space-y-6 pb-28 sm:pb-0" id="form-lengkapi">
         @csrf
 
         {{-- ===== KOORDINAT ===== --}}
@@ -46,14 +62,29 @@
             <input type="hidden" name="latitude" id="latitude" value="{{ old('latitude', $pbiApbd->latitude) }}">
             <input type="hidden" name="longitude" id="longitude" value="{{ old('longitude', $pbiApbd->longitude) }}">
 
-            <div id="geo-status" class="flex items-start gap-2 text-sm p-3 rounded-lg bg-surface-container">
-                <span class="material-symbols-outlined text-[18px] shrink-0 mt-px animate-spin" id="geo-icon">progress_activity</span>
-                <span id="geo-text" class="min-w-0 break-words">Mengambil lokasi Anda...</span>
-            </div>
+            @if ($bisaEdit)
+                <div id="geo-status" class="flex items-start gap-2 text-sm p-3 rounded-lg bg-surface-container">
+                    <span class="material-symbols-outlined text-[18px] shrink-0 mt-px animate-spin" id="geo-icon">progress_activity</span>
+                    <span id="geo-text" class="min-w-0 break-words">Mengambil lokasi Anda...</span>
+                </div>
 
-            <button type="button" id="btn-retry-geo" class="hidden mt-3 py-2 text-xs font-semibold text-primary underline">
-                Coba ambil ulang lokasi
-            </button>
+                <button type="button" id="btn-retry-geo"
+                        class="hidden mt-3 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full border border-primary text-primary text-xs font-semibold">
+                    <span class="material-symbols-outlined text-[16px]">refresh</span>
+                    Coba ambil ulang lokasi
+                </button>
+            @else
+                <div class="flex items-start gap-2 text-sm p-3 rounded-lg bg-surface-container">
+                    <span class="material-symbols-outlined text-[18px] shrink-0 mt-px">location_on</span>
+                    <span class="min-w-0 break-words">
+                        @if ($pbiApbd->latitude && $pbiApbd->longitude)
+                            Lokasi tersimpan ({{ $pbiApbd->latitude }}, {{ $pbiApbd->longitude }})
+                        @else
+                            Lokasi belum tersimpan.
+                        @endif
+                    </span>
+                </div>
+            @endif
         </div>
 
         {{-- ===== PERTANYAAN KONDISI RUMAH TANGGA ===== --}}
@@ -74,7 +105,8 @@
                     <div class="min-w-0">
                         <label for="jawaban-{{ $p->id }}" class="block text-xs font-semibold mb-1">{{ $loop->iteration }}. {{ $p->nama }}</label>
                         <select id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]" required
-                                class="w-full rounded-lg border border-outline-variant/50 px-3 py-2.5 text-sm bg-white">
+                                @disabled(! $bisaEdit)
+                                class="w-full rounded-lg border border-outline-variant/50 px-3 py-2.5 text-sm bg-white disabled:bg-surface-container disabled:text-on-surface-variant">
                             <option value="">- Pilih -</option>
                             @foreach ($p->opsis as $o)
                                 <option value="{{ $o->id }}" @selected((string) $sel === (string) $o->id)>{{ $o->label }}</option>
@@ -86,15 +118,18 @@
             </div>
         </div>
 
-        <div class="sticky bottom-0 z-30 -mx-4 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]
-                    bg-surface/90 backdrop-blur border-t border-outline-variant/40
-                    sm:static sm:mx-0 sm:px-0 sm:pt-0 sm:pb-0 sm:bg-transparent sm:backdrop-blur-none sm:border-0">
-            <button type="submit" id="btn-submit" disabled
-                    class="w-full flex items-center justify-center gap-2 py-3 rounded-full bg-primary text-white font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                <span class="material-symbols-outlined text-[18px]">save</span>
-                Simpan Data
-            </button>
-        </div>
+        {{-- Mobile: bar fixed selebar layar, latar solid + bayangan. Desktop: tombol biasa. --}}
+        @if ($bisaEdit)
+            <div class="fixed inset-x-0 bottom-0 z-30 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]
+                        bg-surface border-t border-outline-variant/40 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]
+                        sm:static sm:inset-auto sm:z-auto sm:p-0 sm:bg-transparent sm:border-0 sm:shadow-none">
+                <button type="submit" id="btn-submit" disabled
+                        class="w-full sm:w-auto sm:px-8 flex items-center justify-center gap-2 py-3 rounded-full bg-primary text-white font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span class="material-symbols-outlined text-[18px]">save</span>
+                    {{ $pbiApbd->status === 'ditolak' ? 'Simpan & Ajukan Ulang' : 'Simpan Data' }}
+                </button>
+            </div>
+        @endif
     </form>
 @endsection
 
@@ -105,20 +140,32 @@
     var lngInput = document.getElementById('longitude');
     var statusText = document.getElementById('geo-text');
     var statusIcon = document.getElementById('geo-icon');
+    var statusBox = document.getElementById('geo-status');
     var btnRetry = document.getElementById('btn-retry-geo');
     var btnSubmit = document.getElementById('btn-submit');
 
-    function setStatus(text, icon, spin) {
+    // Mode baca saja (sudah disetujui): tidak ada tombol simpan / pengambilan lokasi
+    if (!btnSubmit) { return; }
+
+    function setStatus(text, icon, spin, state) {
         statusText.textContent = text;
         statusIcon.textContent = icon;
         statusIcon.classList.toggle('animate-spin', !!spin);
+
+        // warna kotak status: normal / sukses / gagal
+        statusBox.classList.remove('bg-surface-container', 'bg-error-container', 'text-on-error-container', 'bg-secondary-container');
+        if (state === 'error') {
+            statusBox.classList.add('bg-error-container', 'text-on-error-container');
+        } else {
+            statusBox.classList.add('bg-surface-container');
+        }
     }
 
     function ambilLokasi() {
         btnRetry.classList.add('hidden');
 
         if (!navigator.geolocation) {
-            setStatus('Browser Anda tidak mendukung pengambilan lokasi otomatis.', 'error', false);
+            setStatus('Browser Anda tidak mendukung pengambilan lokasi otomatis.', 'error', false, 'error');
             btnRetry.classList.remove('hidden');
             return;
         }
@@ -132,12 +179,22 @@
                 setStatus('Lokasi berhasil diambil (' + pos.coords.latitude.toFixed(5) + ', ' + pos.coords.longitude.toFixed(5) + ')', 'check_circle', false);
                 btnSubmit.disabled = false;
             },
-            function () {
-                setStatus('Gagal mengambil lokasi: izinkan akses lokasi lalu coba lagi.', 'error', false);
+            function (err) {
+                var msg = 'Gagal mengambil lokasi. Coba lagi.';
+                if (!window.isSecureContext) {
+                    msg = 'Lokasi hanya bisa diambil lewat koneksi aman (HTTPS). Hubungi petugas.';
+                } else if (err.code === 1) {
+                    msg = 'Izin lokasi ditolak. Aktifkan izin lokasi untuk browser ini di Pengaturan, lalu coba lagi.';
+                } else if (err.code === 2) {
+                    msg = 'Lokasi tidak tersedia. Pastikan GPS/Location Services aktif.';
+                } else if (err.code === 3) {
+                    msg = 'Waktu pengambilan lokasi habis. Coba lagi di tempat yang sinyalnya lebih baik.';
+                }
+                setStatus(msg, 'error', false, 'error');
                 btnRetry.classList.remove('hidden');
                 if (latInput.value && lngInput.value) { btnSubmit.disabled = false; }
             },
-            { enableHighAccuracy: true, timeout: 10000 }
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
         );
     }
 

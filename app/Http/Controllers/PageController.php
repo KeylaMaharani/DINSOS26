@@ -8,7 +8,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use App\Models\PbiKriteriaParameter;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -97,20 +96,9 @@ class PageController extends Controller
             Auth::login($user, $remember);
             $request->session()->regenerate();
 
-            // Kalau data belum lengkap, langsung arahkan ke form lengkapi data
-            $pbi = $user->pengajuanPbiApbd()->latest()->first();
-            if ($pbi && $pbi->masyarakatBisaEdit()) {
-                $totalParameter = PbiKriteriaParameter::aktif()->count();
-                $belumLengkap = ! $pbi->latitude
-                    || ! $pbi->longitude
-                    || $pbi->jawabans()->count() < $totalParameter;
-
-                if ($belumLengkap) {
-                    return redirect()->route('masyarakat.pbi-apbd.lengkapi', $pbi);
-                }
-            }
-
-            return redirect()->intended(route('masyarakat.dashboard'));
+            // Setelah login selalu masuk ke dashboard masyarakat.
+            // (Kalau data belum lengkap, dashboard menampilkan tombol "Lengkapi Data".)
+            return redirect()->route('masyarakat.dashboard');
         }
 
         RateLimiter::hit($throttleKey);

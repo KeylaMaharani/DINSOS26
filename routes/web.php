@@ -67,6 +67,13 @@ Route::post('/lupa-password', [ForgotPasswordController::class, 'sendResetLink']
 Route::get('/reset-password/{token}', [ForgotPasswordController::class, 'showResetForm'])->name('password.reset');
 Route::post('/reset-password', [ForgotPasswordController::class, 'reset'])->name('password.update');
 
+// Logout dipakai SEMUA role (masyarakat & petugas), jadi hanya butuh login (auth),
+// BUKAN middleware 'staff' -- kalau tidak, akun masyarakat kena 403 saat logout.
+// Tujuan setelah logout diatur di LoginAdminController@destroy.
+Route::post('/logout', [LoginAdminController::class, 'destroy'])
+    ->middleware('auth')
+    ->name('logout');
+
 
 // ==========================================
 // KEMBALI KE SUPER ADMIN (setelah "Masuk sebagai")
@@ -85,7 +92,6 @@ Route::post('/kembali-ke-admin', [ImpersonateController::class, 'stop'])
 // ==========================================
 Route::middleware(['auth', 'staff'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('module:beranda')->name('dashboard');
-    Route::post('/logout', [LoginAdminController::class, 'destroy'])->name('logout');
 
     // Edit profil akun sendiri (dipakai di dropdown pojok kanan atas, tampil sebagai pop-up)
     Route::put('/profil', [ProfileController::class, 'update'])->name('profil.update');
@@ -424,11 +430,45 @@ Route::middleware(['auth', 'staff'])->group(function () {
 
 
 
+// ==========================================
+// MASYARAKAT (akun warga)
+// ==========================================
 Route::middleware(['auth', 'role:masyarakat'])->prefix('akun-saya')->name('masyarakat.')->group(function () {
     Route::get('/', [MasyarakatController::class, 'dashboard'])->name('dashboard');
+
+    // Daftar semua permohonan milik warga (PBI APBD + DTSEN)
+    Route::get('/permohonan', [MasyarakatController::class, 'permohonan'])->name('permohonan');
+
+    // Lacak permohonan berdasarkan nomor register (hanya milik warga yang login)
+    Route::get('/tracking', [MasyarakatController::class, 'tracking'])->name('tracking');
+
+    // Anggota keluarga (milik pengajuan PBI APBD warga): daftar, tambah, ubah
+    Route::get('/keluarga', [MasyarakatController::class, 'keluarga'])->name('keluarga');
+    Route::post('/keluarga', [MasyarakatController::class, 'keluargaStore'])->name('keluarga.store');
+    Route::put('/keluarga/{anggota}', [MasyarakatController::class, 'keluargaUpdate'])
+        ->whereNumber('anggota')
+        ->name('keluarga.update');
+
+    // Profil / data diri warga (tab 1)
+    Route::get('/profil', [MasyarakatController::class, 'profil'])->name('profil');
+    Route::put('/profil', [MasyarakatController::class, 'profilUpdate'])->name('profil.update');
+
+    // Akun & kata sandi (tab 2)
+    Route::get('/password', [MasyarakatController::class, 'password'])->name('password');
+    Route::put('/password', [MasyarakatController::class, 'akunUpdate'])->name('password.update');
 
     Route::prefix('pbi-apbd/{pbiApbd}')->name('pbi-apbd.')->group(function () {
         Route::get('/lengkapi', [MasyarakatController::class, 'lengkapiData'])->name('lengkapi');
         Route::post('/lengkapi', [MasyarakatController::class, 'lengkapiDataStore'])->name('lengkapi.store');
+    });
+
+    // DTSEN: pintu masuk menu sidebar -> arahkan ke form pengajuan milik user (atau ke Beranda)
+    Route::get('/dtsen', [MasyarakatController::class, 'dtsen'])->name('dtsen');
+
+    // DTSEN: warga melengkapi data diri & lampiran pengajuannya
+    // Nama route: masyarakat.dtsen.lengkapi  &  masyarakat.dtsen.lengkapi.store
+    Route::prefix('dtsen/{permohonan}')->name('dtsen.')->group(function () {
+        Route::get('/lengkapi', [MasyarakatController::class, 'lengkapiDtsen'])->name('lengkapi');
+        Route::post('/lengkapi', [MasyarakatController::class, 'lengkapiDtsenStore'])->name('lengkapi.store');
     });
 });
