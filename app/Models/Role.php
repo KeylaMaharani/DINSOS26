@@ -26,6 +26,10 @@ class Role extends Model
     public const MODULES = [
         'beranda' => 'Beranda',
 
+        // --- Portal (menu website; dulu bernama "Front End") ---
+        // Key tetap 'menu-frontend' supaya konfigurasi lama tidak rusak.
+        'menu-frontend' => 'Portal - Kelola Menu Website',
+
         // --- PFM (Monitoring) ---
         'pbi-apbd' => 'PFM - PBI APBD',
         'kartu-kks' => 'PFM - Kartu KKS',
@@ -43,6 +47,7 @@ class Role extends Model
         'rehabsos-ppks' => 'Rehabsos - PPKS',
         'rehabsos-rumah-singgah' => 'Rehabsos - Rumah Singgah',
         'rehabsos-bantuan' => 'Rehabsos - Data Permohonan Bantuan',
+        'rehabsos-ground-check' => 'Rehabsos - Ground Check 2026',
 
         // --- Ground Check ---
         'ground-check' => 'Ground Check - Entry Data Ground Check 2026',
@@ -55,7 +60,7 @@ class Role extends Model
         // --- Lainnya ---
         'asesmen-spmb' => 'Asesmen SPMB',
         'kedaruratan-medis' => 'Kedaruratan Medis (belum ada di menu)',
-        'dokumen' => 'Dokumen (belum ada di menu)',
+        'dokumen' => 'Dokumen - Lihat & Unduh Template',
     ];
 
     /**

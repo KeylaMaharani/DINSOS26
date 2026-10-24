@@ -11,7 +11,7 @@ class GcKriteriaParameter extends Model
     protected $table = 'gc_kriteria_parameters';
 
     protected $fillable = [
-        'kelompok', 'urutan', 'nama', 'bobot', 'tipe_input',
+        'kelompok', 'urutan', 'nama', 'bobot', 'tipe_input', 'sumber',
         'pbi_parameter_id', 'keterangan', 'aktif',
     ];
 
@@ -59,6 +59,14 @@ class GcKriteriaParameter extends Model
         'foto'          => 'Foto / unggah berkas',
     ];
 
+    /** Sumber pilihan dari master (null = opsi di gc_kriteria_opsis). */
+    public const SUMBER = [
+        'lapangan_usaha'  => 'Master Lapangan Usaha',
+        'pekerjaan'       => 'Master Pekerjaan (per Lapangan Usaha)',
+        'keterampilan'    => 'Master Keterampilan Khusus',
+        'penyakit_kronis' => 'Master Penyakit Kronis/Menahun',
+    ];
+
     public function opsis(): HasMany
     {
         return $this->hasMany(GcKriteriaOpsi::class, 'parameter_id')->orderBy('urutan')->orderBy('id');
@@ -76,6 +84,7 @@ class GcKriteriaParameter extends Model
 
     public function butuhOpsi(): bool
     {
-        return in_array($this->tipe_input, ['pilihan', 'pilihan_ganda'], true);
+        // Parameter bersumber master tidak memakai gc_kriteria_opsis.
+        return ! $this->sumber && in_array($this->tipe_input, ['pilihan', 'pilihan_ganda'], true);
     }
 }

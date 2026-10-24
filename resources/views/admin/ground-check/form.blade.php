@@ -42,6 +42,10 @@
         <div><p class="text-on-surface-variant">No KK</p><p class="font-semibold text-sm">{{ $sasaran->no_kk }}</p></div>
     </div>
 
+    @if (session('success'))
+        <div class="px-4 py-3 rounded-lg bg-green-100 text-green-800 text-sm">{{ session('success') }}</div>
+    @endif
+
     @if ($errors->any())
         <div class="px-4 py-3 rounded-lg bg-error-container text-on-error-container text-sm">
             <p class="font-semibold mb-1">Data belum dapat disimpan:</p>
@@ -51,22 +55,32 @@
         </div>
     @endif
 
-    <form method="POST" action="{{ route('ground-check.simpan', $sasaran) }}" enctype="multipart/form-data" x-ref="form" novalidate>
+    <form id="gc-form" method="POST" action="{{ route('ground-check.simpan', $sasaran) }}" enctype="multipart/form-data" x-ref="form" novalidate>
         @csrf
-        {{-- Simpan langsung (tanpa draf) --}}
-        <input type="hidden" name="aksi" value="submit" x-ref="aksi">
+        {{-- Bawaan "draft" supaya tidak pernah menembus validasi JS secara tidak sengaja.
+             Tombol "Submit" mengubahnya menjadi "submit" lewat kirim(). --}}
+        <input type="hidden" name="aksi" value="draft" x-ref="aksi">
         <input type="hidden" name="tab_aktif" :value="tab">
 
         <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden">
 
-            {{-- Header tab --}}
+            {{-- Header tab (dengan badge progres: Belum diisi / Draft x/y / Lengkap) --}}
             <div class="flex overflow-x-auto border-b border-outline-variant/40">
                 @foreach ($tabs as $i => $t)
+                    @php
+                        $st = $statusTab[$i] ?? ['status' => 'kosong', 'isi' => 0, 'total' => 0];
+                        $badge = [
+                            'lengkap' => ['Lengkap', 'bg-green-100 text-green-700'],
+                            'draft'   => ['Draft ' . $st['isi'] . '/' . $st['total'], 'bg-amber-100 text-amber-700'],
+                            'kosong'  => ['Belum diisi', 'bg-surface-container text-on-surface-variant'],
+                        ][$st['status']];
+                    @endphp
                     <button type="button" @click="keTab({{ $i }})"
                         :class="tab === {{ $i }} ? 'text-brand border-b-2 border-brand bg-brand-soft/60' : 'text-on-surface-variant hover:bg-surface-container-low'"
                         class="flex-1 min-w-[120px] px-3 py-3 flex flex-col items-center gap-1 text-[11px] font-semibold transition-colors">
                         <span class="material-symbols-outlined text-[22px]">{{ $t['icon'] }}</span>
                         {{ $t['label'] }}
+                        <span class="text-[10px] font-medium px-1.5 py-0.5 rounded-full {{ $badge[1] }}">{{ $badge[0] }}</span>
                     </button>
                 @endforeach
             </div>
@@ -87,7 +101,13 @@
                                     <h4 class="text-xs font-bold text-on-surface mt-4 mb-1 first:mt-0">{{ GcP::SUBJUDUL[$kel] }}</h4>
                                 @endif
                                 @foreach ($isi as $p)
-                                    @include('admin.ground-check._field', ['p' => $p, 'nilai' => $nilai])
+                                    {{-- Parameter bersumber master memakai partial sendiri --}}
+                                    @include(
+                                        $p->sumber === 'penyakit_kronis'
+                                            ? 'admin.ground-check._field_penyakit'
+                                            : ($p->sumber ? 'admin.ground-check._field_master' : 'admin.ground-check._field'),
+                                        ['p' => $p, 'nilai' => $nilai, 'master' => $master]
+                                    )
                                 @endforeach
                             @endif
                         @endforeach
@@ -111,14 +131,18 @@
                     <button type="button" x-show="tab > 0" x-cloak @click="kembali()"
                        class="inline-flex px-4 py-2 rounded-lg text-sm border border-outline-variant/50 bg-white">Kembali</button>
                 </div>
-                <div class="flex items-center gap-2">
+                <div class="flex flex-wrap items-center gap-2">
+                    <button type="button" @click="draft()"
+                        class="inline-flex items-center gap-1 px-4 py-2 rounded-lg text-sm border border-primary text-primary bg-white hover:bg-surface-container-low font-semibold">
+                        <span class="material-symbols-outlined text-[16px]">draft</span> Simpan Draft
+                    </button>
                     <button type="button" x-show="tab < total - 1" @click="lanjut()"
                         class="inline-flex items-center gap-1 px-5 py-2 rounded-lg text-sm bg-primary text-on-primary hover:bg-secondary font-semibold">
                         Lanjut <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
                     </button>
                     <button type="button" x-show="tab === total - 1" x-cloak @click="kirim()"
                         class="inline-flex items-center gap-1 px-5 py-2 rounded-lg text-sm bg-success text-white hover:opacity-90 font-semibold">
-                        <span class="material-symbols-outlined text-[16px]">save</span> Simpan
+                        <span class="material-symbols-outlined text-[16px]">send</span> Submit
                     </button>
                 </div>
             </div>
@@ -153,6 +177,12 @@
                 this.$el.addEventListener('change', bersihkan);
             },
 
+            // true jika semua kontrol pada baris w nonaktif (mis. Ketenagakerjaan saat jawabannya "Tidak")
+            nonaktif(w) {
+                const els = w.querySelectorAll('input,select,textarea');
+                return els.length > 0 && [...els].every((e) => e.disabled);
+            },
+
             // true jika isian wajib pada baris w masih kosong
             kosong(w) {
                 const t = w.dataset.wajib;
@@ -172,6 +202,11 @@
                 const panel = document.getElementById('gc-panel-' + i);
                 let ok = true, pertama = null;
                 panel.querySelectorAll('[data-wajib]').forEach((w) => {
+                    // Baris yang dinonaktifkan (tidak berlaku) tidak diwajibkan
+                    if (this.nonaktif(w)) {
+                        w.classList.remove('ring-1', 'ring-error');
+                        return;
+                    }
                     const kosong = this.kosong(w);
                     w.classList.toggle('ring-1', kosong);
                     w.classList.toggle('ring-error', kosong);
@@ -192,25 +227,21 @@
                 if (m) m.scrollTo({ top: 0, behavior: 'smooth' });
             },
 
-            lanjut() {
-                if (this.cekTab(this.tab)) { this.tab++; this.keAtas(); }
+            // Navigasi antar tab bebas (tanpa validasi) supaya petugas bisa pindah tab
+            // saat berkas belum ada. Kewajiban semua field dicek saat Submit.
+            lanjut() { this.pesan = ''; this.tab++; this.keAtas(); },
+
+            kembali() { this.pesan = ''; this.tab--; this.keAtas(); },
+
+            keTab(i) { this.pesan = ''; this.tab = i; this.keAtas(); },
+
+            // Simpan sebagai draf: tanpa validasi, semua tab ikut tersimpan
+            draft() {
+                this.$refs.aksi.value = 'draft';
+                this.$refs.form.submit();
             },
 
-            kembali() {
-                this.pesan = '';
-                this.tab--;
-                this.keAtas();
-            },
-
-            keTab(i) {
-                if (i <= this.tab) { this.pesan = ''; this.tab = i; return; }
-                for (let k = this.tab; k < i; k++) {
-                    if (!this.cekTab(k)) { this.tab = k; return; }
-                }
-                this.tab = i;
-            },
-
-            // Simpan langsung (status submit)
+            // Submit akhir: semua tab wajib lengkap + pernyataan dicentang
             kirim() {
                 for (let k = 0; k < this.total; k++) {
                     if (!this.cekTab(k)) { this.tab = k; return; }
@@ -294,5 +325,102 @@
             });
         }
     });
+</script>
+
+{{-- Lapangan usaha -> panel info + pilihan pekerjaan yang menyesuaikan --}}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const lap = document.querySelector('[data-gc-lapangan]');
+    if (!lap) return;
+    const pk = document.querySelector('[data-gc-pekerjaan]');
+    const panel = document.querySelector('[data-gc-info]');
+    const peta = pk ? JSON.parse(pk.dataset.peta || '{}') : {};
+
+    function info() {
+        if (!panel) return;
+        const opt = lap.options[lap.selectedIndex];
+        if (!lap.value || !opt || !opt.dataset.info) { panel.hidden = true; return; }
+        const d = JSON.parse(opt.dataset.info);
+        panel.querySelector('[data-i="ikon"]').textContent = d.ikon || '';
+        panel.querySelector('[data-i="nama"]').textContent = lap.value;
+        panel.querySelector('[data-i="penjelasan"]').textContent = d.penjelasan || '-';
+        ['sendiri', 'buruh'].forEach((k) => {
+            panel.querySelector('[data-row="' + k + '"]').hidden = !d[k];
+            panel.querySelector('[data-i="' + k + '"]').textContent = d[k] || '';
+        });
+        panel.hidden = false;
+    }
+
+    function pekerjaan(pertama) {
+        if (!pk) return;
+        const daftar = peta[lap.value] || [];
+        const simpan = pertama ? pk.dataset.nilai : pk.value;
+        pk.innerHTML = '';
+        pk.add(new Option(lap.value ? '-Pilih-' : '-Pilih lapangan usaha dahulu-', ''));
+        daftar.forEach((n) => pk.add(new Option(n, n)));
+        pk.value = daftar.includes(simpan) ? simpan : '';
+        pk.disabled = !lap.value;
+    }
+
+    lap.addEventListener('change', () => { info(); pekerjaan(false); });
+    info(); pekerjaan(true);
+});
+</script>
+
+{{-- Ketenagakerjaan: jika "Apakah responden bekerja ...?" dijawab Tidak, field lain dinonaktifkan & dikosongkan.
+     Dijawab Ya -> field terbuka dan wajib diisi. Script ini HARUS setelah script lapangan usaha di atas. --}}
+<script>
+window.gcKerja = @json($kerja);
+
+document.addEventListener('DOMContentLoaded', function () {
+    const cfg = window.gcKerja;
+    const form = document.getElementById('gc-form');
+    if (!cfg || !form) return;
+
+    const kontrol = (id) => [...form.querySelectorAll(`[name="jawaban[${id}]"],[name="jawaban[${id}][]"]`)];
+
+    function jawabanGate() {
+        const els = kontrol(cfg.gate);
+        const radio = els.find((e) => e.type === 'radio' && e.checked);
+        if (radio) return radio.value;
+        const lain = els.find((e) => e.type !== 'radio');
+        return lain ? lain.value : '';
+    }
+
+    function terapkan() {
+        const ya = jawabanGate() === 'Ya';
+
+        cfg.dependen.forEach((id) => {
+            kontrol(id).forEach((el) => {
+                el.disabled = !ya;
+
+                if (!ya) {
+                    if (el.type === 'checkbox' || el.type === 'radio') el.checked = false;
+                    else if (el.type !== 'file') el.value = '';
+                    // beri tahu skrip lain (panel info lapangan usaha, daftar pekerjaan)
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+
+                const baris = el.closest('[data-wajib]') || el.parentElement;
+                if (baris) {
+                    baris.classList.toggle('opacity-50', !ya);
+                    baris.classList.toggle('pointer-events-none', !ya);
+                    if (!ya) baris.classList.remove('ring-1', 'ring-error');
+                }
+            });
+        });
+
+        // Pekerjaan baru aktif bila responden bekerja DAN lapangan usaha sudah dipilih
+        const lap = form.querySelector('[data-gc-lapangan]');
+        const pk = form.querySelector('[data-gc-pekerjaan]');
+        if (ya && lap && pk) pk.disabled = !lap.value;
+    }
+
+    form.addEventListener('change', (e) => {
+        if (e.target.name && e.target.name.startsWith(`jawaban[${cfg.gate}]`)) terapkan();
+    });
+
+    terapkan();
+});
 </script>
 @endpush

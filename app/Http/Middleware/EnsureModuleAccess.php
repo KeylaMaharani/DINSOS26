@@ -24,7 +24,7 @@ class EnsureModuleAccess
         $boleh = $role && collect($modules)->contains(fn ($m) => $role->hasModule($m));
 
         if (! $boleh) {
-            abort(403, 'Anda tidak memiliki akses ke modul ini. Hubungi Super Admin untuk meminta akses.');
+            abort(403, 'Anda tidak memiliki akses ke menu ini. Hubungi Super Admin untuk meminta akses.');
         }
 
         return $next($request);

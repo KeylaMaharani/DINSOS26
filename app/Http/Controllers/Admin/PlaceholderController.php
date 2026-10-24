@@ -7,7 +7,10 @@ use Illuminate\Http\Request;
 
 /**
  * Controller sementara untuk menu-menu yang belum dibangun fiturnya
- * (Asesmen SPMB, Kedaruratan Medis, Kartu KKS, DTSEN, Dokumen).
+ * (Asesmen SPMB, Kedaruratan Medis).
+ *
+ * Kartu KKS, DTSEN, dan Dokumen sudah punya controller sendiri
+ * (KartuKksController, DtsenController, DokumenController).
  *
  * Begitu fitur salah satu modul ini mau digarap, tinggal dibuatkan
  * controller sendiri (contoh: PbiApbdController) lalu route-nya
@@ -36,14 +39,6 @@ class PlaceholderController extends Controller
         return view('admin.placeholder.index', [
             'moduleTitle' => $title,
             'tabLabel' => $tabLabel,
-        ]);
-    }
-
-    public function dokumen()
-    {
-        return view('admin.placeholder.index', [
-            'moduleTitle' => 'Dokumen',
-            'tabLabel' => 'Template Dokumen',
         ]);
     }
 }

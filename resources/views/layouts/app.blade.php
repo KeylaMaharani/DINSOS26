@@ -238,7 +238,8 @@
             opacity: 1;
         }
 
-        .dd-sub:hover>.dd-item .material-symbols-outlined {
+        .dd-sub:hover>.dd-item .material-symbols-outlined,
+        .dd-item:hover .material-symbols-outlined {
             color: var(--nav-accent);
         }
 
@@ -283,9 +284,11 @@
         $isInformasi = request()->routeIs('cek-densil');
     @endphp
 
-    {{-- ===== [BARU] Data menu baru sesuai sketsa ===== --}}
+    {{-- ===== [BARU] Data menu baru sesuai sketsa =====
+         Item bertanda 'external' => true dibuka di TAB BARU (target=_blank). --}}
     @php
-        $isPelayananBaru = request()->routeIs('login', 'tutorial-pendaftaran', 'cek-densil', 'ppks-psks');
+        // 'cek-densil' tidak ikut: menu Cek Desil kini link eksternal (tab baru) ke Cek Bansos Kemensos.
+        $isPelayananBaru = request()->routeIs('login', 'tutorial-pendaftaran', 'ppks-psks');
 
         $pelayananBaru = [
             [
@@ -299,7 +302,8 @@
             [
                 'label' => 'Bantuan Sosial',
                 'items' => [
-                    ['label' => 'Cek Desil', 'url' => route('cek-densil'), 'route' => 'cek-densil'],
+                    // Tetap bernama "Cek Desil", tapi tujuannya ke Cek Bansos Kemensos (tab baru).
+                    ['label' => 'Cek Desil', 'url' => 'https://cekbansos.kemensos.go.id/', 'external' => true],
                     ['label' => 'BLT BBM', 'url' => '#'],
                     ['label' => 'PKH dan BPNT', 'url' => '#'],
                     ['label' => 'E-Warong', 'url' => '#'],
@@ -382,8 +386,12 @@
                                         <div class="dd-panel dd-flyout">
                                             @foreach ($grup['items'] as $item)
                                                 <a href="{{ $item['url'] }}"
+                                                    @if (!empty($item['external'])) target="_blank" rel="noopener noreferrer" @endif
                                                     class="dd-item {{ isset($item['route']) && request()->routeIs($item['route']) ? 'is-active' : '' }}">
                                                     <span>{{ $item['label'] }}</span>
+                                                    @if (!empty($item['external']))
+                                                        <span class="material-symbols-outlined">open_in_new</span>
+                                                    @endif
                                                 </a>
                                             @endforeach
                                         </div>
@@ -494,8 +502,8 @@
                         class="absolute left-0 top-full pt-2 w-56 opacity-0 invisible translate-y-1 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-150 z-50">
                         <div
                             class="bg-surface-container-lowest rounded-xl shadow-md border border-outline-variant/30 py-2 overflow-visible">
-                            <a href="{{ route('cek-densil') }}"
-                                class="block px-4 py-2 text-[13px] hover:bg-surface-container-low hover:text-secondary transition-colors {{ request()->routeIs('cek-densil') ? 'bg-surface-container-low text-secondary font-bold' : 'text-on-surface font-medium' }}">Cek
+                            <a href="https://cekbansos.kemensos.go.id/" target="_blank" rel="noopener noreferrer"
+                                class="block px-4 py-2 text-[13px] text-on-surface font-medium hover:bg-surface-container-low hover:text-secondary transition-colors">Cek
                                 Desil</a>
                             <a href="#"
                                 class="block px-4 py-2 text-[13px] text-on-surface font-medium hover:bg-surface-container-low hover:text-secondary transition-colors">DTSEN</a>
@@ -656,6 +664,7 @@
                             <div class="pl-space-md border-l-2 border-secondary/40 ml-space-2xs flex flex-col">
                                 @foreach ($grup['items'] as $item)
                                     <a href="{{ $item['url'] }}"
+                                        @if (!empty($item['external'])) target="_blank" rel="noopener noreferrer" @endif
                                         class="py-2 {{ isset($item['route']) && request()->routeIs($item['route']) ? 'text-secondary font-bold' : '' }}">{{ $item['label'] }}</a>
                                 @endforeach
                             </div>
@@ -701,8 +710,7 @@
                         <span class="material-symbols-outlined">expand_more</span>
                     </button>
                     <div class="mobile-nav-submenu">
-                        <a href="{{ route('cek-densil') }}"
-                            class="{{ request()->routeIs('cek-densil') ? 'text-secondary font-bold' : '' }}">Cek Desil</a>
+                        <a href="https://cekbansos.kemensos.go.id/" target="_blank" rel="noopener noreferrer">Cek Desil</a>
                         <a href="#">DTSEN</a>
                         <a href="#">PPKS Dan PSKS</a>
                         <a href="#">LKS</a>
@@ -763,7 +771,8 @@
                         <ul class="space-y-space-xs font-body-sm text-body-sm text-on-primary/80">
                             @foreach ($grup['items'] as $item)
                                 <li><a class="hover:text-secondary-fixed-dim transition-colors"
-                                        href="{{ $item['url'] }}">{{ $item['label'] }}</a></li>
+                                        href="{{ $item['url'] }}"
+                                        @if (!empty($item['external'])) target="_blank" rel="noopener noreferrer" @endif>{{ $item['label'] }}</a></li>
                             @endforeach
                         </ul>
                     </div>
@@ -806,7 +815,8 @@
                         <h4 class="font-label-lg text-label-lg text-on-primary font-bold">Informasi</h4>
                         <ul class="space-y-space-xs font-body-sm text-body-sm text-on-primary/80">
                             <li><a class="hover:text-secondary-fixed-dim transition-colors"
-                                    href="{{ route('cek-densil') }}">Cek Desil</a></li>
+                                    href="https://cekbansos.kemensos.go.id/" target="_blank"
+                                    rel="noopener noreferrer">Cek Desil</a></li>
                             <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">DTSEN</a></li>
                             <li><a class="hover:text-secondary-fixed-dim transition-colors" href="#">PPKS Dan
                                     PSKS</a></li>

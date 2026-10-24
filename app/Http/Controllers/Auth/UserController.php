@@ -75,6 +75,9 @@ class UserController
             'kecamatan' => $validated['kecamatan'] ?? null,
             'kelurahan' => $validated['kelurahan'] ?? null,
             'password' => Hash::make($validated['password']),
+            // Password yang diset Super Admin = "password default" (terenkripsi),
+            // hanya ditampilkan ke Super Admin di tabel Kelola Akses.
+            'default_password' => $validated['password'],
         ]);
 
         return redirect()->route('akun.index', ['tab' => 'pengguna'])
@@ -83,6 +86,7 @@ class UserController
 
     public function edit(User $akun)
     {
+        // default_password SENGAJA tidak ikut di sini.
         return response()->json($akun->only(['id', 'username', 'email', 'role_id', 'kecamatan', 'kelurahan']));
     }
 
@@ -104,6 +108,8 @@ class UserController
 
         if (!empty($validated['password'])) {
             $akun->password = Hash::make($validated['password']);
+            // Reset oleh Super Admin -> password default ikut diperbarui.
+            $akun->default_password = $validated['password'];
         }
 
         $akun->save();
@@ -129,8 +135,8 @@ class UserController
             'name.max' => 'Nama hak akses maksimal 255 karakter.',
             'description.max' => 'Deskripsi maksimal 255 karakter.',
 
-            'permissions.array' => 'Format hak akses modul tidak valid.',
-            'permissions.*.in' => 'Salah satu modul yang dipilih tidak valid.',
+            'permissions.array' => 'Format hak akses menu tidak valid.',
+            'permissions.*.in' => 'Salah satu menu yang dipilih tidak valid.',
         ];
     }
 

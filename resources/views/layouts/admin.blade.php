@@ -249,6 +249,14 @@
                     ->all(),
             ];
         }
+        // Ground Check khusus data Rehabsos (posisi sama seperti di PFM: paling bawah).
+        // Hak akses terpisah lewat modul 'rehabsos-ground-check'.
+        $rehabChildren[] = [
+            'label' => 'Ground Check 2026',
+            'route' => 'rehabsos.ground-check',
+            'match' => ['rehabsos.ground-check*'],
+            'module' => 'rehabsos-ground-check',
+        ];
 
         $sidebar = [
             [
@@ -258,18 +266,26 @@
                 'module' => 'beranda',
             ],
 
-            // ==================== FRONT END ====================
-            ['separator' => 'Front End'],
-
-            // ---------- Menu Frontend (dibaca dari config/frontend.php) ----------
-            ...config('frontend', []),
-
-            // ==================== MODUL ====================
-            ['separator' => 'Modul'],
-
-            // ---------- Modul Asesmen SPMB (tepat di bawah separator Modul) ----------
+            // ==================== PORTAL ====================
+            // Semua menu website (dulu "Front End") dibungkus satu folder "Portal".
+            // Isinya dibaca dari config/portal.php; kedalaman bertingkat tetap jalan
+            // karena renderer sidebar bersifat rekursif.
             [
-                'label' => 'Modul Asesmen SPMB',
+                'label' => 'Portal',
+                'icon' => 'language',
+                'module' => 'menu-frontend',
+                'children' => config('portal', []),
+            ],
+
+            // ==================== BIDANG ====================
+            // Bukan folder lagi: cukup separator, lalu kelima menu bidang berdiri
+            // sendiri sebagai menu tingkat atas (lengkap dengan ikon).
+            // Separator hanya tampil jika ada menu di bawahnya yang boleh dilihat role.
+            ['separator' => 'Bidang'],
+
+            // ---------- Asesmen SPMB ----------
+            [
+                'label' => 'Bidang Asesmen SPMB',
                 'icon' => 'fact_check',
                 'route' => 'asesmen_spmb.ajuan',
                 'match' => ['asesmen_spmb.*'],
@@ -278,7 +294,7 @@
 
             // ---------- PFM ----------
             [
-                'label' => 'Modul P. Fakir Miskin',
+                'label' => 'Bidang P. Fakir Miskin',
                 'icon' => 'account_balance_wallet',
                 'children' => [
                     ['label' => 'Beranda', 'route' => 'pfm.beranda', 'module' => ['pbi-apbd', 'kartu-kks', 'dtsen']],
@@ -309,19 +325,21 @@
                             ['label' => 'Monitoring', 'route' => 'dtsen.monitoring'],
                         ],
                     ],
+                    // Ground Check ada di dalam modul PFM (hak akses tetap 'ground-check')
+                    ['label' => 'Ground Check 2026', 'route' => 'ground-check.index', 'match' => ['ground-check.*'], 'module' => 'ground-check'],
                 ],
             ],
 
             // ---------- Dayasos (kerangka menu, dibaca dari config/dayasos.php) ----------
             [
-                'label' => 'Modul Dayasos',
+                'label' => 'Bidang Dayasos',
                 'icon' => 'groups',
                 'children' => config('dayasos', []),
             ],
 
             // ---------- Perlinsos ----------
             [
-                'label' => 'Modul Perlinsos',
+                'label' => 'Bidang Perlinsos',
                 'icon' => 'crisis_alert',
                 'children' => [
                     ['label' => 'Beranda', 'route' => 'perlinsos.dashboard', 'module' => 'sigap-bencana'],
@@ -339,19 +357,9 @@
 
             // ---------- Rehabsos ----------
             [
-                'label' => 'Modul Rehabsos',
+                'label' => 'Bidang Rehabsos',
                 'icon' => 'diversity_1',
                 'children' => $rehabChildren,
-            ],
-
-            // ---------- Ground Check (alur entry data SOLID) ----------
-            [
-                'label' => 'Modul Ground Check',
-                'icon' => 'task_alt',
-                'module' => 'ground-check',
-                'children' => [
-                    ['label' => 'Ground Check 2026', 'route' => 'ground-check.index', 'match' => ['ground-check.*']],
-                ],
             ],
 
             // ---------- Menu tunggal ----------
@@ -372,6 +380,16 @@
                 'hide_for_superadmin' => true,
             ],
 
+            // Template dokumen: semua role ber-modul 'dokumen' bisa lihat, preview & unduh,
+            // tambah/hapus hanya Super Admin (diatur di DokumenController & routes).
+            [
+                'label' => 'Dokumen',
+                'icon' => 'folder_open',
+                'route' => 'dokumen.index',
+                'match' => ['dokumen.*'],
+                'module' => 'dokumen',
+            ],
+
             // ==================== DATA MASTER ====================
             ['separator' => 'Data Master'],
 
@@ -390,6 +408,8 @@
                 'children' => [
                     ['label' => 'Kriteria PBI', 'route' => 'master.kriteria.index', 'match' => ['master.kriteria.*']],
                     ['label' => 'Kriteria Ground Check', 'route' => 'master.gc-kriteria.index', 'match' => ['master.gc-kriteria.*']],
+                    ['label' => 'Lapangan Usaha & Pekerjaan', 'route' => 'master.lapangan-usaha.index', 'match' => ['master.lapangan-usaha.*']],
+                    ['label' => 'Keterampilan Khusus', 'route' => 'master.keterampilan.index', 'match' => ['master.keterampilan.*']],
                 ],
             ],
         ];
@@ -541,7 +561,7 @@
                                    oleh overflow nav)
                  - Nav SELALU bisa di-scroll vertikal agar ikon tidak tumpah keluar card
                  - Class `sidebar-scroll` memunculkan scrollbar tipis (lihat <style> di atas)
-                 - Separator     : label grup (Front End / Modul / Data Master) saat lebar, garis tipis saat ciut --}}
+                 - Separator     : label grup (Bidang / Data Master) saat lebar, garis tipis saat ciut --}}
             {{-- Pembungkus nav + indikator scroll:
                  - up/down   : true jika masih ada menu tersembunyi di atas/bawah
                  - check()   : dihitung ulang saat scroll, resize, accordion dibuka/ditutup,
@@ -589,7 +609,7 @@
                             <span x-show="!collapsed" class="text-sm font-medium truncate">{{ $top['label'] }}</span>
                         </a>
                     @else
-                        {{-- Folder (PFM, Dayasos, Perlinsos, Rehabsos, Ground Check, Master Kriteria, Menu Frontend) --}}
+                        {{-- Folder (Portal, PFM, Dayasos, Perlinsos, Rehabsos, Master Kriteria) --}}
                         <div class="relative" x-data="{ open: false, top: 0, maxH: 400 }"
                             x-init="open = {{ $isAct ? 'true' : 'false' }} && !collapsed;
                             $watch('collapsed', function(v) { open = v ? false : {{ $isAct ? 'true' : 'false' }}; })"
@@ -846,6 +866,22 @@
 
             <!-- Content -->
             <main class="flex-1 overflow-y-auto pl-4 pr-6 pb-24 pt-2 lg:pl-6 lg:pr-8">
+                {{-- Banner "Masuk sebagai": tampil hanya saat Super Admin sedang melihat akun lain --}}
+                @if (session('impersonator_id'))
+                    <div
+                        class="mb-4 px-4 py-3 rounded-lg bg-warning-container text-on-warning-container text-sm flex flex-wrap items-center justify-between gap-3">
+                        <span>Anda sedang masuk sebagai <b>{{ auth()->user()->name }}</b>
+                            ({{ auth()->user()->role->name ?? 'tanpa role' }}).</span>
+                        <form method="POST" action="{{ route('impersonate.stop') }}">
+                            @csrf
+                            <button type="submit"
+                                class="px-3 py-1.5 rounded-lg bg-primary text-on-primary text-xs font-medium hover:bg-secondary transition-colors">
+                                Kembali ke Super Admin
+                            </button>
+                        </form>
+                    </div>
+                @endif
+
                 @if (session('success'))
                     <div class="mb-4 px-4 py-3 rounded-lg bg-success-container text-on-success-container text-sm">
                         {{ session('success') }}

@@ -432,6 +432,21 @@
             <!-- Content -->
             <main class="flex-1 overflow-y-auto pl-4 pr-6 pb-24 pt-2 lg:pl-6 lg:pr-8">
                 <div class="@yield('container', 'max-w-3xl') mx-auto">
+                    {{-- Banner "Masuk sebagai": tampil hanya saat Super Admin sedang melihat akun ini (dari master) --}}
+                    @if (session('impersonator_id'))
+                        <div
+                            class="mb-4 px-4 py-3 rounded-lg bg-warning-container text-on-warning-container text-sm flex flex-wrap items-center justify-between gap-3">
+                            <span class="break-words">Anda sedang masuk sebagai <b>{{ auth()->user()->name }}</b>.</span>
+                            <form method="POST" action="{{ route('impersonate.stop') }}">
+                                @csrf
+                                <button type="submit"
+                                    class="px-3 py-1.5 rounded-lg bg-primary text-on-primary text-xs font-medium hover:bg-secondary transition-colors">
+                                    Kembali ke Super Admin
+                                </button>
+                            </form>
+                        </div>
+                    @endif
+
                     @if (session('success'))
                         <div class="mb-4 px-4 py-3 rounded-lg bg-success-container text-on-success-container text-sm break-words">
                             {{ session('success') }}
