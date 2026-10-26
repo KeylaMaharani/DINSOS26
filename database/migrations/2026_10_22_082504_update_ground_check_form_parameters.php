@@ -7,7 +7,10 @@ use Illuminate\Support\Facades\DB;
  * Perbaikan form Ground Check:
  *  1. Tab E Keluarga: "Jenis kloset" & "Tempat pembuangan akhir tinja" dinonaktifkan;
  *     opsi "Kepemilikan fasilitas BAB" dilengkapi menjadi 6 pilihan beserta nilainya.
- *  2. Tab F2: "Jumlah ternak kuda yang dimiliki" diaktifkan (dibuat bila belum ada).
+ *  2. Tab F2: "Jumlah ternak kuda yang dimiliki" diaktifkan (dibuat bila belum ada,
+ *     TETAPI hanya pada database yang master-nya sudah berisi. Pada database kosong
+ *     (migrate:fresh) parameter ini dibuat oleh GcKriteriaSeeder; kalau migration ini
+ *     ikut membuatnya, GcKriteriaSeeder akan menganggap master sudah ada dan terlewati).
  *  4. Tab G: foto tabung gas, kamar mandi, dan individu dinonaktifkan.
  *
  * Parameter DINONAKTIFKAN (bukan dihapus) supaya jawaban lama tetap aman.
@@ -87,7 +90,9 @@ return new class extends Migration
                     'keterangan' => null,
                     'updated_at' => $now,
                 ]);
-            } else {
+            } elseif (DB::table('gc_kriteria_parameters')->exists()) {
+                // Hanya dibuat bila master sudah berisi (database lama). Database kosong
+                // dibiarkan kosong supaya GcKriteriaSeeder bisa mengisinya secara lengkap.
                 $kerbau = DB::table('gc_kriteria_parameters')
                     ->where('kelompok', 'aset_tidak_bergerak')
                     ->whereRaw('LOWER(TRIM(nama)) = ?', ['jumlah ternak kerbau yang dimiliki'])

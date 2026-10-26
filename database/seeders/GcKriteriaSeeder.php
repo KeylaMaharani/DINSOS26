@@ -31,6 +31,8 @@ use Illuminate\Support\Facades\DB;
  *  - Opsi "yatim" (parameter_id tidak lagi ada di tabel parameter) dibersihkan di awal,
  *    supaya tidak menempel ke parameter baru yang kebetulan memakai id yang sama.
  *  - Opsi dibuat dengan updateOrCreate per label, jadi tidak bisa tercipta dua kali.
+ *  - Tab A Kependudukan punya dua isian alamat: dibedakan menjadi "Alamat sesuai KK" dan
+ *    "Alamat domisili" supaya tidak tampil dobel di form maupun halaman master.
  *
  * Perubahan tab D Kesehatan: pertanyaan "Apakah penderita stunting?" DIHAPUS dari seeder, dan
  * "Apakah memiliki keluhan kesehatan kronis/menahun?" kini dropdown dari Master Penyakit Kronis.
@@ -72,12 +74,12 @@ class GcKriteriaSeeder extends Seeder
             // ================= A. KEPENDUDUKAN =================
             ['kependudukan', 'Nama', 0.5, 'teks', null, []],
             ['kependudukan', 'No KK', 1, 'teks', null, []],
-            ['kependudukan', 'Alamat', 1, 'teks', null, []],
+            ['kependudukan', 'Alamat sesuai KK', 1, 'teks', null, []],
             ['kependudukan', 'Apakah No KK sama?', 1, 'pilihan', null, $yaTidak],
             ['kependudukan', 'Apakah nama sama?', 1, 'pilihan', null, $yaTidak],
             ['kependudukan', 'Apakah wilayah sama?', 1, 'pilihan', null, $yaTidak],
             ['kependudukan', 'Nama gadis ibu kandung', 0.5, 'teks', null, []],
-            ['kependudukan', 'Alamat', 1, 'teks', null, []],
+            ['kependudukan', 'Alamat domisili', 1, 'teks', null, []],
             ['kependudukan', 'Jenis kelamin', 0.5, 'pilihan', null, ['Laki-laki', 'Perempuan']],
             ['kependudukan', 'Tanggal lahir', 0.5, 'tanggal', null, []],
             ['kependudukan', 'Status perkawinan', 0.5, 'pilihan', null,
