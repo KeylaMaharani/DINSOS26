@@ -1,5 +1,7 @@
 @extends('layouts.masyarakat')
 
+@php use App\Models\GcKriteriaParameter as GcP; @endphp
+
 @section('title', 'Lengkapi Data - SOLID Dinas Sosial Kota Bogor')
 
 @section('content')
@@ -45,7 +47,7 @@
     @endif
 
     {{-- pb-28 di mobile: ruang kosong supaya konten terakhir tidak tertutup tombol Simpan yang fixed --}}
-    <form method="POST" action="{{ route('masyarakat.pbi-apbd.lengkapi.store', $pbiApbd) }}"
+    <form method="POST" action="{{ route('masyarakat.pbi-apbd.lengkapi.store', $pbiApbd) }}" enctype="multipart/form-data"
           class="space-y-4 sm:space-y-6 pb-28 sm:pb-0" id="form-lengkapi">
         @csrf
 
@@ -87,36 +89,36 @@
             @endif
         </div>
 
-        {{-- ===== PERTANYAAN KONDISI RUMAH TANGGA ===== --}}
-        <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-4 sm:p-5">
-            <h2 class="font-semibold text-sm mb-1 flex items-center gap-1.5">
-                <span class="material-symbols-outlined text-[18px] text-secondary">home</span>
-                Kondisi Rumah Tangga
-            </h2>
-            <p class="text-xs text-on-surface-variant mb-4">Jawab sesuai keadaan sebenarnya. Petugas kelurahan akan mengecek langsung ke lapangan.</p>
-
-            @if ($parameters->isEmpty())
+        {{-- ===== PERTANYAAN: semua parameter Master Kriteria Ground Check yang aktif ===== --}}
+        @if ($parameters->isEmpty())
+            <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-4 sm:p-5">
                 <p class="text-sm text-on-surface-variant">Pertanyaan belum tersedia. Silakan hubungi petugas.</p>
-            @endif
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-x-5">
-                @foreach ($parameters as $p)
-                    @php $sel = old('jawaban.' . $p->id, $jawabanTersimpan[$p->id] ?? ''); @endphp
-                    <div class="min-w-0">
-                        <label for="jawaban-{{ $p->id }}" class="block text-xs font-semibold mb-1">{{ $loop->iteration }}. {{ $p->nama }}</label>
-                        <select id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]" required
-                                @disabled(! $bisaEdit)
-                                class="w-full rounded-lg border border-outline-variant/50 px-3 py-2.5 text-sm bg-white disabled:bg-surface-container disabled:text-on-surface-variant">
-                            <option value="">- Pilih -</option>
-                            @foreach ($p->opsis as $o)
-                                <option value="{{ $o->id }}" @selected((string) $sel === (string) $o->id)>{{ $o->label }}</option>
-                            @endforeach
-                        </select>
-                        @error('jawaban.' . $p->id)<p class="text-error text-xs mt-1">{{ $message }}</p>@enderror
-                    </div>
-                @endforeach
             </div>
-        </div>
+        @endif
+
+        @php $no = 0; @endphp
+        @foreach (GcP::KELOMPOK as $kel => $judul)
+            @php $isi = $perKelompok->get($kel); @endphp
+            @continue(! $isi || $isi->isEmpty())
+
+            <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-4 sm:p-5">
+                <h2 class="font-semibold text-sm mb-1 flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-[18px] text-secondary">checklist</span>
+                    {{ $judul }}
+                </h2>
+                @if ($loop->first)
+                    <p class="text-xs text-on-surface-variant mb-4">Jawab sesuai keadaan sebenarnya. Petugas kelurahan akan mengecek langsung ke lapangan. Isian bertanda <span class="text-error">*</span> wajib diisi.</p>
+                @else
+                    <div class="mb-4"></div>
+                @endif
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-x-5">
+                    @foreach ($isi as $p)
+                        @include('masyarakat.pbi-apbd._gc_field', ['p' => $p, 'nomor' => ++$no])
+                    @endforeach
+                </div>
+            </div>
+        @endforeach
 
         {{-- Mobile: bar fixed selebar layar, latar solid + bayangan. Desktop: tombol biasa. --}}
         @if ($bisaEdit)
@@ -152,13 +154,23 @@
         statusIcon.textContent = icon;
         statusIcon.classList.toggle('animate-spin', !!spin);
 
-        // warna kotak status: normal / sukses / gagal
         statusBox.classList.remove('bg-surface-container', 'bg-error-container', 'text-on-error-container', 'bg-secondary-container');
         if (state === 'error') {
             statusBox.classList.add('bg-error-container', 'text-on-error-container');
         } else {
             statusBox.classList.add('bg-surface-container');
         }
+    }
+
+    // Isian koordinat/lintang/bujur di daftar pertanyaan ikut terisi dari titik lokasi rumah
+    function isiKoordinat(lat, lng) {
+        var a = lat.toFixed(6), b = lng.toFixed(6);
+        var k = document.querySelector('[data-gc-koordinat]');
+        var la = document.querySelector('[data-gc-lat]');
+        var lo = document.querySelector('[data-gc-lng]');
+        if (k && !k.disabled) { k.value = a + ', ' + b; }
+        if (la && !la.disabled) { la.value = a; }
+        if (lo && !lo.disabled) { lo.value = b; }
     }
 
     function ambilLokasi() {
@@ -176,6 +188,7 @@
             function (pos) {
                 latInput.value = pos.coords.latitude;
                 lngInput.value = pos.coords.longitude;
+                isiKoordinat(pos.coords.latitude, pos.coords.longitude);
                 setStatus('Lokasi berhasil diambil (' + pos.coords.latitude.toFixed(5) + ', ' + pos.coords.longitude.toFixed(5) + ')', 'check_circle', false);
                 btnSubmit.disabled = false;
             },
@@ -202,5 +215,69 @@
     if (latInput.value && lngInput.value) { btnSubmit.disabled = false; }
     ambilLokasi();
 })();
+</script>
+
+{{-- Lapangan usaha -> pilihan pekerjaan menyesuaikan --}}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var lap = document.querySelector('[data-gc-lapangan]');
+    var pk = document.querySelector('[data-gc-pekerjaan]');
+    if (!lap || !pk) { return; }
+
+    var peta = {};
+    try { peta = JSON.parse(pk.dataset.peta || '{}'); } catch (e) { peta = {}; }
+
+    function isi(pertama) {
+        var daftar = peta[lap.value] || [];
+        var simpan = pertama ? pk.dataset.nilai : pk.value;
+        pk.innerHTML = '';
+        pk.add(new Option(lap.value ? '- Pilih -' : '- Pilih lapangan usaha dahulu -', ''));
+        daftar.forEach(function (n) { pk.add(new Option(n, n)); });
+        pk.value = daftar.indexOf(simpan) >= 0 ? simpan : '';
+    }
+
+    lap.addEventListener('change', function () { isi(false); });
+    isi(true);
+});
+</script>
+
+{{-- Ketenagakerjaan: bila "Apakah responden bekerja ...?" dijawab Tidak, field lainnya dinonaktifkan & dikosongkan. --}}
+<script>
+window.gcKerja = @json($kerja);
+
+document.addEventListener('DOMContentLoaded', function () {
+    var cfg = window.gcKerja;
+    var form = document.getElementById('form-lengkapi');
+    if (!cfg || !form) { return; }
+
+    var bisaEdit = !!document.getElementById('btn-submit');
+
+    function kontrol(id) {
+        return Array.prototype.slice.call(form.querySelectorAll('[name="jawaban[' + id + ']"],[name="jawaban[' + id + '][]"]'));
+    }
+
+    function terapkan() {
+        var gate = kontrol(cfg.gate)[0];
+        var ya = gate && gate.value === 'Ya';
+
+        cfg.dependen.forEach(function (id) {
+            kontrol(id).forEach(function (el) {
+                el.disabled = !bisaEdit || !ya;
+                if (!ya) {
+                    if (el.type === 'checkbox' || el.type === 'radio') { el.checked = false; }
+                    else if (el.type !== 'file') { el.value = ''; el.dispatchEvent(new Event('change', { bubbles: true })); }
+                }
+                var baris = el.closest('.min-w-0');
+                if (baris) { baris.classList.toggle('opacity-50', !ya); }
+            });
+        });
+    }
+
+    form.addEventListener('change', function (e) {
+        if (e.target.name === 'jawaban[' + cfg.gate + ']') { terapkan(); }
+    });
+
+    terapkan();
+});
 </script>
 @endpush
