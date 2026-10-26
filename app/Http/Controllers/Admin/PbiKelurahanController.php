@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\PbiApbd;
 use App\Models\PbiApbdLog;
-use App\Models\PbiKriteriaParameter;
+use App\Support\PbiGcForm;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -15,6 +15,7 @@ use Illuminate\Validation\Rule;
  * Halaman Petugas Kelurahan untuk modul PBI APBD.
  * Alur: Masyarakat isi data -> Kelurahan verifikasi + upload lampiran -> Operator Dinsos -> Kabid -> Kadis.
  * Kelurahan HANYA melihat jawaban (tanpa indeks/bobot/skor).
+ * Daftar pertanyaan yang dihitung = yang tampil di form masyarakat (Master Kriteria Ground Check).
  */
 class PbiKelurahanController extends Controller
 {
@@ -36,7 +37,12 @@ class PbiKelurahanController extends Controller
         $user = Auth::user()->loadMissing('role');
         $tab = $request->query('tab', 'proses') === 'riwayat' ? 'riwayat' : 'proses';
 
-        $query = PbiApbd::query()->untukKelurahan($user)->withCount('jawabans');
+        // Hitungan di daftar = isian wajib yang selalu berlaku (alias tetap jawabans_count agar view tidak berubah).
+        $idTetap = PbiGcForm::idTetap();
+
+        $query = PbiApbd::query()->untukKelurahan($user)->withCount([
+            'gcJawabans as jawabans_count' => fn ($q) => $q->whereNotNull('jawaban')->whereIn('parameter_id', $idTetap),
+        ]);
 
         $tab === 'proses'
             ? $query->where('status', 'kelurahan')
@@ -53,7 +59,7 @@ class PbiKelurahanController extends Controller
         }
 
         $ajuan = $query->latest()->paginate(10)->withQueryString();
-        $totalParameter = PbiKriteriaParameter::aktif()->count();
+        $totalParameter = count($idTetap);
         $wilayahBelumDiatur = ! $user->role?->isSuperAdmin() && blank($user->kelurahan);
 
         return view('admin.pbi-kelurahan.index', compact('ajuan', 'tab', 'totalParameter', 'wilayahBelumDiatur', 'user'));
@@ -63,13 +69,15 @@ class PbiKelurahanController extends Controller
     {
         $this->pastikanBerwenang($pbiApbd);
 
-        $pbiApbd->load(['anggotaKeluarga', 'jawabans', 'logs']);
-        $totalParameter = PbiKriteriaParameter::aktif()->count();
+        $pbiApbd->load(['anggotaKeluarga', 'logs']);
+        $kelengkapan = PbiGcForm::kelengkapan($pbiApbd);
 
         return view('admin.pbi-kelurahan.show', [
             'data' => $pbiApbd,
             'lampiran' => self::LAMPIRAN,
-            'totalParameter' => $totalParameter,
+            'totalParameter' => $kelengkapan['total'],
+            'terjawab' => $kelengkapan['terjawab'],
+            'gcJawabans' => $pbiApbd->gcJawabans()->get(),
         ]);
     }
 
@@ -150,10 +158,9 @@ class PbiKelurahanController extends Controller
         // ---- Validasi & teruskan: cek kelengkapan ----
         $masalah = [];
 
-        $aktifIds = PbiKriteriaParameter::aktif()->pluck('id');
-        $terjawab = $pbiApbd->jawabans()->whereIn('parameter_id', $aktifIds)->count();
-        if ($aktifIds->isEmpty() || $terjawab < $aktifIds->count()) {
-            $masalah[] = "Masyarakat belum menjawab semua parameter ({$terjawab}/{$aktifIds->count()}). Gunakan \"Kembalikan ke Masyarakat\" bila perlu.";
+        $kelengkapan = PbiGcForm::kelengkapan($pbiApbd);
+        if ($kelengkapan['total'] === 0 || $kelengkapan['terjawab'] < $kelengkapan['total']) {
+            $masalah[] = "Masyarakat belum menjawab semua parameter ({$kelengkapan['terjawab']}/{$kelengkapan['total']}). Gunakan \"Kembalikan ke Masyarakat\" bila perlu.";
         }
 
         $kurang = [];

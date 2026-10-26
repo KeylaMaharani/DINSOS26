@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\GcKriteriaOpsi;
 use App\Models\GcKriteriaParameter;
+use App\Models\GcPbiJawaban;
+use App\Models\PbiApbd;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -58,8 +60,30 @@ class GcKriteriaController extends Controller
 
     public function destroy(GcKriteriaParameter $parameter)
     {
-        // Jawaban lama aman: tersimpan sebagai snapshot (parameter_id jadi NULL).
-        $parameter->delete();
+        $pbiId = $parameter->pbi_parameter_id;
+
+        DB::transaction(function () use ($parameter, $pbiId) {
+            // Field ini langsung hilang dari halaman masyarakat. Jawaban warga untuk field ini ikut
+            // dihapus pada pengajuan yang masih bisa diubah (belum disetujui). Yang sudah disetujui
+            // dibiarkan sebagai arsip (parameter_id jadi NULL, snapshot nama & jawaban tetap).
+            $bisaDiubah = PbiApbd::where('status', '!=', 'disetujui')->pluck('id');
+
+            GcPbiJawaban::where('parameter_id', $parameter->id)->whereIn('pbi_apbd_id', $bisaDiubah)->delete();
+
+            $parameter->delete();
+
+            // Jawaban skor PBI (padanan) ikut dibuang bila tidak ada parameter GC aktif lain yang memakainya,
+            // lalu skor & kelas dihitung ulang.
+            if ($pbiId && ! GcKriteriaParameter::where('aktif', true)->where('pbi_parameter_id', $pbiId)->exists()) {
+                PbiApbd::whereIn('id', $bisaDiubah)
+                    ->whereHas('jawabans', fn ($q) => $q->where('parameter_id', $pbiId))
+                    ->get()
+                    ->each(function (PbiApbd $pbi) use ($pbiId) {
+                        $pbi->jawabans()->where('parameter_id', $pbiId)->delete();
+                        $pbi->hitungUlangSkor();
+                    });
+            }
+        });
 
         return redirect()->route('master.gc-kriteria.index')->with('success', 'Parameter Ground Check berhasil dihapus.');
     }

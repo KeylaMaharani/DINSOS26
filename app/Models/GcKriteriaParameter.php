@@ -82,6 +82,30 @@ class GcKriteriaParameter extends Model
         return $query->where('aktif', true)->orderBy('urutan')->orderBy('id');
     }
 
+    /**
+     * Parameter yang boleh tampil di form masyarakat (PBI APBD):
+     * aktif, punya padanan PBI, berjenis pilihan satu jawaban, bukan bersumber
+     * master terpisah, dan sudah punya opsi.
+     */
+    public function scopeUntukMasyarakat($query)
+    {
+        return $query->aktif()
+            ->whereNotNull('pbi_parameter_id')
+            ->where('tipe_input', 'pilihan')
+            ->whereNull('sumber')
+            ->whereHas('opsis');
+    }
+
+    /**
+     * Daftar final untuk form masyarakat, lengkap dengan opsi, urut mengikuti master GC.
+     * Satu padanan PBI hanya dipakai sekali (jawaban disimpan per pbi_parameter_id).
+     * Dipakai bersama oleh halaman masyarakat dan validasi kelurahan.
+     */
+    public static function daftarMasyarakat()
+    {
+        return static::untukMasyarakat()->with('opsis')->get()->unique('pbi_parameter_id')->values();
+    }
+
     public function butuhOpsi(): bool
     {
         // Parameter bersumber master tidak memakai gc_kriteria_opsis.

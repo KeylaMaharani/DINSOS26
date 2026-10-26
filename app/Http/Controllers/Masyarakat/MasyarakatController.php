@@ -4,10 +4,17 @@ namespace App\Http\Controllers\Masyarakat;
 
 use App\Http\Controllers\Controller;
 use App\Models\DtsenPermohonan;
+use App\Models\GcKriteriaParameter;
 use App\Models\PbiApbd;
 use App\Models\PbiApbdJawaban;
+use App\Models\GcKeterampilan;
+use App\Models\GcLapanganUsaha;
+use App\Models\GcPbiJawaban;
+use App\Models\GcPenyakitKronis;
 use App\Models\PbiApbdLog;
 use App\Models\PbiKriteriaParameter;
+use App\Support\PbiGcForm;
+use Illuminate\Support\Str;
 use App\Models\Role;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -66,8 +73,11 @@ class MasyarakatController extends Controller
             ->latest()
             ->first();
 
-        $totalParameter = PbiKriteriaParameter::aktif()->count();
-        $terjawab = $pbiApbd ? $pbiApbd->jawabans->count() : 0;
+        // Pertanyaan yang tampil ke warga = semua parameter aktif di Master Kriteria Ground Check.
+        // Yang dihitung hanya isian wajib (foto & koordinat opsional, field "bekerja" bersyarat).
+        $kelengkapanGc = PbiGcForm::kelengkapan($pbiApbd);
+        $totalParameter = $kelengkapanGc['total'];
+        $terjawab = $kelengkapanGc['terjawab'];
 
         // "Lengkap" = lokasi terambil + semua parameter terjawab. Lampiran kini diurus Kelurahan.
         $isLengkap = $pbiApbd
@@ -758,6 +768,100 @@ class MasyarakatController extends Controller
     // PBI APBD
     // ==========================================================
 
+    /**
+     * Pertanyaan di form warga = SEMUA parameter Master Kriteria Ground Check yang AKTIF,
+     * urut mengikuti master. Hapus/nonaktifkan di Master GC -> otomatis hilang dari halaman warga.
+     */
+    private function parameterUntukWarga()
+    {
+        return PbiGcForm::parameters();
+    }
+
+    /** Data master ketenagakerjaan/kesehatan (hanya yang aktif), sama seperti form petugas. */
+    private function masterGc(): array
+    {
+        return [
+            'lapangan' => GcLapanganUsaha::aktif()->with('pekerjaansAktif')->get(),
+            'keterampilan' => GcKeterampilan::aktif()->get(),
+            'penyakit' => GcPenyakitKronis::aktif()->get(),
+        ];
+    }
+
+    /** Daftar jawaban yang sah untuk sebuah parameter (dari master atau dari opsi). */
+    private function labelOpsi(GcKriteriaParameter $p, array $master): array
+    {
+        return match ($p->sumber) {
+            'lapangan_usaha' => $master['lapangan']->pluck('nama')->all(),
+            'pekerjaan' => $master['lapangan']->flatMap(fn ($l) => $l->pekerjaansAktif->pluck('nama'))->unique()->values()->all(),
+            'keterampilan' => $master['keterampilan']->pluck('nama')->all(),
+            'penyakit_kronis' => $master['penyakit']->pluck('nama')->all(),
+            default => $p->opsis->pluck('label')->all(),
+        };
+    }
+
+    /** Isian awal: jawaban tersimpan, atau data identitas dari pengajuan bila belum pernah diisi. */
+    private function nilaiAwal(PbiApbd $pbi, $parameters): array
+    {
+        $nilai = GcPbiJawaban::where('pbi_apbd_id', $pbi->id)->whereNotNull('jawaban')->pluck('jawaban', 'parameter_id')->all();
+
+        $identitas = [
+            'nama' => $pbi->nama_kepala_keluarga,
+            'no kk' => $pbi->no_kk,
+            'alamat' => $pbi->alamat,
+        ];
+
+        foreach ($parameters as $p) {
+            $nama = Str::lower(trim($p->nama));
+            if (! isset($nilai[$p->id]) && ! empty($identitas[$nama])) {
+                $nilai[$p->id] = $identitas[$nama];
+            }
+        }
+
+        return $nilai;
+    }
+
+    /**
+     * Kelas kemiskinan (hitungUlangSkor) tetap memakai rumus SK 460: indeks x bobot x indeks terintegrasi PBI.
+     * Pertanyaan GC yang punya padanan PBI (pbi_parameter_id) & opsinya cocok (label sama) ikut dihitung;
+     * pertanyaan lain tidak masuk skor. $jawaban = peta id parameter GC => jawaban tersimpan.
+     */
+    private function sinkronSkorPbi(PbiApbd $pbi, $parameters, array $jawaban): void
+    {
+        $dipakai = [];
+
+        foreach ($parameters as $p) {
+            if (! $p->pbi_parameter_id || $p->tipe_input !== 'pilihan') {
+                continue;
+            }
+
+            $label = $jawaban[$p->id] ?? null;
+            $pp = $label !== null ? PbiKriteriaParameter::find($p->pbi_parameter_id) : null;
+            $opsi = $pp ? $pp->opsis()->where('label', $label)->first() : null;
+
+            if (! $opsi) {
+                continue;
+            }
+
+            $dipakai[] = $pp->id;
+
+            PbiApbdJawaban::updateOrCreate(
+                ['pbi_apbd_id' => $pbi->id, 'parameter_id' => $pp->id],
+                [
+                    'opsi_id' => $opsi->id,
+                    'urutan' => $pp->urutan,
+                    'parameter_nama' => $pp->nama,
+                    'jawaban_label' => $opsi->label,
+                    'indeks' => $pp->indeks,
+                    'bobot' => $pp->bobot,
+                    'indeks_terintegrasi' => $opsi->indeks_terintegrasi,
+                    'skor' => round((float) $pp->indeks * (float) $pp->bobot * (float) $opsi->indeks_terintegrasi, 6),
+                ]
+            );
+        }
+
+        $pbi->jawabans()->whereNotNull('parameter_id')->whereNotIn('parameter_id', $dipakai)->delete();
+    }
+
     /** GET /akun-saya/pbi-apbd/{pbiApbd}/lengkapi */
     public function lengkapiData(Request $request, PbiApbd $pbiApbd)
     {
@@ -767,11 +871,18 @@ class MasyarakatController extends Controller
         // penyimpanan tetap ditolak di lengkapiDataStore().
         $bisaEdit = $pbiApbd->masyarakatBisaEdit();
 
-        $parameters = PbiKriteriaParameter::aktif()->with('opsis')->get();
-        // parameter_id => opsi_id (HANYA id, tidak ada indeks/bobot yang dikirim ke halaman masyarakat)
-        $jawabanTersimpan = $pbiApbd->jawabans()->pluck('opsi_id', 'parameter_id')->all();
+        $parameters = $this->parameterUntukWarga();
+        $master = $this->masterGc();
+        $opsiLabels = $parameters->mapWithKeys(fn ($p) => [$p->id => $this->labelOpsi($p, $master)])->all();
+        $nilai = $this->nilaiAwal($pbiApbd, $parameters);
+        $perKelompok = $parameters->groupBy('kelompok');
 
-        return view('masyarakat.pbi-apbd.lengkapi', compact('pbiApbd', 'parameters', 'jawabanTersimpan', 'bisaEdit'));
+        $gate = PbiGcForm::gate($parameters);
+        $kerja = $gate ? ['gate' => $gate->id, 'dependen' => PbiGcForm::dependenIds($parameters)] : null;
+
+        return view('masyarakat.pbi-apbd.lengkapi', compact(
+            'pbiApbd', 'parameters', 'perKelompok', 'opsiLabels', 'nilai', 'master', 'kerja', 'bisaEdit'
+        ));
     }
 
     /** POST /akun-saya/pbi-apbd/{pbiApbd}/lengkapi */
@@ -787,12 +898,12 @@ class MasyarakatController extends Controller
         // Pengajuan yang ditolak lalu diperbaiki warga = diajukan ulang ke kelurahan
         $ajukanUlang = $pbiApbd->status === 'ditolak';
 
-        $parameters = PbiKriteriaParameter::aktif()->with('opsis')->get();
+        $parameters = $this->parameterUntukWarga();
 
         $rules = [
             'latitude' => ['required', 'numeric', 'between:-90,90'],
             'longitude' => ['required', 'numeric', 'between:-180,180'],
-            'jawaban' => ['required', 'array'],
+            'jawaban' => ['nullable', 'array'],
         ];
         $messages = [
             'latitude.required' => 'Lokasi belum berhasil diambil. Izinkan akses lokasi lalu coba lagi.',
@@ -800,38 +911,161 @@ class MasyarakatController extends Controller
             'jawaban.required' => 'Semua pertanyaan wajib dijawab.',
         ];
 
+        $master = $this->masterGc();
+        $attributes = [];
+
+        // Field Ketenagakerjaan lain hanya berlaku bila responden bekerja ("Ya").
+        $gate = PbiGcForm::gate($parameters);
+        $bekerja = $gate && $request->input("jawaban.{$gate->id}") === 'Ya';
+        $dependen = PbiGcForm::dependenIds($parameters);
+        $lapParam = $parameters->firstWhere('sumber', 'lapangan_usaha');
+
         foreach ($parameters as $p) {
-            $rules["jawaban.{$p->id}"] = ['required', Rule::in($p->opsis->pluck('id')->all())];
-            $messages["jawaban.{$p->id}.required"] = "Pertanyaan \"{$p->nama}\" wajib dijawab.";
-            $messages["jawaban.{$p->id}.in"] = "Jawaban untuk \"{$p->nama}\" tidak valid.";
-        }
+            $key = "jawaban.{$p->id}";
+            $attributes[$key] = $p->nama;
+            $attributes["{$key}.*"] = $p->nama;
+            $messages["{$key}.required"] = "Pertanyaan \"{$p->nama}\" wajib dijawab.";
+            $messages["{$key}.min"] = "Pilih minimal satu jawaban untuk \"{$p->nama}\".";
 
-        $validated = $request->validate($rules, $messages);
-
-        DB::transaction(function () use ($pbiApbd, $parameters, $validated, $request, $ajukanUlang) {
-            foreach ($parameters as $p) {
-                $opsi = $p->opsis->firstWhere('id', (int) $validated['jawaban'][$p->id]);
-
-                $skor = round((float) $p->indeks * (float) $p->bobot * (float) $opsi->indeks_terintegrasi, 6);
-
-                PbiApbdJawaban::updateOrCreate(
-                    ['pbi_apbd_id' => $pbiApbd->id, 'parameter_id' => $p->id],
-                    [
-                        'opsi_id' => $opsi->id,
-                        'urutan' => $p->urutan,
-                        'parameter_nama' => $p->nama,
-                        'jawaban_label' => $opsi->label,
-                        'indeks' => $p->indeks,
-                        'bobot' => $p->bobot,
-                        'indeks_terintegrasi' => $opsi->indeks_terintegrasi,
-                        'skor' => $skor,
-                    ]
-                );
+            // Responden tidak bekerja -> field turunan tidak diwajibkan & dikosongkan.
+            if (in_array($p->id, $dependen, true) && ! $bekerja) {
+                $rules[$key] = ['nullable'];
+                continue;
             }
 
-            // Buang jawaban untuk parameter yang kini nonaktif (baris snapshot yatim tidak disentuh)
-            $pbiApbd->jawabans()->whereNotNull('parameter_id')
+            $req = PbiGcForm::opsional($p) ? 'nullable' : 'required';
+            $labels = $this->labelOpsi($p, $master);
+
+            switch ($p->tipe_input) {
+                case 'pilihan':
+                    $rules[$key] = $labels
+                        ? [$req, 'string', Rule::in($labels)]
+                        : [$req, 'string', 'max:500'];
+                    break;
+
+                case 'pilihan_ganda':
+                    $rules[$key] = ($req === 'required' && $labels) ? ['required', 'array', 'min:1'] : ['nullable', 'array'];
+                    $rules["{$key}.*"] = $labels ? ['string', Rule::in($labels)] : ['string', 'max:255'];
+                    break;
+
+                case 'angka':
+                    $rules[$key] = PbiGcForm::lintangBujur($p) ? [$req, 'numeric'] : [$req, 'numeric', 'min:0'];
+                    break;
+
+                case 'tanggal':
+                    $rules[$key] = [$req, 'date'];
+                    break;
+
+                case 'koordinat':
+                    $rules[$key] = [$req, 'string', 'max:100'];
+                    break;
+
+                case 'foto':
+                    $rules[$key] = ['nullable', 'image', 'max:5120'];
+                    break;
+
+                default: // teks
+                    $rules[$key] = [$req, 'string', 'max:500'];
+            }
+
+            // Keterampilan bertanda eksklusif (mis. "Belum Ada") tidak boleh digabung dengan pilihan lain.
+            if ($p->sumber === 'keterampilan') {
+                $eksklusif = $master['keterampilan']->where('eksklusif', true)->pluck('nama')->all();
+                $rules[$key][] = function ($attr, $value, $fail) use ($eksklusif) {
+                    if (! is_array($value) || count($value) < 2) {
+                        return;
+                    }
+                    $bentrok = array_intersect($value, $eksklusif);
+                    if ($bentrok) {
+                        $fail('Pilihan "' . implode('", "', $bentrok) . '" tidak boleh digabung dengan pilihan lain.');
+                    }
+                };
+            }
+
+            // Pekerjaan harus termasuk dalam lapangan usaha yang dipilih.
+            if ($p->sumber === 'pekerjaan' && $lapParam) {
+                $rules[$key][] = function ($attr, $value, $fail) use ($request, $lapParam, $master) {
+                    if ($value === null || $value === '') {
+                        return;
+                    }
+                    $lap = $master['lapangan']->firstWhere('nama', $request->input("jawaban.{$lapParam->id}"));
+                    if (! $lap || ! $lap->pekerjaansAktif->contains('nama', $value)) {
+                        $fail('Pekerjaan tidak sesuai dengan lapangan usaha yang dipilih.');
+                    }
+                };
+            }
+        }
+
+        $messages += [
+            'in' => 'Pilihan pada :attribute tidak valid.',
+            'numeric' => ':attribute harus berupa angka.',
+            'min.numeric' => ':attribute tidak boleh negatif.',
+            'image' => ':attribute harus berupa gambar.',
+            'max.file' => ':attribute maksimal 5 MB.',
+            'date' => ':attribute bukan tanggal yang valid.',
+        ];
+
+        $validated = $request->validate($rules, $messages, $attributes);
+
+        DB::transaction(function () use ($pbiApbd, $parameters, $validated, $request, $ajukanUlang, $dependen, $bekerja) {
+            $lama = GcPbiJawaban::where('pbi_apbd_id', $pbiApbd->id)->get()->keyBy('parameter_id');
+            $final = [];
+
+            foreach ($parameters as $p) {
+                $row = $lama->get($p->id) ?? new GcPbiJawaban(['pbi_apbd_id' => $pbiApbd->id, 'parameter_id' => $p->id]);
+
+                // Responden tidak bekerja -> jawaban field turunan dikosongkan.
+                $kosongkan = in_array($p->id, $dependen, true) && ! $bekerja;
+                $input = $kosongkan ? null : $request->input("jawaban.{$p->id}");
+                $jawaban = null;
+                $skor = null;
+
+                switch ($p->tipe_input) {
+                    case 'pilihan':
+                        $jawaban = ($input === null || $input === '') ? null : (string) $input;
+                        $opsi = $jawaban !== null ? $p->opsis->firstWhere('label', $jawaban) : null;
+                        $skor = ($opsi && $opsi->nilai !== null) ? round((float) $p->bobot * (float) $opsi->nilai, 6) : null;
+                        break;
+
+                    case 'pilihan_ganda':
+                        $arr = array_values(array_filter((array) $input, fn ($x) => $x !== null && $x !== ''));
+                        $jawaban = $arr ? json_encode($arr, JSON_UNESCAPED_UNICODE) : null;
+                        break;
+
+                    case 'foto':
+                        $jawaban = $row->jawaban;
+                        if ($request->hasFile("jawaban.{$p->id}")) {
+                            if ($jawaban) {
+                                Storage::disk('public')->delete($jawaban);
+                            }
+                            $jawaban = $request->file("jawaban.{$p->id}")->store("pbi-apbd/gc/{$pbiApbd->id}", 'public');
+                        }
+                        break;
+
+                    default:
+                        $jawaban = ($input === null || $input === '') ? null : (string) $input;
+                }
+
+                $row->fill([
+                    'kelompok' => $p->kelompok,
+                    'urutan' => $p->urutan,
+                    'nama_parameter' => $p->nama,
+                    'tipe_input' => $p->tipe_input,
+                    'bobot' => $p->bobot,
+                    'jawaban' => $jawaban,
+                    'skor' => $skor,
+                ])->save();
+
+                $final[$p->id] = $jawaban;
+            }
+
+            // Buang jawaban untuk parameter yang kini tidak tampil (dihapus/nonaktif di Master GC).
+            // Baris snapshot yatim (parameter_id NULL) tidak disentuh.
+            GcPbiJawaban::where('pbi_apbd_id', $pbiApbd->id)->whereNotNull('parameter_id')
                 ->whereNotIn('parameter_id', $parameters->pluck('id'))->delete();
+
+            // Skor & kelas kemiskinan (rumus PBI) dihitung dari pertanyaan yang punya padanan PBI.
+            $this->sinkronSkorPbi($pbiApbd, $parameters, $final);
 
             $pbiApbd->update([
                 'latitude' => $validated['latitude'],
