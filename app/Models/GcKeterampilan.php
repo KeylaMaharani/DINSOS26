@@ -16,4 +16,4 @@ class GcKeterampilan extends Model
     {
         return $query->where('aktif', true)->orderBy('urutan')->orderBy('id');
     }
-}   
+}

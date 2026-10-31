@@ -25,6 +25,9 @@ use Illuminate\Validation\Rule;
  * Draft: setiap saat petugas bisa menekan "Simpan Draft". Validasi wajib TIDAK dijalankan,
  * semua jawaban yang sudah terisi disimpan, dan terisi otomatis saat form dibuka lagi.
  * Kewajiban semua field baru ditegakkan saat Submit.
+ *
+ * CATATAN: flag "aktif" di Master GC hanya mengatur tampilan di halaman MASYARAKAT.
+ * Form petugas ini selalu memuat SEMUA parameter & SEMUA opsi master.
  */
 class GroundCheckController extends Controller
 {
@@ -186,7 +189,8 @@ class GroundCheckController extends Controller
                 ->with('error', 'Pilih status "Ditemukan" terlebih dahulu sebelum mengisi form.');
         }
 
-        $params = GcKriteriaParameter::aktif()->with('opsis')->get();
+        // Petugas melihat SEMUA parameter (flag aktif hanya untuk halaman masyarakat).
+        $params = GcKriteriaParameter::untukPetugas()->with('opsis')->get();
         $master = $this->masterKetenagakerjaan();
 
         $tabs = [];
@@ -232,7 +236,7 @@ class GroundCheckController extends Controller
         abort_if(! $v, 403);
 
         $submit = $request->input('aksi') === 'submit';
-        $params = GcKriteriaParameter::aktif()->with('opsis')->get();
+        $params = GcKriteriaParameter::untukPetugas()->with('opsis')->get();
         $existing = $v->jawabans()->get()->keyBy('parameter_id');
         $master = $this->masterKetenagakerjaan();
         $lapParam = $params->firstWhere('sumber', 'lapangan_usaha');
@@ -318,7 +322,7 @@ class GroundCheckController extends Controller
                         return;
                     }
                     $lap = $master['lapangan']->firstWhere('nama', $request->input("jawaban.{$lapParam->id}"));
-                    if (! $lap || ! $lap->pekerjaansAktif->contains('nama', $value)) {
+                    if (! $lap || ! $lap->pekerjaans->contains('nama', $value)) {
                         $fail('Pekerjaan tidak sesuai dengan lapangan usaha yang dipilih.');
                     }
                 };
@@ -459,13 +463,13 @@ class GroundCheckController extends Controller
         return $hasil;
     }
 
-    /** Data master (hanya yang aktif). */
+    /** Data master untuk petugas: SEMUA data (aktif maupun disembunyikan dari masyarakat). */
     private function masterKetenagakerjaan(): array
     {
         return [
-            'lapangan' => GcLapanganUsaha::aktif()->with('pekerjaansAktif')->get(),
-            'keterampilan' => GcKeterampilan::aktif()->get(),
-            'penyakit' => GcPenyakitKronis::aktif()->get(),
+            'lapangan' => GcLapanganUsaha::orderBy('urutan')->orderBy('id')->with('pekerjaans')->get(),
+            'keterampilan' => GcKeterampilan::orderBy('urutan')->orderBy('id')->get(),
+            'penyakit' => GcPenyakitKronis::orderBy('urutan')->orderBy('id')->get(),
         ];
     }
 
@@ -474,7 +478,7 @@ class GroundCheckController extends Controller
     {
         return match ($p->sumber) {
             'lapangan_usaha' => $master['lapangan']->pluck('nama')->all(),
-            'pekerjaan' => $master['lapangan']->flatMap(fn ($l) => $l->pekerjaansAktif->pluck('nama'))->unique()->values()->all(),
+            'pekerjaan' => $master['lapangan']->flatMap(fn ($l) => $l->pekerjaans->pluck('nama'))->unique()->values()->all(),
             'keterampilan' => $master['keterampilan']->pluck('nama')->all(),
             'penyakit_kronis' => $master['penyakit']->pluck('nama')->all(),
             default => $p->opsis->pluck('label')->all(),

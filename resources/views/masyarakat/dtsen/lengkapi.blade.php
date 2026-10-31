@@ -1,7 +1,8 @@
 @extends('layouts.masyarakat')
 
 @section('title', 'Lengkapi Data DTSEN - SOLID Dinas Sosial Kota Bogor')
-@section('page_title', 'Lengkapi Data DTSEN')
+@section('page_title', 'Lengkapi Data')
+@section('back', route('masyarakat.dashboard'))
 
 @php
     // $dtsen     : DtsenPermohonan milik user yang login
@@ -26,20 +27,29 @@
         'screenshot_dtsen' => ['label' => 'Screenshot DTSEN', 'required' => true],
     ];
 
-    $inputClass = 'w-full rounded-lg border border-outline-variant/50 px-3 py-2.5 text-sm bg-white disabled:bg-surface-container disabled:text-on-surface-variant';
+    $inputClass = 'w-full rounded-xl border border-outline-variant/60 px-3.5 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand disabled:bg-surface-container disabled:text-on-surface-variant';
     $fileClass = 'mt-2 block w-full text-xs text-on-surface-variant file:mr-3 file:rounded-full file:border-0 file:bg-primary/10 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-primary disabled:opacity-50';
 @endphp
 
 @section('content')
-    <a href="{{ route('masyarakat.dashboard') }}"
-       class="inline-flex items-center gap-1 text-sm text-on-surface-variant mb-3 sm:mb-4 py-1">
-        <span class="material-symbols-outlined text-[16px]">arrow_back</span> Kembali
-    </a>
+    @unless (request()->attributes->get('is_mobile'))
+        <a href="{{ route('masyarakat.dashboard') }}"
+           class="inline-flex items-center gap-1 text-sm text-on-surface-variant mb-3 sm:mb-4 py-1">
+            <span class="material-symbols-outlined text-[16px]">arrow_back</span> Kembali
+        </a>
+    @endunless
 
-    <h1 class="text-lg sm:text-xl font-bold text-primary mb-1">Lengkapi Data Pengajuan DTSEN</h1>
-    <p class="text-sm text-on-surface-variant mb-5 sm:mb-6 break-words">
-        No. Permohonan: <strong>{{ $dtsen->no_permohonan ?? $dtsen->nik }}</strong>
-    </p>
+    <div class="flex items-center gap-3 mb-5">
+        <span class="w-11 h-11 shrink-0 rounded-2xl bg-brand-soft text-brand flex items-center justify-center">
+            <span class="material-symbols-outlined text-[24px]">groups</span>
+        </span>
+        <div class="min-w-0">
+            <h1 class="text-lg font-extrabold text-brand leading-tight">Lengkapi Data DTSEN</h1>
+            <p class="text-xs text-on-surface-variant break-words">
+                No. Permohonan: <strong>{{ $dtsen->no_permohonan ?? $dtsen->nik }}</strong>
+            </p>
+        </div>
+    </div>
 
     @if (($dtsen->dikembalikan_ke_masyarakat ?? false) && $bisaEdit)
         <div class="mb-4 px-4 py-3 rounded-lg bg-warning-container text-on-warning-container text-sm">
@@ -75,13 +85,13 @@
     @endif
 
     <form method="POST" action="{{ route('masyarakat.dtsen.lengkapi.store', $dtsen) }}" enctype="multipart/form-data"
-          class="space-y-4 sm:space-y-6 pb-4 sm:pb-0" id="form-lengkapi-dtsen">
+          class="space-y-4 sm:space-y-6 pb-44 sm:pb-0" id="form-lengkapi-dtsen">
         @csrf
 
         {{-- ===== DATA DIRI ===== --}}
-        <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-4 sm:p-5">
-            <h2 class="font-semibold text-sm mb-1 flex items-center gap-1.5">
-                <span class="material-symbols-outlined text-[18px] text-secondary">badge</span>
+        <div class="bg-white ring-1 ring-outline-variant/40 shadow-sm rounded-3xl p-5">
+            <h2 class="font-extrabold text-sm text-brand mb-1 flex items-center gap-2">
+                <span class="w-8 h-8 rounded-lg bg-brand-soft text-brand flex items-center justify-center"><span class="material-symbols-outlined text-[18px]">badge</span></span>
                 Data Diri
             </h2>
             <p class="text-xs text-on-surface-variant mb-4">Isi sesuai KTP dan Kartu Keluarga. Petugas akan memeriksa kesesuaian datanya.</p>
@@ -116,9 +126,9 @@
         </div>
 
         {{-- ===== LAMPIRAN ===== --}}
-        <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-4 sm:p-5">
-            <h2 class="font-semibold text-sm mb-1 flex items-center gap-1.5">
-                <span class="material-symbols-outlined text-[18px] text-secondary">attach_file</span>
+        <div class="bg-white ring-1 ring-outline-variant/40 shadow-sm rounded-3xl p-5">
+            <h2 class="font-extrabold text-sm text-brand mb-1 flex items-center gap-2">
+                <span class="w-8 h-8 rounded-lg bg-brand-soft text-brand flex items-center justify-center"><span class="material-symbols-outlined text-[18px]">attach_file</span></span>
                 Lampiran
             </h2>
             <p class="text-xs text-on-surface-variant mb-4">
@@ -175,11 +185,11 @@
 
         {{-- Mobile: bar fixed selebar layar, latar solid + bayangan. Desktop: tombol biasa. --}}
         @if ($bisaEdit)
-            <div class="fixed inset-x-0 bottom-0 z-20 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]
+            <div style="bottom:var(--m-nav-h,0px)" class="fixed inset-x-0 z-30 px-4 pt-3 pb-3
                         bg-surface border-t border-outline-variant/40 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]
                         sm:static sm:inset-auto sm:z-auto sm:p-0 sm:bg-transparent sm:border-0 sm:shadow-none">
                 <button type="submit" id="btn-submit"
-                        class="w-full sm:w-auto sm:px-8 flex items-center justify-center gap-2 py-3 rounded-full bg-primary text-white font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                        class="w-full sm:w-auto sm:px-8 flex items-center justify-center gap-2 py-3.5 rounded-full bg-primary shadow-md text-white font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed">
                     <span class="material-symbols-outlined text-[18px]">save</span>
                     {{ $ditolak ? 'Simpan & Ajukan Ulang' : 'Simpan Data' }}
                 </button>

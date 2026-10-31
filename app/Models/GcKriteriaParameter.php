@@ -111,4 +111,9 @@ class GcKriteriaParameter extends Model
         // Parameter bersumber master tidak memakai gc_kriteria_opsis.
         return ! $this->sumber && in_array($this->tipe_input, ['pilihan', 'pilihan_ganda'], true);
     }
+
+      public function scopeUntukPetugas($query)
+    {
+        return $query->orderBy('urutan')->orderBy('id');
+    }
 }

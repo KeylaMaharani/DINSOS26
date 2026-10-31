@@ -17,6 +17,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'staff' => \App\Http\Middleware\EnsureStaffOnly::class,
             'module' => \App\Http\Middleware\EnsureModuleAccess::class,
         ]);
+
+        $middleware->web(append: [
+            \App\Http\Middleware\DetectDevice::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

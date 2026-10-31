@@ -1429,3 +1429,107 @@ body.mobile-nav-locked .back-to-top {
   .auth-card-body { padding: 1rem 1.15rem 1.25rem; }
   .auth-side { padding: 1rem 1.15rem 1.1rem; }
 }
+
+/* =========================================================
+   ===== TAMPILAN MOBILE APP (akun-saya) =====
+   Semua selector diawali .m-* / .js-step, jadi tidak mengubah halaman lain.
+   Isi halaman memakai Tailwind dari view masing-masing (tidak ditimpa di sini).
+   ========================================================= */
+:root {
+  --m-primary: #0a5ca8;
+  --m-primary-dark: #003b62;
+  --m-muted: #6b7280;
+  --m-border: #e5e7eb;
+  --m-topbar-h: 56px;
+  --m-nav-h: 62px;
+  --m-safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.m-body { -webkit-tap-highlight-color: transparent; }
+
+/* ---------- Top bar ---------- */
+.m-topbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 40;
+  height: calc(var(--m-topbar-h) + env(safe-area-inset-top, 0px));
+  padding: env(safe-area-inset-top, 0px) 14px 0;
+  display: flex; align-items: center; gap: 10px;
+  background: var(--m-primary); color: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,.15);
+}
+.m-topbar-title { flex: 1; font-weight: 800; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-logo { width: 34px; height: 34px; border-radius: 10px; background: #fff; padding: 3px; object-fit: contain; }
+.m-iconbtn { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 10px; color: #fff; }
+.m-iconbtn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.m-avatar {
+  width: 36px; height: 36px; border-radius: 50%; border: 0; cursor: pointer;
+  background: #82c1fd; color: #004e7e; font-weight: 700; font-size: 15px;
+}
+
+/* ---------- Konten ---------- */
+.m-content {
+  padding: calc(var(--m-topbar-h) + env(safe-area-inset-top, 0px) + 14px) 14px
+           calc(var(--m-nav-h) + var(--m-safe-bottom) + 24px);
+  max-width: 640px; margin: 0 auto;
+}
+.m-body.m-has-wizard .m-content {
+  padding-bottom: calc(var(--m-nav-h) + var(--m-safe-bottom) + 90px);
+}
+.m-content img { max-width: 100%; }
+
+/* ---------- Bottom nav ---------- */
+.m-bottomnav {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+  height: calc(var(--m-nav-h) + var(--m-safe-bottom));
+  padding-bottom: var(--m-safe-bottom);
+  display: flex; background: #fff;
+  border-top: 1px solid var(--m-border);
+  box-shadow: 0 -2px 12px rgba(0,0,0,.06);
+}
+.m-navitem {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  color: var(--m-muted); text-decoration: none; font-size: 11px; font-weight: 600;
+}
+.m-navitem svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.m-navitem.active { color: var(--m-primary); }
+.m-navitem.active svg { stroke-width: 2.4; }
+.m-navitem:active { background: #f3f8fd; }
+
+/* ---------- Sheet menu akun ---------- */
+.m-sheet-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 60; opacity: 0; pointer-events: none; transition: opacity .2s; }
+.m-sheet-backdrop.open { opacity: 1; pointer-events: auto; }
+.m-sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 70;
+  background: #fff; border-radius: 20px 20px 0 0;
+  padding: 10px 16px calc(16px + var(--m-safe-bottom));
+  transform: translateY(100%); transition: transform .25s ease;
+}
+.m-sheet.open { transform: translateY(0); }
+.m-sheet-handle { width: 40px; height: 4px; border-radius: 4px; background: #d1d5db; margin: 0 auto 12px; }
+.m-sheet-user { display: flex; flex-direction: column; padding: 4px 4px 12px; border-bottom: 1px solid var(--m-border); margin-bottom: 6px; }
+.m-sheet-user span { font-size: 13px; color: var(--m-muted); }
+.m-sheet-item {
+  display: block; width: 100%; text-align: left; background: none; border: 0; cursor: pointer;
+  padding: 14px 4px; font-size: 15px; color: #121d26; text-decoration: none; border-bottom: 1px solid #f3f4f6;
+}
+.m-sheet-item.m-danger { color: #dc2626; font-weight: 600; border-bottom: 0; }
+
+/* ---------- Wizard form (step A-G) ---------- */
+.m-progress { height: 6px; background: #cfe3f3; border-radius: 6px; overflow: hidden; margin-bottom: 8px; }
+.m-progress > div { height: 100%; width: 0; background: var(--m-primary); transition: width .25s; }
+.m-step-label { font-size: 13px; color: var(--m-muted); margin-bottom: 10px; font-weight: 600; }
+.js-step { display: none; }
+.js-step.active { display: block; animation: m-fade .2s; }
+@keyframes m-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.m-wizard-bar {
+  position: fixed; left: 0; right: 0; z-index: 45;
+  bottom: calc(var(--m-nav-h) + var(--m-safe-bottom));
+  display: flex; gap: 10px; padding: 10px 14px;
+  background: rgba(255,255,255,.96); border-top: 1px solid var(--m-border);
+}
+.m-wizard-bar button {
+  flex: 1; min-height: 46px; border-radius: 12px; font-size: 15px; font-weight: 700; border: 0; cursor: pointer;
+}
+.m-btn-back { background: #e5eef7; color: var(--m-primary-dark); }
+.m-btn-next, .m-wizard-bar [type=submit] { background: var(--m-primary); color: #fff; }
+.m-btn-back[disabled] { opacity: .4; }

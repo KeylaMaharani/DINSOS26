@@ -17,11 +17,23 @@ use Illuminate\Validation\Rule;
  */
 class GcKriteriaController extends Controller
 {
-    public function index()
+   public function index(Request $request)
     {
-        $parameters = GcKriteriaParameter::with(['opsis', 'pbiParameter'])->orderBy('urutan')->orderBy('id')->get();
+        $q = trim((string) $request->query('q'));
+        $kelompok = (string) $request->query('kelompok', '');
+        if (! array_key_exists($kelompok, GcKriteriaParameter::KELOMPOK)) {
+            $kelompok = '';
+        }
 
-        return view('admin.master-gc-kriteria.index', compact('parameters'));
+        $parameters = GcKriteriaParameter::with(['opsis', 'pbiParameter'])
+            ->when($kelompok !== '', fn ($s) => $s->where('kelompok', $kelompok))
+            ->when($q !== '', fn ($s) => $s->where('nama', 'like', "%{$q}%"))
+            ->orderBy('urutan')
+            ->orderBy('id')
+            ->paginate(10)
+            ->withQueryString();
+
+        return view('admin.master-gc-kriteria.index', compact('parameters', 'kelompok', 'q'));
     }
 
     public function create()
@@ -74,8 +86,7 @@ class GcKriteriaController extends Controller
 
             // Jawaban skor PBI (padanan) ikut dibuang bila tidak ada parameter GC aktif lain yang memakainya,
             // lalu skor & kelas dihitung ulang.
-            if ($pbiId && ! GcKriteriaParameter::where('aktif', true)->where('pbi_parameter_id', $pbiId)->exists()) {
-                PbiApbd::whereIn('id', $bisaDiubah)
+            if ($pbiId && ! GcKriteriaParameter::where('pbi_parameter_id', $pbiId)->exists()) {                PbiApbd::whereIn('id', $bisaDiubah)
                     ->whereHas('jawabans', fn ($q) => $q->where('parameter_id', $pbiId))
                     ->get()
                     ->each(function (PbiApbd $pbi) use ($pbiId) {

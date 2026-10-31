@@ -14,11 +14,18 @@ use Illuminate\Support\Facades\DB;
  */
 class KriteriaController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $parameters = PbiKriteriaParameter::with('opsis')->orderBy('urutan')->orderBy('id')->get();
+        $q = trim((string) $request->query('q'));
 
-        return view('admin.master-kriteria.index', compact('parameters'));
+        $parameters = PbiKriteriaParameter::with('opsis')
+            ->when($q !== '', fn ($s) => $s->where('nama', 'like', "%{$q}%"))
+            ->orderBy('urutan')
+            ->orderBy('id')
+            ->paginate(10)
+            ->withQueryString();
+
+        return view('admin.master-kriteria.index', compact('parameters', 'q'));
     }
 
     public function create()

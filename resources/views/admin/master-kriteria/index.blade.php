@@ -4,7 +4,7 @@
 @section('page_title', 'Master Kriteria Kemiskinan')
 
 @section('content')
-<div class="space-y-5 max-w-6xl">
+<div class="space-y-5 w-full">
 
     <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-5 flex flex-wrap items-start justify-between gap-3">
         <div class="max-w-3xl">
@@ -20,6 +20,18 @@
             <span class="material-symbols-outlined text-[16px]">add</span> Tambah Parameter
         </a>
     </div>
+
+    <form method="GET" action="{{ route('master.kriteria.index') }}" class="flex flex-wrap items-center gap-2">
+        <div class="relative">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant">search</span>
+            <input type="search" name="q" value="{{ $q }}" placeholder="Cari parameter..."
+                   class="w-64 pl-9 pr-3 py-2 rounded-lg border border-outline-variant/60 bg-white text-sm">
+        </div>
+        <button type="submit" class="px-4 py-2 rounded-lg text-sm bg-primary text-on-primary hover:bg-secondary font-semibold">Cari</button>
+        @if (filled($q))
+            <a href="{{ route('master.kriteria.index') }}" class="px-3 py-2 rounded-lg text-sm border border-outline-variant/50 hover:bg-surface-container-low">Reset</a>
+        @endif
+    </form>
 
     <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden">
         <div class="overflow-x-auto">
@@ -71,12 +83,25 @@
                         </tr>
                     @empty
                         <tr><td colspan="7" class="px-4 py-10 text-center text-on-surface-variant">
-                            Belum ada parameter. Jalankan <code>php artisan db:seed --class=PbiKriteriaSeeder</code> atau tambah manual.
+                            @if (filled($q))
+                                Tidak ada parameter yang cocok.
+                            @else
+                                Belum ada parameter. Jalankan <code>php artisan db:seed --class=PbiKriteriaSeeder</code> atau tambah manual.
+                            @endif
                         </td></tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
     </div>
+
+    @if ($parameters->hasPages())
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <p class="text-xs text-on-surface-variant">
+                Menampilkan {{ $parameters->firstItem() }}–{{ $parameters->lastItem() }} dari {{ $parameters->total() }} parameter
+            </p>
+            <div>{{ $parameters->links() }}</div>
+        </div>
+    @endif
 </div>
 @endsection

@@ -10,11 +10,18 @@ use Illuminate\Validation\Rule;
 /** Master Keterampilan Khusus (satu halaman, edit per baris). Super Admin saja. */
 class GcKeterampilanController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $items = GcKeterampilan::orderBy('urutan')->orderBy('id')->get();
+        $q = trim((string) $request->query('q'));
 
-        return view('admin.master-keterampilan.index', compact('items'));
+        $items = GcKeterampilan::query()
+            ->when($q !== '', fn ($s) => $s->where('nama', 'like', "%{$q}%"))
+            ->orderBy('urutan')
+            ->orderBy('id')
+            ->paginate(10)
+            ->withQueryString();
+
+    return view('admin.master-keterampilan.index', compact('items', 'q'));
     }
 
     public function store(Request $request)

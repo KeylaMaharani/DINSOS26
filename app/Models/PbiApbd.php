@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use App\Models\Concerns\HasKriteriaSkor;
 
 class PbiApbd extends Model
@@ -35,6 +36,39 @@ class PbiApbd extends Model
     public function getRouteKeyName(): string
     {
         return 'no_registrasi';
+    }
+
+    /**
+     * Notifikasi badge: saat status/pengembalian berubah, hapus catatan "sudah dilihat"
+     * untuk tahap yang baru, supaya role di tahap itu melihatnya sebagai notifikasi baru
+     * (next, back, atau dikembalikan ke warga lalu diajukan ulang).
+     */
+    protected static function booted(): void
+    {
+        static::updated(function (PbiApbd $m) {
+            if ($m->wasChanged(['status', 'dikembalikan_ke_masyarakat', 'data_diisi_at'])) {
+                DB::table('pbi_apbd_dilihat')
+                    ->where('pbi_apbd_id', $m->id)
+                    ->where('status', $m->status)
+                    ->delete();
+            }
+        });
+    }
+
+    /**
+     * Catat bahwa user ini sudah membuka / menindaklanjuti permohonan pada tahap saat ini.
+     * Dipakai MenuBadge supaya angka notifikasi berkurang.
+     */
+    public function tandaiDilihat(?User $user): void
+    {
+        if (! $user) {
+            return;
+        }
+
+        DB::table('pbi_apbd_dilihat')->updateOrInsert(
+            ['pbi_apbd_id' => $this->id, 'user_id' => $user->id, 'status' => $this->status],
+            ['dilihat_at' => now()]
+        );
     }
 
     // ==========================================================
@@ -118,6 +152,16 @@ class PbiApbd extends Model
     public function masyarakatBisaEdit(): bool
     {
         return $this->status !== 'disetujui';
+    }
+
+    /**
+     * Masih berupa draft: warga belum pernah menekan "Simpan Data" (belum diajukan ke Kelurahan).
+     * Selama draft, isian boleh tersimpan sebagian (draft otomatis) dan statusnya tidak berubah.
+     * Asumsi: kolom data_diisi_at masih kosong saat registrasi dan baru terisi ketika warga menyimpan data.
+     */
+    public function masyarakatMasihDraft(): bool
+    {
+        return $this->data_diisi_at === null && $this->status === 'kelurahan';
     }
 
     /** Urutan key tahap, dipakai untuk hitung next/back */

@@ -52,7 +52,10 @@ class PbiApbdController extends Controller
      */
     public function ajuanIndex(Request $request)
     {
-        $query = PbiApbd::query()->whereNotIn('status', ['disetujui', 'ditolak']);
+        $query = PbiApbd::query()
+            ->whereNotIn('status', ['disetujui', 'ditolak'])
+            // Draft warga (status awal 'kelurahan' tapi belum pernah "Simpan Data") bukan ajuan
+            ->where(fn ($q) => $q->where('status', '!=', 'kelurahan')->orWhereNotNull('data_diisi_at'));
 
         if ($request->filled('tanggal_awal')) {
             $query->whereDate('created_at', '>=', $request->date('tanggal_awal'));
@@ -84,6 +87,9 @@ class PbiApbdController extends Controller
 
     public function ajuanShow(PbiApbd $pbiApbd)
     {
+        // Tandai sudah dibuka oleh user ini pada tahap saat ini (badge notifikasi berkurang)
+        $pbiApbd->tandaiDilihat(Auth::user());
+
         $pbiApbd->load(['anggotaKeluarga', 'logs.user', 'diagnosaLogs.user']);
 
         $canAct = $this->userCanActOn($pbiApbd);
@@ -106,6 +112,8 @@ class PbiApbdController extends Controller
             return back()->with('error', 'Anda tidak berwenang mengedit data ini.');
         }
 
+        $pbiApbd->tandaiDilihat(Auth::user());
+
         $validated = $request->validate([
             'nama_faskes' => ['nullable', 'string', 'max:150'],
         ]);
@@ -125,6 +133,8 @@ class PbiApbdController extends Controller
             return back()->with('error', 'Anda tidak berwenang mengedit data ini.');
         }
 
+        $pbiApbd->tandaiDilihat(Auth::user());
+
         $validated = $request->validate([
             'diagnosa' => ['required', 'string', 'max:2000'],
         ], [
@@ -134,7 +144,7 @@ class PbiApbdController extends Controller
         $user = Auth::user();
 
         if ($pbiApbd->status === 'kelurahan') {
-            return false;
+            return back()->with('error', 'Diagnosa belum bisa ditambahkan selama berkas masih di Kelurahan.');
         }
 
         $pbiApbd->diagnosaLogs()->create([
@@ -178,6 +188,12 @@ class PbiApbdController extends Controller
         if (!$this->userCanActOn($pbiApbd)) {
             return back()->with('error', 'Anda tidak berwenang memproses permohonan pada tahap ini.');
         }
+
+        // Apa pun tombolnya (simpan/next/back/reject), permohonan dianggap sudah ditangani
+        // oleh user ini pada tahap sekarang -> badge notifikasinya berkurang.
+        // Dipanggil SEBELUM status berubah; tahap berikutnya otomatis jadi notifikasi baru
+        // untuk role di tahap tsb (lihat PbiApbd::booted()).
+        $pbiApbd->tandaiDilihat(Auth::user());
 
         $user = Auth::user();
         $roleName = $user->role->name ?? '-';

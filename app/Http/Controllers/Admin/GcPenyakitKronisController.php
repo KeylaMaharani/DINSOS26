@@ -10,11 +10,18 @@ use Illuminate\Validation\Rule;
 /** Master Penyakit Kronis/Menahun (satu halaman, edit per baris). Super Admin saja. */
 class GcPenyakitKronisController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $items = GcPenyakitKronis::orderBy('urutan')->orderBy('id')->get();
+        $q = trim((string) $request->query('q'));
 
-        return view('admin.master-penyakit-kronis.index', compact('items'));
+        $items = GcPenyakitKronis::query()
+            ->when($q !== '', fn ($s) => $s->where('nama', 'like', "%{$q}%"))
+            ->orderBy('urutan')
+            ->orderBy('id')
+            ->paginate(10)
+            ->withQueryString();
+
+        return view('admin.master-penyakit-kronis.index', compact('items', 'q'));
     }
 
     public function store(Request $request)
