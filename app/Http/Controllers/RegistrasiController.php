@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\DtsenPermohonan;
 use App\Models\PbiApbd;
+use App\Models\PbiApbdLog;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -167,6 +168,16 @@ class RegistrasiController extends Controller
                     'hubungan_keluarga' => $anggota['status'],
                 ]);
             }
+
+            // Catat riwayat awal supaya halaman Tracking tidak kosong sejak registrasi
+            PbiApbdLog::create([
+                'pbi_apbd_id' => $pbiApbd->id,
+                'user_id' => $user->id,
+                'username' => $user->name,
+                'role_name' => 'Masyarakat',
+                'task_name' => 'Registrasi akun & permohonan dibuat',
+                'catatan' => null,
+            ]);
 
             return [$user, $pbiApbd];
         });

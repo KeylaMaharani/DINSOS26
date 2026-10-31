@@ -2,6 +2,7 @@
 
 @section('title', 'Permohonan Saya - SOLID Dinas Sosial Kota Bogor')
 @section('page_title', 'Permohonan Saya')
+@section('back', route('masyarakat.dashboard'))
 @section('container', 'max-w-6xl')
 
 @section('content')
@@ -21,7 +22,7 @@
     <div class="space-y-6">
         @foreach ($sections as $sec)
             <section x-data="{ q: '' }"
-                class="rounded-2xl bg-white ring-1 ring-outline-variant/40 shadow-sm overflow-hidden">
+                class="rounded-3xl bg-white ring-1 ring-outline-variant/40 shadow-sm overflow-hidden">
 
                 {{-- Judul + pencarian --}}
                 <header class="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-outline-variant/40">

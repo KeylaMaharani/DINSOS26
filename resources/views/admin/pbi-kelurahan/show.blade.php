@@ -5,8 +5,9 @@
 
 @php
     $bisaProses = $data->status === 'kelurahan';
-    $jawabans = $data->jawabans->sortBy('urutan');
-    $dataLengkap = $totalParameter > 0 && $jawabans->count() >= $totalParameter;
+    // Isian masyarakat = jawaban Ground Check (sama dengan form warga & hitungan kelengkapan di controller)
+    $jawabans = $gcJawabans->sortBy('urutan')->values();
+    $dataLengkap = $totalParameter > 0 && $terjawab >= $totalParameter;
 @endphp
 
 @section('content')
@@ -85,7 +86,7 @@
                 <span class="material-symbols-outlined text-[20px] text-secondary">checklist</span> Isian Masyarakat (untuk dicek di lapangan)
             </h3>
             <span class="text-[11px] font-semibold px-2.5 py-1 rounded-full {{ $dataLengkap ? 'bg-success-container text-on-success-container' : 'bg-warning-container text-on-warning-container' }}">
-                {{ $jawabans->count() }}/{{ $totalParameter }} terjawab
+                {{ $terjawab }}/{{ $totalParameter }} terjawab
             </span>
         </div>
         @if ($jawabans->isEmpty())
@@ -98,9 +99,33 @@
                     </thead>
                     <tbody class="divide-y divide-outline-variant/30">
                         @foreach ($jawabans as $j)
-                            <tr><td class="px-5 py-3 text-center">{{ $loop->iteration }}</td>
-                                <td class="px-5 py-3">{{ $j->parameter_nama }}</td>
-                                <td class="px-5 py-3 font-semibold">{{ $j->jawaban_label }}</td></tr>
+                            @php
+                                $nilai = $j->jawaban;
+                                $pilihan = null;
+                                if ($j->tipe_input === 'pilihan_ganda' && filled($nilai)) {
+                                    $dec = json_decode($nilai, true);
+                                    $pilihan = is_array($dec) ? $dec : [$nilai];
+                                }
+                            @endphp
+                            <tr>
+                                <td class="px-5 py-3 text-center">{{ $loop->iteration }}</td>
+                                <td class="px-5 py-3">
+                                    {{ $j->nama_parameter }}
+                                    @if ($j->parameter_id && ! in_array($j->parameter_id, $idAktif, true))
+                                        <span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">Disembunyikan dari warga</span>
+                                    @endif
+                                </td>                                <td class="px-5 py-3 font-semibold">
+                                    @if (blank($nilai))
+                                        <span class="font-normal text-on-surface-variant">Belum diisi</span>
+                                    @elseif ($j->tipe_input === 'foto')
+                                        <div class="w-20"><x-lampiran-preview :src="asset('storage/' . $nilai)" :label="$j->nama_parameter" /></div>
+                                    @elseif ($pilihan)
+                                        {{ implode(', ', $pilihan) }}
+                                    @else
+                                        {{ $nilai }}
+                                    @endif
+                                </td>
+                            </tr>
                         @endforeach
                     </tbody>
                 </table>
@@ -129,6 +154,8 @@
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 p-5">
                     @foreach ($lampiran as $field => [$label, $wajib, $mimes])
+                        {{-- TTD punya kartu sendiri di bawah (pilih: digambar di layar / unggah foto) --}}
+                        @continue($field === 'ttd_kelurahan')
                         <div class="min-w-0">
                             <label for="{{ $field }}" class="block text-xs font-semibold mb-1">{{ $label }} @if($wajib)<span class="text-error">*</span>@endif</label>
                             @if ($data->{$field})
@@ -142,6 +169,135 @@
                             @error($field)<p class="text-error text-xs mt-1">{{ $message }}</p>@enderror
                         </div>
                     @endforeach
+                </div>
+            </div>
+
+            {{-- Tanda tangan Kelurahan: digambar langsung di layar ATAU unggah foto --}}
+            <script>
+                // Dipanggil lewat x-data="ttdPad()". Hasil gambar dikirim sebagai data URL PNG
+                // lewat input tersembunyi "ttd_kelurahan_data" (diproses di PbiKelurahanController@aksi).
+                window.ttdPad = function () {
+                    return {
+                        mode: 'layar',
+                        ada: false,
+                        menggambar: false,
+                        ctx: null,
+                        init() {
+                            this.$nextTick(() => this.siap());
+                            this.$watch('mode', (v) => { if (v === 'layar') this.$nextTick(() => this.siap()); });
+                        },
+                        siap() {
+                            const c = this.$refs.kanvas;
+                            if (!c || !c.clientWidth) return;
+                            const rasio = window.devicePixelRatio || 1;
+                            // Ukuran kanvas hanya disesuaikan saat masih kosong (mengubah ukuran akan menghapus gambar)
+                            if (!this.ada) {
+                                c.width = c.clientWidth * rasio;
+                                c.height = c.clientHeight * rasio;
+                            }
+                            this.ctx = c.getContext('2d');
+                            this.ctx.setTransform(c.width / c.clientWidth, 0, 0, c.height / c.clientHeight, 0, 0);
+                            this.ctx.lineWidth = 2.4;
+                            this.ctx.lineCap = 'round';
+                            this.ctx.lineJoin = 'round';
+                            this.ctx.strokeStyle = '#121d26';
+                        },
+                        titik(e) {
+                            const r = this.$refs.kanvas.getBoundingClientRect();
+                            return { x: e.clientX - r.left, y: e.clientY - r.top };
+                        },
+                        mulai(e) {
+                            if (!this.ctx) this.siap();
+                            if (!this.ctx) return;
+                            e.preventDefault();
+                            this.$refs.kanvas.setPointerCapture(e.pointerId);
+                            const p = this.titik(e);
+                            this.menggambar = true;
+                            this.ctx.beginPath();
+                            this.ctx.moveTo(p.x, p.y);
+                            this.ctx.lineTo(p.x + 0.01, p.y + 0.01);
+                            this.ctx.stroke();
+                            this.ada = true;
+                        },
+                        gerak(e) {
+                            if (!this.menggambar) return;
+                            const p = this.titik(e);
+                            this.ctx.lineTo(p.x, p.y);
+                            this.ctx.stroke();
+                            this.ctx.beginPath();
+                            this.ctx.moveTo(p.x, p.y);
+                        },
+                        selesai() {
+                            if (!this.menggambar) return;
+                            this.menggambar = false;
+                            this.$refs.data.value = this.$refs.kanvas.toDataURL('image/png');
+                        },
+                        bersihkan() {
+                            const c = this.$refs.kanvas;
+                            this.ctx.save();
+                            this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+                            this.ctx.clearRect(0, 0, c.width, c.height);
+                            this.ctx.restore();
+                            this.ada = false;
+                            this.$refs.data.value = '';
+                        },
+                    };
+                };
+            </script>
+
+            <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm" x-data="ttdPad()" @resize.window="siap()">
+                <div class="px-5 py-4 border-b border-outline-variant/40">
+                    <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">draw</span> Tanda Tangan Kelurahan</h3>
+                    <p class="text-xs text-on-surface-variant mt-1">Pilih salah satu: tanda tangan langsung di layar, atau unggah foto tanda tangan. Tersimpan saat menekan Simpan Draft atau Validasi.</p>
+                </div>
+
+                <div class="p-5 space-y-4">
+                    @if ($data->ttd_kelurahan)
+                        <div class="flex items-center gap-3">
+                            <div class="w-24 shrink-0"><x-lampiran-preview :src="asset('storage/' . $data->ttd_kelurahan)" label="Tanda Tangan Kelurahan" /></div>
+                            <span class="flex items-center gap-1 text-xs text-success"><span class="material-symbols-outlined text-[15px]">check_circle</span> Sudah ada. Buat atau unggah yang baru untuk menggantinya.</span>
+                        </div>
+                    @endif
+
+                    <div class="inline-flex rounded-lg border border-outline-variant/50 overflow-hidden text-xs font-semibold">
+                        <button type="button" @click="mode = 'layar'"
+                            :class="mode === 'layar' ? 'bg-primary text-on-primary' : 'bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container'"
+                            class="px-4 py-2 inline-flex items-center gap-1.5 transition-colors">
+                            <span class="material-symbols-outlined text-[16px]">gesture</span> Tanda tangan di layar
+                        </button>
+                        <button type="button" @click="mode = 'upload'"
+                            :class="mode === 'upload' ? 'bg-primary text-on-primary' : 'bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container'"
+                            class="px-4 py-2 inline-flex items-center gap-1.5 transition-colors">
+                            <span class="material-symbols-outlined text-[16px]">upload_file</span> Unggah foto
+                        </button>
+                    </div>
+
+                    {{-- Mode 1: digambar di layar --}}
+                    <div x-show="mode === 'layar'">
+                        <div class="relative rounded-lg border-2 border-dashed border-outline-variant bg-white">
+                            <canvas x-ref="kanvas" class="block w-full h-48 rounded-lg cursor-crosshair" style="touch-action: none;"
+                                @pointerdown="mulai($event)" @pointermove="gerak($event)"
+                                @pointerup="selesai()" @pointercancel="selesai()" @pointerleave="selesai()"></canvas>
+                            <p x-show="!ada" class="absolute inset-0 flex items-center justify-center text-xs text-on-surface-variant/60 pointer-events-none select-none">Tanda tangan di sini</p>
+                        </div>
+                        <div class="flex items-center justify-between gap-3 mt-2">
+                            <p class="text-[11px] text-on-surface-variant">Gunakan mouse, stylus, atau jari.</p>
+                            <button type="button" @click="bersihkan()" x-show="ada" x-cloak
+                                class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-outline-variant text-xs font-semibold hover:bg-surface-container">
+                                <span class="material-symbols-outlined text-[16px]">ink_eraser</span> Hapus
+                            </button>
+                        </div>
+                        <input type="hidden" name="ttd_kelurahan_data" x-ref="data" :disabled="mode !== 'layar'">
+                        @error('ttd_kelurahan_data')<p class="text-error text-xs mt-1">{{ $message }}</p>@enderror
+                    </div>
+
+                    {{-- Mode 2: unggah foto --}}
+                    <div x-show="mode === 'upload'" x-cloak>
+                        <input type="file" name="ttd_kelurahan" accept="image/jpeg,image/png" :disabled="mode !== 'upload'"
+                            class="block w-full text-xs border border-outline-variant/40 rounded-lg file:mr-3 file:py-2.5 file:px-3 file:border-0 file:bg-surface-container file:text-xs file:font-semibold" />
+                        <p class="text-[11px] text-on-surface-variant mt-1">Format JPG atau PNG. Maks. 4 MB.</p>
+                        @error('ttd_kelurahan')<p class="text-error text-xs mt-1">{{ $message }}</p>@enderror
+                    </div>
                 </div>
             </div>
 

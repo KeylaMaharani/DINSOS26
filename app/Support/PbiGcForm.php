@@ -87,4 +87,18 @@ class PbiGcForm
             'terjawab' => count(array_filter($wajib, fn ($id) => isset($jawaban[$id]) && $jawaban[$id] !== '')),
         ];
     }
+
+    /** Persentase kelengkapan 0-100. Angka 100 hanya muncul bila semua isian wajib terjawab (tidak dibulatkan ke atas). */
+    public static function persen(array $kel): int
+    {
+        if ($kel['total'] <= 0) {
+            return 0;
+        }
+
+        if ($kel['terjawab'] >= $kel['total']) {
+            return 100;
+        }
+
+        return min(99, (int) floor($kel['terjawab'] / $kel['total'] * 100));
+    }
 }

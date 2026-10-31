@@ -30,6 +30,7 @@ class PbiKelurahanController extends Controller
         'screenshot_pembaharuan_desil' => ['Screenshot Pembaharuan Desil', false, 'jpg,jpeg,png'],
         'screenshot_dtsen' => ['Screenshot DTSEN', false, 'jpg,jpeg,png'],
         'scan_surat_pengantar' => ['Scan Surat Pengantar Kelurahan', false, 'jpg,jpeg,png,pdf'],
+        'ttd_kelurahan' => ['Tanda Tangan Kelurahan', false, 'jpg,jpeg,png'],
     ];
 
     public function index(Request $request)
@@ -44,8 +45,9 @@ class PbiKelurahanController extends Controller
             'gcJawabans as jawabans_count' => fn ($q) => $q->whereNotNull('jawaban')->whereIn('parameter_id', $idTetap),
         ]);
 
+        // Tab "proses" hanya berisi pengajuan sungguhan: draft warga (data_diisi_at kosong) tidak ikut.
         $tab === 'proses'
-            ? $query->where('status', 'kelurahan')
+            ? $query->where('status', 'kelurahan')->whereNotNull('data_diisi_at')
             : $query->where('status', '!=', 'kelurahan');
 
         if ($request->filled('search')) {
@@ -69,6 +71,9 @@ class PbiKelurahanController extends Controller
     {
         $this->pastikanBerwenang($pbiApbd);
 
+        // Tandai sudah dibuka oleh user ini pada tahap saat ini (badge notifikasi berkurang)
+        $pbiApbd->tandaiDilihat(Auth::user());
+
         $pbiApbd->load(['anggotaKeluarga', 'logs']);
         $kelengkapan = PbiGcForm::kelengkapan($pbiApbd);
 
@@ -78,8 +83,11 @@ class PbiKelurahanController extends Controller
             'totalParameter' => $kelengkapan['total'],
             'terjawab' => $kelengkapan['terjawab'],
             'gcJawabans' => $pbiApbd->gcJawabans()->get(),
+            // id parameter yang sedang tampil di halaman masyarakat (untuk menandai yang disembunyikan)
+            'idAktif' => PbiGcForm::parameters()->pluck('id')->all(),
         ]);
     }
+
 
     public function aksi(Request $request, PbiApbd $pbiApbd)
     {
@@ -89,6 +97,11 @@ class PbiKelurahanController extends Controller
             return redirect()->route('pbi-kelurahan.show', $pbiApbd)
                 ->with('error', 'Berkas ini sudah tidak berada di Kelurahan.');
         }
+
+        // Apa pun tombolnya (simpan/validasi/kembalikan/tolak), berkas dianggap sudah ditangani
+        // oleh user ini -> badge notifikasinya berkurang. Dipanggil SEBELUM status berubah;
+        // tahap berikutnya otomatis jadi notifikasi baru (lihat PbiApbd::booted()).
+        $pbiApbd->tandaiDilihat(Auth::user());
 
         $rules = [
             'aksi' => ['required', Rule::in(['simpan', 'validasi', 'kembalikan', 'tolak'])],
@@ -101,10 +114,14 @@ class PbiKelurahanController extends Controller
         foreach (self::LAMPIRAN as $field => [$label, $wajib, $mimes]) {
             $rules[$field] = ['nullable', 'file', "mimes:{$mimes}", 'max:4096'];
         }
+        // TTD yang digambar langsung di layar (kanvas) dikirim sebagai data URL PNG
+        $rules['ttd_kelurahan_data'] = ['nullable', 'string', 'starts_with:data:image/png;base64,', 'max:1500000'];
 
         $request->validate($rules, [
             'catatan.required' => 'Catatan wajib diisi untuk aksi ini.',
             'aksi.in' => 'Aksi tidak dikenali.',
+            'ttd_kelurahan_data.starts_with' => 'Tanda tangan di layar tidak valid, silakan ulangi.',
+            'ttd_kelurahan_data.max' => 'Tanda tangan di layar terlalu besar, silakan ulangi.',
             '*.mimes' => 'Format file tidak didukung.',
             '*.max' => 'Ukuran file maksimal 4 MB.',
         ]);
@@ -132,6 +149,23 @@ class PbiKelurahanController extends Controller
             return redirect()->route('pbi-kelurahan.index')->with('success', 'Permohonan ditolak.');
         }
 
+        // ---- TTD digital (digambar di layar): cek dulu SEBELUM ada file yang disimpan ----
+        // Kalau petugas juga mengunggah file TTD, file itu yang dipakai.
+        $ttdBiner = null;
+        if (! $request->hasFile('ttd_kelurahan') && $request->filled('ttd_kelurahan_data')) {
+            $dataUrl = (string) $request->input('ttd_kelurahan_data');
+            $biner = base64_decode(substr($dataUrl, strlen('data:image/png;base64,')), true);
+            $info = $biner !== false ? @getimagesizefromstring($biner) : false;
+
+            if ($biner === false || ! $info || $info[2] !== IMAGETYPE_PNG || strlen($biner) > 1048576) {
+                return redirect()->route('pbi-kelurahan.show', $pbiApbd)
+                    ->withInput()
+                    ->withErrors(['ttd_kelurahan_data' => 'Tanda tangan di layar tidak valid, silakan ulangi.']);
+            }
+
+            $ttdBiner = $biner;
+        }
+
         // ---- Simpan / Validasi: simpan lampiran + kesimpulan dulu ----
         $update = [];
         foreach (array_keys(self::LAMPIRAN) as $field) {
@@ -141,6 +175,14 @@ class PbiKelurahanController extends Controller
                 }
                 $update[$field] = $request->file($field)->store('pbi-apbd/lampiran', 'public');
             }
+        }
+        if ($ttdBiner !== null) {
+            if ($pbiApbd->ttd_kelurahan) {
+                Storage::disk('public')->delete($pbiApbd->ttd_kelurahan);
+            }
+            $pathTtd = 'pbi-apbd/lampiran/ttd-kelurahan-' . $pbiApbd->id . '-' . now()->timestamp . '.png';
+            Storage::disk('public')->put($pathTtd, $ttdBiner);
+            $update['ttd_kelurahan'] = $pathTtd;
         }
         if ($request->filled('kesimpulan_rekomendasi')) {
             $update['kesimpulan_rekomendasi'] = $request->input('kesimpulan_rekomendasi');

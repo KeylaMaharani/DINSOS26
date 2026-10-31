@@ -1,3 +1,10 @@
+{{-- ========================================================================
+     SAKLAR TAMPILAN: HP -> layout mobile, laptop -> layout desktop (di bawah).
+     Flag is_mobile di-set oleh App\Http\Middleware\DetectDevice.
+     ======================================================================== --}}
+@if (request()->attributes->get('is_mobile'))
+    @include('mobile.layouts.masyarakatMobile')
+@else
 <!doctype html>
 <html lang="id">
 
@@ -468,3 +475,4 @@
 </body>
 
 </html>
+@endif

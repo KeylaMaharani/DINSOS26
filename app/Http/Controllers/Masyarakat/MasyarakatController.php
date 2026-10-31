@@ -88,9 +88,15 @@ class MasyarakatController extends Controller
 
         $bisaEdit = $pbiApbd ? $pbiApbd->masyarakatBisaEdit() : false;
 
-        $persenTerisi = $totalParameter > 0
-            ? min(100, (int) round($terjawab / $totalParameter * 100))
-            : 0;
+        $persenTerisi = PbiGcForm::persen($kelengkapanGc);
+
+        // Layanan PBI baru dianggap "terdaftar" di Beranda setelah warga mulai mengisi:
+        //  - draft  = belum pernah diajukan, tapi sudah ada jawaban tersimpan (persen sudah terbaca)
+        //  - diajukan = sudah pernah menekan "Simpan Data" / sudah diproses petugas
+        // Record yang baru dibuat saat registrasi dan belum diisi sama sekali -> belum terdaftar.
+        $masihDraft = $pbiApbd ? $pbiApbd->masyarakatMasihDraft() : false;
+        $pbiMulai = (bool) $pbiApbd && (! $masihDraft || $terjawab > 0);
+        $pbiDraft = $pbiMulai && $masihDraft;
 
         // ---------- DTSEN ----------
         // Memakai relasi User::pengajuanDtsen() kalau sudah ada.
@@ -112,6 +118,9 @@ class MasyarakatController extends Controller
         // ---------- Ringkasan per layanan (dipakai kartu di dashboard) ----------
         $layanan = [
             'pbi' => $this->ringkas('PBI APBD', 'health_and_safety', $pbiApbd, $this->urlRoute('registrasi.step1'), [
+                'terdaftar' => $pbiMulai,
+                'draft' => $pbiDraft,
+                'punya_record' => (bool) $pbiApbd,
                 'persen' => $persenTerisi,
                 'terisi' => $terjawab,
                 'total' => $totalParameter,
@@ -214,7 +223,10 @@ class MasyarakatController extends Controller
         $user = $request->user();
         $no = trim((string) $request->query('no', ''));
 
-        $pbiList = $user->pengajuanPbiApbd()->latest()->get();
+        // PBI yang masih draft (warga belum menekan "Simpan Data") belum menjadi pengajuan,
+        // jadi tidak ditampilkan di tracking.
+        $pbiList = $user->pengajuanPbiApbd()->latest()->get()
+            ->reject(fn ($r) => $r->masyarakatMasihDraft());
         $dtsenList = $user->pengajuanDtsen()->latest()->get();
 
         // Daftar pilihan (kartu): semua permohonan milik user
@@ -262,6 +274,11 @@ class MasyarakatController extends Controller
         if ($no !== '') {
             $pbi = $user->pengajuanPbiApbd()->with('logs')->where('no_registrasi', $no)->first();
 
+            // Draft tidak dilacak (lihat catatan di atas)
+            if ($pbi && $pbi->masyarakatMasihDraft()) {
+                $pbi = null;
+            }
+
             if ($pbi) {
                 $hasil = $this->susunTracking(
                     $pbi,
@@ -274,8 +291,7 @@ class MasyarakatController extends Controller
                         'peran' => $l->role_name,
                         'catatan' => $l->catatan,
                     ]),
-                    route('masyarakat.pbi-apbd.lengkapi', $pbi),
-                    $this->lokasi($pbi->latitude, $pbi->longitude, $pbi->data_diisi_at ?? null)
+                    route('masyarakat.pbi-apbd.lengkapi', $pbi)
                 );
             } else {
                 $dtsen = $user->pengajuanDtsen()->with(['detail', 'logs'])->where('no_permohonan', $no)->first();
@@ -293,8 +309,6 @@ class MasyarakatController extends Controller
                             'catatan' => $l->catatan,
                         ]),
                         route('masyarakat.dtsen.lengkapi', $dtsen),
-                        // Terbaca otomatis kalau tabel DTSEN punya kolom latitude & longitude
-                        $this->lokasi($dtsen->latitude ?? null, $dtsen->longitude ?? null, null)
                     );
                 }
             }
@@ -344,6 +358,7 @@ class MasyarakatController extends Controller
             'proses' => $this->statusLabel($r),
             'status_label' => $final ? ($status === 'ditolak' ? 'Ditolak' : 'Selesai') : 'Diproses',
             'status_tone' => $final ? ($status === 'ditolak' ? 'error' : 'success') : 'warning',
+            'dikembalikan' => (bool) ($r->dikembalikan_ke_masyarakat ?? false),
             'steps' => $this->progress($r),
             'lokasi' => $lokasi,
             'logs' => $logs
@@ -859,7 +874,12 @@ class MasyarakatController extends Controller
             );
         }
 
-        $pbi->jawabans()->whereNotNull('parameter_id')->whereNotIn('parameter_id', $dipakai)->delete();
+        // Padanan PBI dari parameter GC yang hanya disembunyikan (aktif = false) tetap dipertahankan.
+        $padananMaster = GcKriteriaParameter::whereNotNull('pbi_parameter_id')->pluck('pbi_parameter_id')->all();
+
+        $pbi->jawabans()->whereNotNull('parameter_id')
+            ->whereNotIn('parameter_id', array_merge($dipakai, $padananMaster))
+            ->delete();
     }
 
     /** GET /akun-saya/pbi-apbd/{pbiApbd}/lengkapi */
@@ -871,6 +891,9 @@ class MasyarakatController extends Controller
         // penyimpanan tetap ditolak di lengkapiDataStore().
         $bisaEdit = $pbiApbd->masyarakatBisaEdit();
 
+        // Draft otomatis hanya selama pengajuan belum pernah diajukan
+        $bisaDraft = $bisaEdit && $pbiApbd->masyarakatMasihDraft();
+
         $parameters = $this->parameterUntukWarga();
         $master = $this->masterGc();
         $opsiLabels = $parameters->mapWithKeys(fn ($p) => [$p->id => $this->labelOpsi($p, $master)])->all();
@@ -881,14 +904,25 @@ class MasyarakatController extends Controller
         $kerja = $gate ? ['gate' => $gate->id, 'dependen' => PbiGcForm::dependenIds($parameters)] : null;
 
         return view('masyarakat.pbi-apbd.lengkapi', compact(
-            'pbiApbd', 'parameters', 'perKelompok', 'opsiLabels', 'nilai', 'master', 'kerja', 'bisaEdit'
+            'pbiApbd', 'parameters', 'perKelompok', 'opsiLabels', 'nilai', 'master', 'kerja', 'bisaEdit', 'bisaDraft'
         ));
     }
 
-    /** POST /akun-saya/pbi-apbd/{pbiApbd}/lengkapi */
+    /**
+     * POST /akun-saya/pbi-apbd/{pbiApbd}/lengkapi
+     * aksi=draft -> simpan sebagian (dikirim otomatis dari halaman): isian tidak wajib lengkap,
+     * status tidak berubah, skor tidak dihitung, dan belum dianggap diajukan ke Kelurahan.
+     */
     public function lengkapiDataStore(Request $request, PbiApbd $pbiApbd)
     {
         $this->authorizePemilik($request, $pbiApbd);
+
+        $draft = $request->input('aksi') === 'draft';
+
+        // Sudah pernah diajukan: draft tidak boleh menimpa data yang sudah lengkap
+        if ($draft && ! $pbiApbd->masyarakatMasihDraft()) {
+            return response()->json(['message' => 'Pengajuan ini sudah diajukan, draft tidak dapat disimpan lagi.'], 409);
+        }
 
         if (! $pbiApbd->masyarakatBisaEdit()) {
             return redirect()->route('masyarakat.dashboard')
@@ -896,7 +930,7 @@ class MasyarakatController extends Controller
         }
 
         // Pengajuan yang ditolak lalu diperbaiki warga = diajukan ulang ke kelurahan
-        $ajukanUlang = $pbiApbd->status === 'ditolak';
+        $ajukanUlang = ! $draft && $pbiApbd->status === 'ditolak';
 
         $parameters = $this->parameterUntukWarga();
 
@@ -938,6 +972,29 @@ class MasyarakatController extends Controller
 
             switch ($p->tipe_input) {
                 case 'pilihan':
+                    if ($labels && $this->isKelasParam($p)) {
+                        // Kelas/semester: batas mengikuti jenjang (SMP/SMA = 3, SD = 6, D3 = 6, S1/D4 = 8 semester, dst).
+                        $jenjangParam = $parameters->first(fn ($x) => $this->isJenjangParam($x));
+                        $rules[$key] = [$req, 'string', function ($attr, $value, $fail) use ($request, $jenjangParam, $labels, $p) {
+                            if ($value === null || $value === '') {
+                                return;
+                            }
+                            $jenjang = $jenjangParam ? (string) $request->input("jawaban.{$jenjangParam->id}") : '';
+                            $maks = self::batasKelas($jenjang)['maks'];
+                            $angka = preg_match('/\d+/', (string) $value, $m) ? (int) $m[0] : null;
+
+                            if ($maks > 0 && $angka !== null) {
+                                if ($angka < 1 || $angka > $maks) {
+                                    $fail("Jawaban \"{$p->nama}\" tidak sesuai dengan jenjang pendidikan yang dipilih (maksimal {$maks}).");
+                                }
+                                return;
+                            }
+                            if (! in_array($value, $labels, true)) {
+                                $fail("Pilihan pada \"{$p->nama}\" tidak valid.");
+                            }
+                        }];
+                        break;
+                    }
                     $rules[$key] = $labels
                         ? [$req, 'string', Rule::in($labels)]
                         : [$req, 'string', 'max:500'];
@@ -1005,9 +1062,29 @@ class MasyarakatController extends Controller
             'date' => ':attribute bukan tanggal yang valid.',
         ];
 
+        // Draft: tidak ada isian yang diwajibkan (yang terisi tetap divalidasi formatnya)
+        if ($draft) {
+            $rules = array_map(function ($r) {
+                $r = array_map(fn ($x) => $x === 'required' ? 'nullable' : $x, (array) $r);
+
+                return array_values(array_filter($r, fn ($x) => $x !== 'min:1'));
+            }, $rules);
+        }
+
         $validated = $request->validate($rules, $messages, $attributes);
 
-        DB::transaction(function () use ($pbiApbd, $parameters, $validated, $request, $ajukanUlang, $dependen, $bekerja) {
+        // Draft kosong dan belum pernah ada jawaban: jangan membuat baris apa pun
+        if ($draft) {
+            $adaIsian = collect($request->input('jawaban', []))->flatten()
+                ->filter(fn ($v) => $v !== null && $v !== '')->isNotEmpty();
+            $adaLama = GcPbiJawaban::where('pbi_apbd_id', $pbiApbd->id)->whereNotNull('jawaban')->exists();
+
+            if (! $adaIsian && ! $adaLama) {
+                return response()->json(['tersimpan' => false, 'persen' => 0]);
+            }
+        }
+
+        DB::transaction(function () use ($pbiApbd, $parameters, $validated, $request, $ajukanUlang, $dependen, $bekerja, $draft) {
             $lama = GcPbiJawaban::where('pbi_apbd_id', $pbiApbd->id)->get()->keyBy('parameter_id');
             $final = [];
 
@@ -1062,7 +1139,19 @@ class MasyarakatController extends Controller
             // Buang jawaban untuk parameter yang kini tidak tampil (dihapus/nonaktif di Master GC).
             // Baris snapshot yatim (parameter_id NULL) tidak disentuh.
             GcPbiJawaban::where('pbi_apbd_id', $pbiApbd->id)->whereNotNull('parameter_id')
-                ->whereNotIn('parameter_id', $parameters->pluck('id'))->delete();
+                ->whereNotIn('parameter_id', GcKriteriaParameter::pluck('id'))->delete();
+            // Draft berhenti di sini: hanya lokasi (kalau sudah terambil) yang ikut disimpan.
+            // Status, skor/kelas kemiskinan, data_diisi_at, dan log baru diproses saat warga menekan "Simpan Data".
+            if ($draft) {
+                $lat = $validated['latitude'] ?? null;
+                $lng = $validated['longitude'] ?? null;
+
+                if (filled($lat) && filled($lng)) {
+                    $pbiApbd->update(['latitude' => $lat, 'longitude' => $lng]);
+                }
+
+                return;
+            }
 
             // Skor & kelas kemiskinan (rumus PBI) dihitung dari pertanyaan yang punya padanan PBI.
             $this->sinkronSkorPbi($pbiApbd, $parameters, $final);
@@ -1091,6 +1180,13 @@ class MasyarakatController extends Controller
                 'catatan' => null,
             ]);
         });
+
+        if ($draft) {
+            return response()->json([
+                'tersimpan' => true,
+                'persen' => PbiGcForm::persen(PbiGcForm::kelengkapan($pbiApbd)),
+            ]);
+        }
 
         return redirect()->route('masyarakat.dashboard')
             ->with('success', 'Data berhasil disimpan dan akan diverifikasi oleh petugas kelurahan.');
@@ -1297,5 +1393,37 @@ class MasyarakatController extends Controller
             'total' => $total,
             'lengkap' => $terisi === $total,
         ];
+    }
+
+    // ---- Aturan jenjang pendidikan -> kelas/semester (cermin dari aturanKelas() di _gc_field.blade.php) ----
+
+    private function isJenjangParam($p): bool
+    {
+        $n = Str::lower((string) $p->nama);
+
+        return Str::lower((string) $p->kelompok) === 'pendidikan' && str_contains($n, 'jenjang') && str_contains($n, 'pendidikan');
+    }
+
+    private function isKelasParam($p): bool
+    {
+        return Str::lower((string) $p->kelompok) === 'pendidikan' && str_contains(Str::lower((string) $p->nama), 'kelas tertinggi');
+    }
+
+    /** @return array{maks:int, semester:bool}  maks 0 = tidak dibatasi */
+    public static function batasKelas(string $jenjang): array
+    {
+        $t = ' ' . trim(preg_replace('/[^a-z0-9]+/', ' ', Str::lower($jenjang))) . ' ';
+        $has = fn (string $re) => (bool) preg_match('/\b(' . $re . ')\b/', $t);
+
+        if ($has('s ?[23]|pasca|magister|doktor|profesi|spesialis')) return ['maks' => 0, 'semester' => true];
+        if ($has('d ?(4|iv)|s ?1|sarjana')) return ['maks' => 8, 'semester' => true];
+        if ($has('d ?(3|iii)')) return ['maks' => 6, 'semester' => true];
+        if ($has('d ?(2|ii)')) return ['maks' => 4, 'semester' => true];
+        if ($has('d ?(1|i)')) return ['maks' => 2, 'semester' => true];
+        if ($has('perguruan tinggi|universitas|akademi|diploma|institut')) return ['maks' => 0, 'semester' => true];
+        if ($has('smp|mts|smplb|sma|ma|mak|smk|smlb|paket b|paket c')) return ['maks' => 3, 'semester' => false];
+        if ($has('sd|mi|sdlb|paket a|sekolah dasar')) return ['maks' => 6, 'semester' => false];
+
+        return ['maks' => 0, 'semester' => false];
     }
 }

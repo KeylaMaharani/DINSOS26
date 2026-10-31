@@ -11,11 +11,18 @@ use Illuminate\Validation\Rule;
 /** Master Lapangan Usaha + Pekerjaan. Route dipagari 'module:kelola-akses' (Super Admin). */
 class GcLapanganUsahaController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $items = GcLapanganUsaha::withCount('pekerjaans')->orderBy('urutan')->orderBy('id')->get();
+        $q = trim((string) $request->query('q'));
 
-        return view('admin.master-lapangan-usaha.index', compact('items'));
+        $items = GcLapanganUsaha::withCount('pekerjaans')
+            ->when($q !== '', fn ($s) => $s->where('nama', 'like', "%{$q}%"))
+            ->orderBy('urutan')
+            ->orderBy('id')
+            ->paginate(10)
+            ->withQueryString();
+
+        return view('admin.master-lapangan-usaha.index', compact('items', 'q'));
     }
 
     public function create()

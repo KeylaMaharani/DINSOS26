@@ -4,13 +4,25 @@
 @section('page_title', 'Master Lapangan Usaha & Pekerjaan')
 
 @section('content')
-<div class="max-w-5xl space-y-4">
-    <div class="flex items-center justify-between">
-        <p class="text-sm text-on-surface-variant">Dipakai pada form Ground Check tab C (Ketenagakerjaan). Isi pilihan dropdown tidak diubah; penjelasan dan contoh pekerjaan tampil sebagai panduan bagi pengisi.</p>
+<div class="w-full space-y-4">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <form method="GET" action="{{ route('master.lapangan-usaha.index') }}" class="flex flex-wrap items-center gap-2">
+            <div class="relative">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant">search</span>
+                <input type="search" name="q" value="{{ $q }}" placeholder="Cari lapangan usaha..."
+                       class="w-64 pl-9 pr-3 py-2 rounded-lg border border-outline-variant/60 bg-white text-sm">
+            </div>
+            <button type="submit" class="px-4 py-2 rounded-lg text-sm bg-primary text-on-primary hover:bg-secondary font-semibold">Cari</button>
+            @if (filled($q))
+                <a href="{{ route('master.lapangan-usaha.index') }}" class="px-3 py-2 rounded-lg text-sm border border-outline-variant/50 hover:bg-surface-container-low">Reset</a>
+            @endif
+        </form>
         <a href="{{ route('master.lapangan-usaha.create') }}" class="inline-flex items-center gap-1 px-4 py-2 rounded-lg text-sm bg-primary text-on-primary hover:bg-secondary font-semibold whitespace-nowrap">
             <span class="material-symbols-outlined text-[18px]">add</span> Tambah
         </a>
     </div>
+
+    <p class="text-sm text-on-surface-variant">Dipakai pada form Ground Check tab C (Ketenagakerjaan). Isi pilihan dropdown tidak diubah; penjelasan dan contoh pekerjaan tampil sebagai panduan bagi pengisi.</p>
 
     <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-x-auto">
         <table class="w-full text-sm">
@@ -50,10 +62,19 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" class="px-4 py-8 text-center text-on-surface-variant">Belum ada data.</td></tr>
+                    <tr><td colspan="5" class="px-4 py-8 text-center text-on-surface-variant">{{ filled($q) ? 'Tidak ada data yang cocok.' : 'Belum ada data.' }}</td></tr>
                 @endforelse
             </tbody>
         </table>
     </div>
+
+    @if ($items->hasPages())
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <p class="text-xs text-on-surface-variant">
+                Menampilkan {{ $items->firstItem() }}–{{ $items->lastItem() }} dari {{ $items->total() }} lapangan usaha
+            </p>
+            <div>{{ $items->links() }}</div>
+        </div>
+    @endif
 </div>
 @endsection

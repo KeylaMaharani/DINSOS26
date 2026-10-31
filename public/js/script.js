@@ -1039,3 +1039,90 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   });
 });
+
+/* =========================================================
+   ===== WIZARD FORM MOBILE (akun-saya) - digabung dari mobile-wizard.js =====
+   Hanya aktif kalau halaman punya elemen .js-step.
+   ========================================================= */
+document.addEventListener("DOMContentLoaded", function () {
+(function () {
+  var steps = Array.prototype.slice.call(document.querySelectorAll('.js-step'));
+  if (!steps.length) return;
+
+  var form = steps[0].closest('form');
+  var submit = form ? form.querySelector('[type=submit]') : null;
+  var current = 0;
+
+  document.body.classList.add('m-has-wizard');
+
+  var progress = document.createElement('div');
+  progress.className = 'm-progress';
+  progress.innerHTML = '<div></div>';
+  var label = document.createElement('div');
+  label.className = 'm-step-label';
+  steps[0].parentNode.insertBefore(progress, steps[0]);
+  steps[0].parentNode.insertBefore(label, steps[0]);
+
+  var bar = document.createElement('div');
+  bar.className = 'm-wizard-bar';
+  bar.innerHTML =
+    '<button type="button" class="m-btn-back">Kembali</button>' +
+    '<button type="button" class="m-btn-next">Lanjut</button>';
+  document.body.appendChild(bar);
+  var btnBack = bar.querySelector('.m-btn-back');
+  var btnNext = bar.querySelector('.m-btn-next');
+
+  // Tombol simpan asli dipindah ke bar; tombol tetap terhubung ke form lewat atribut form=
+  if (submit) {
+    if (form && !form.id) form.id = 'm-wizard-form';
+    if (form) submit.setAttribute('form', form.id);
+    submit.style.display = 'none';
+    bar.appendChild(submit);
+  }
+
+  function titleOf(step, i) {
+    return step.getAttribute('data-title') ||
+      (step.querySelector('h1,h2,h3,h4,legend') || {}).textContent ||
+      ('Bagian ' + (i + 1));
+  }
+
+  function show(i) {
+    current = Math.max(0, Math.min(steps.length - 1, i));
+    steps.forEach(function (s, idx) { s.classList.toggle('active', idx === current); });
+
+    var last = current === steps.length - 1;
+    btnBack.disabled = current === 0;
+    btnNext.style.display = last ? 'none' : '';
+    if (submit) {
+      submit.style.display = last ? '' : 'none';
+      submit.disabled = false;
+    }
+
+    progress.firstChild.style.width = ((current + 1) / steps.length * 100) + '%';
+    label.textContent = 'Langkah ' + (current + 1) + ' dari ' + steps.length + ' · ' + titleOf(steps[current], current).trim();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function validCurrent() {
+    var fields = steps[current].querySelectorAll('input, select, textarea');
+    for (var i = 0; i < fields.length; i++) {
+      if (!fields[i].checkValidity()) {
+        fields[i].reportValidity();
+        return false;
+      }
+    }
+    return true;
+  }
+
+  btnNext.addEventListener('click', function () { if (validCurrent()) show(current + 1); });
+  btnBack.addEventListener('click', function () { show(current - 1); });
+
+  // Jika server mengembalikan error validasi, langsung buka langkah yang bermasalah
+  var firstInvalid = -1;
+  steps.forEach(function (s, idx) {
+    if (firstInvalid === -1 && s.querySelector('.is-invalid, .error, .text-red-500, .text-red-600')) firstInvalid = idx;
+  });
+
+  show(firstInvalid > -1 ? firstInvalid : 0);
+})();
+});

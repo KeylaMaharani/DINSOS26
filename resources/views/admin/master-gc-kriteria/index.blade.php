@@ -6,14 +6,25 @@
 @section('page_title', 'Master Kriteria Ground Check')
 
 @section('content')
-<div class="max-w-7xl space-y-4" x-data="{ kel: '' }">
+<div class="w-full space-y-4">
     <div class="flex flex-wrap items-center justify-between gap-3">
-        <select x-model="kel" class="px-3 py-2 rounded-lg border border-outline-variant/60 bg-white text-sm">
-            <option value="">Semua kelompok</option>
-            @foreach (GcP::KELOMPOK as $k => $label)
-                <option value="{{ $k }}">{{ $label }}</option>
-            @endforeach
-        </select>
+        <form method="GET" action="{{ route('master.gc-kriteria.index') }}" class="flex flex-wrap items-center gap-2">
+            <select name="kelompok" onchange="this.form.submit()" class="px-3 py-2 rounded-lg border border-outline-variant/60 bg-white text-sm">
+                <option value="">Semua kelompok</option>
+                @foreach (GcP::KELOMPOK as $k => $label)
+                    <option value="{{ $k }}" @selected($kelompok === (string) $k)>{{ $label }}</option>
+                @endforeach
+            </select>
+            <div class="relative">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant">search</span>
+                <input type="search" name="q" value="{{ $q }}" placeholder="Cari pertanyaan..."
+                       class="w-64 pl-9 pr-3 py-2 rounded-lg border border-outline-variant/60 bg-white text-sm">
+            </div>
+            <button type="submit" class="px-4 py-2 rounded-lg text-sm bg-primary text-on-primary hover:bg-secondary font-semibold">Cari</button>
+            @if (filled($q) || filled($kelompok))
+                <a href="{{ route('master.gc-kriteria.index') }}" class="px-3 py-2 rounded-lg text-sm border border-outline-variant/50 hover:bg-surface-container-low">Reset</a>
+            @endif
+        </form>
         <a href="{{ route('master.gc-kriteria.create') }}" class="inline-flex items-center gap-1 px-4 py-2 rounded-lg text-sm bg-primary text-on-primary hover:bg-secondary font-semibold">
             <span class="material-symbols-outlined text-[18px]">add</span> Tambah Parameter
         </a>
@@ -35,7 +46,7 @@
             </thead>
             <tbody class="divide-y divide-outline-variant/30">
                 @forelse ($parameters as $p)
-                    <tr x-show="kel === '' || kel === '{{ $p->kelompok }}'" class="hover:bg-surface-container-low">
+                    <tr class="hover:bg-surface-container-low">
                         <td class="px-3 py-3 text-center">{{ $p->urutan }}</td>
                         <td class="px-3 py-3 whitespace-nowrap">{{ GcP::KELOMPOK[$p->kelompok] ?? $p->kelompok }}</td>
                         <td class="px-3 py-3">
@@ -59,8 +70,7 @@
                         </td>
                         <td class="px-3 py-3 text-center">
                             <span class="inline-flex px-2.5 py-1 rounded-full text-[11px] font-medium {{ $p->aktif ? 'bg-brand-soft text-brand' : 'bg-surface-container-highest text-on-surface-variant' }}">
-                                {{ $p->aktif ? 'Aktif' : 'Nonaktif' }}
-                            </span>
+                                {{ $p->aktif ? 'Tampil' : 'Disembunyikan' }}                            </span>
                         </td>
                         <td class="px-3 py-3">
                             <div class="flex items-center justify-center gap-2">
@@ -79,10 +89,19 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="8" class="px-4 py-10 text-center text-on-surface-variant">Belum ada parameter.</td></tr>
+                    <tr><td colspan="8" class="px-4 py-10 text-center text-on-surface-variant">{{ filled($q) ? 'Tidak ada parameter yang cocok.' : 'Belum ada parameter.' }}</td></tr>
                 @endforelse
             </tbody>
         </table>
     </div>
+
+    @if ($parameters->hasPages())
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <p class="text-xs text-on-surface-variant">
+                Menampilkan {{ $parameters->firstItem() }}–{{ $parameters->lastItem() }} dari {{ $parameters->total() }} parameter
+            </p>
+            <div>{{ $parameters->links() }}</div>
+        </div>
+    @endif
 </div>
 @endsection

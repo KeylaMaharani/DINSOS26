@@ -6,7 +6,7 @@
 @php $in = 'w-full px-3 py-1.5 rounded-lg border border-outline-variant/60 bg-white text-sm'; @endphp
 
 @section('content')
-<div class="max-w-3xl space-y-4">
+<div class="w-full space-y-4">
     @if ($errors->any() || $errors->hasBag('tambah'))
         <div class="px-4 py-3 rounded-lg bg-error-container text-on-error-container text-sm">
             <ul class="list-disc list-inside">
@@ -14,6 +14,18 @@
             </ul>
         </div>
     @endif
+
+    <form method="GET" action="{{ route('master.keterampilan.index') }}" class="flex flex-wrap items-center gap-2">
+        <div class="relative">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant">search</span>
+            <input type="search" name="q" value="{{ $q }}" placeholder="Cari keterampilan..."
+                   class="w-64 pl-9 pr-3 py-2 rounded-lg border border-outline-variant/60 bg-white text-sm">
+        </div>
+        <button type="submit" class="px-4 py-2 rounded-lg text-sm bg-primary text-on-primary hover:bg-secondary font-semibold">Cari</button>
+        @if (filled($q))
+            <a href="{{ route('master.keterampilan.index') }}" class="px-3 py-2 rounded-lg text-sm border border-outline-variant/50 hover:bg-surface-container-low">Reset</a>
+        @endif
+    </form>
 
     <form method="POST" action="{{ route('master.keterampilan.store') }}" class="flex gap-2">
         @csrf
@@ -55,10 +67,19 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" class="px-4 py-8 text-center text-on-surface-variant">Belum ada data.</td></tr>
+                    <tr><td colspan="5" class="px-4 py-8 text-center text-on-surface-variant">{{ filled($q) ? 'Tidak ada data yang cocok.' : 'Belum ada data.' }}</td></tr>
                 @endforelse
             </tbody>
         </table>
     </div>
+
+    @if ($items->hasPages())
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <p class="text-xs text-on-surface-variant">
+                Menampilkan {{ $items->firstItem() }}–{{ $items->lastItem() }} dari {{ $items->total() }} keterampilan
+            </p>
+            <div>{{ $items->links() }}</div>
+        </div>
+    @endif
 </div>
 @endsection

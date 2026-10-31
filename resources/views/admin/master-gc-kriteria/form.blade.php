@@ -95,7 +95,7 @@
             <div class="sm:col-span-2 flex items-end">
                 <label class="inline-flex items-center gap-2 text-sm pb-2">
                     <input type="checkbox" name="aktif" value="1" class="rounded" @checked(old('aktif', $parameter->aktif))>
-                    Tampil di form entry
+                        Tampil di halaman masyarakat
                 </label>
             </div>
 
@@ -148,4 +148,4 @@
         </div>
     </form>
 </div>
-@endsection 
+@endsection

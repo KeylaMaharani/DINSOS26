@@ -207,6 +207,10 @@
         // lolos semua pengecekan hasModule() di bawah.
         $currentRole = auth()->user()->role ?? null;
 
+        // Angka badge merah di menu = jumlah permohonan yang menunggu tindakan role ini
+        // (lihat App\Support\MenuBadge). Dipakai lewat key 'badge' di peta menu di bawah.
+        $notif = \App\Support\MenuBadge::untuk(auth()->user());
+
         // URL file PDF panduan penggunaan yang akan ditampilkan sebagai flipbook.
         // Taruh file PDF-nya di public/assets/help/panduan-penggunaan.pdf,
         // atau ganti path di bawah ini sesuai lokasi file kamu.
@@ -217,7 +221,8 @@
          |
          |  Satu node bisa berisi:
          |    label            teks menu
-         |    icon             ikon (hanya untuk menu paling atas)
+         |    icon             ikon (hanya untuk menu paling atas; jika kosong
+         |                     otomatis memakai ikon 'circle')
          |    route            nama route -> node ini menjadi LINK
          |    match            pola route tambahan agar menu tetap "aktif" (opsional)
          |    children         anak menu -> node ini menjadi FOLDER
@@ -302,7 +307,7 @@
                         'label' => 'PBI APBD',
                         'module' => 'pbi-apbd',
                         'children' => [
-                            ['label' => 'Ajuan', 'route' => 'pbi-apbd.ajuan.index', 'match' => ['pbi-apbd.ajuan.*']],
+                            ['label' => 'Ajuan', 'route' => 'pbi-apbd.ajuan.index', 'match' => ['pbi-apbd.ajuan.*'], 'badge' => 'pbi_ajuan'],
                             ['label' => 'Arsip', 'route' => 'pbi-apbd.arsip.index', 'match' => ['pbi-apbd.arsip.*']],
                             ['label' => 'Monitoring', 'route' => 'pbi-apbd.monitoring.index'],
                         ],
@@ -369,6 +374,7 @@
                 'route' => 'pbi-kelurahan.index',
                 'match' => ['pbi-kelurahan.*'],
                 'module' => 'pbi-kelurahan',
+                'badge' => 'pbi_kelurahan',
             ],
             // Kelurahan / OPD wilayah: HANYA satu menu ini untuk SIGAP
             [
@@ -400,6 +406,12 @@
                 'route' => 'akun.index',
                 'match' => ['akun.*'],
                 'superadmin_only' => true,
+            ],
+            [
+                'label' => 'Penyakit Kronis/Menahun',
+                'icon' => 'medical_services',
+                'route' => 'master.penyakit-kronis.index',
+                'match' => ['master.penyakit-kronis.*'],
             ],
             [
                 'label' => 'Master Kriteria',
@@ -438,6 +450,24 @@
             return isset($n['route']) && \Illuminate\Support\Facades\Route::has($n['route']);
         };
 
+        // Jumlah badge sebuah node: link = angka miliknya ('badge' => key di $notif),
+        // folder = jumlah semua anak yang tampil (supaya angka juga terlihat di menu induk).
+        $badgeOf = function (array $n) use (&$badgeOf, $notif, $visible) {
+            if (!$visible($n)) {
+                return 0;
+            }
+            if (isset($n['children'])) {
+                return (int) collect($n['children'])->sum(fn($c) => $badgeOf($c));
+            }
+
+            return isset($n['badge']) ? (int) ($notif[$n['badge']] ?? 0) : 0;
+        };
+
+        // Bulatan merah berisi angka. $attrs = atribut tambahan (mis. x-show Alpine).
+        $badgePill = fn(int $n, string $attrs = '') => $n > 0
+            ? '<span ' . $attrs . ' class="ml-auto min-w-[20px] h-5 px-1.5 shrink-0 rounded-full bg-red-500 text-white text-[11px] font-bold leading-none flex items-center justify-center">' . ($n > 99 ? '99+' : $n) . '</span>'
+            : '';
+
         // Node aktif jika halaman sekarang ada di dalamnya (folder: salah satu turunannya)
         $active = function (array $n) use (&$active) {
             if (isset($n['children'])) {
@@ -468,7 +498,7 @@
         }
 
         // Render anak menu (rekursif, kedalaman berapa pun). $floating = versi panel melayang (sidebar ciut)
-        $renderChildren = function (array $nodes, bool $floating) use (&$renderChildren, $visible, $active) {
+        $renderChildren = function (array $nodes, bool $floating) use (&$renderChildren, $visible, $active, $badgeOf, $badgePill) {
             $on = $floating ? 'bg-brand/10 text-brand font-semibold' : 'bg-white/20 text-white font-semibold';
             $off = $floating
                 ? 'text-on-surface-variant hover:bg-surface-container'
@@ -488,6 +518,8 @@
                         '<div x-data="{ g: ' . $open . ' }">' .
                         '<button type="button" x-on:click="g = !g" class="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-[13px] font-semibold transition-colors ' . $head . '">' .
                         '<span class="text-left">' . e($n['label']) . '</span>' .
+                        // Badge folder hanya tampil saat tertutup (saat terbuka, badge ada di anaknya)
+                        $badgePill($badgeOf($n), 'x-show="!g"') .
                         '<span class="material-symbols-outlined text-[16px] transition-transform" :class="g ? \'rotate-180\' : \'\'">expand_more</span>' .
                         '</button>' .
                         '<div x-show="g" x-cloak class="ml-3 pl-3 border-l ' . $line . ' space-y-0.5">' .
@@ -495,8 +527,8 @@
                         '</div></div>';
                 } else {
                     $html .=
-                        '<a href="' . route($n['route']) . '" class="block px-3 py-1.5 rounded-lg text-[13px] transition-colors ' .
-                        ($active($n) ? $on : $off) . '">' . e($n['label']) . '</a>';
+                        '<a href="' . route($n['route']) . '" class="flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg text-[13px] transition-colors ' .
+                        ($active($n) ? $on : $off) . '"><span>' . e($n['label']) . '</span>' . $badgePill($badgeOf($n)) . '</a>';
                 }
             }
 
@@ -597,16 +629,28 @@
                         @continue
                     @endif
 
-                    @php $isAct = $active($top); @endphp
+                    @php
+                        $isAct = $active($top);
+                        $cnt = $badgeOf($top);
+                        // Ikon menu tingkat atas; jika lupa diisi, pakai 'circle' agar sidebar tidak error
+                        $topIcon = $top['icon'] ?? 'circle';
+                    @endphp
 
                     @if (!isset($top['children']))
                         {{-- Menu tunggal (link langsung) --}}
                         <a href="{{ route($top['route']) }}" :title="collapsed ? '{{ $top['label'] }}' : null"
                             :class="collapsed ? 'w-12 mx-auto justify-center' : 'w-full px-3 gap-3'"
-                            class="h-12 rounded-xl flex items-center transition-colors
+                            class="relative h-12 rounded-xl flex items-center transition-colors
                                 {{ $isAct ? 'bg-white/25 text-white shadow-inner' : 'text-white/80 hover:bg-white/15 hover:text-white' }}">
-                            <span class="material-symbols-outlined text-[24px] shrink-0">{{ $top['icon'] }}</span>
+                            <span class="material-symbols-outlined text-[24px] shrink-0">{{ $topIcon }}</span>
                             <span x-show="!collapsed" class="text-sm font-medium truncate">{{ $top['label'] }}</span>
+                            @if ($cnt > 0)
+                                {{-- Sidebar lebar: angka. Sidebar ciut: titik merah di pojok ikon --}}
+                                <span x-show="!collapsed"
+                                    class="ml-auto min-w-[20px] h-5 px-1.5 shrink-0 rounded-full bg-red-500 text-white text-[11px] font-bold leading-none flex items-center justify-center">{{ $cnt > 99 ? '99+' : $cnt }}</span>
+                                <span x-show="collapsed" x-cloak
+                                    class="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-brand"></span>
+                            @endif
                         </a>
                     @else
                         {{-- Folder (Portal, PFM, Dayasos, Perlinsos, Rehabsos, Master Kriteria) --}}
@@ -627,11 +671,18 @@
                                 "
                                 type="button" :title="collapsed ? '{{ $top['label'] }}' : null"
                                 :class="collapsed ? 'w-12 mx-auto justify-center' : 'w-full px-3 gap-3'"
-                                class="h-12 rounded-xl flex items-center transition-colors
+                                class="relative h-12 rounded-xl flex items-center transition-colors
                                     {{ $isAct ? 'bg-white/25 text-white shadow-inner' : 'text-white/80 hover:bg-white/15 hover:text-white' }}">
-                                <span class="material-symbols-outlined text-[24px] shrink-0">{{ $top['icon'] }}</span>
+                                <span class="material-symbols-outlined text-[24px] shrink-0">{{ $topIcon }}</span>
                                 <span x-show="!collapsed"
                                     class="flex-1 text-left text-sm font-medium truncate">{{ $top['label'] }}</span>
+                                @if ($cnt > 0)
+                                    {{-- Angka hanya saat folder tertutup; saat dibuka, angka ada di menu anaknya --}}
+                                    <span x-show="!collapsed && !open"
+                                        class="min-w-[20px] h-5 px-1.5 shrink-0 rounded-full bg-red-500 text-white text-[11px] font-bold leading-none flex items-center justify-center">{{ $cnt > 99 ? '99+' : $cnt }}</span>
+                                    <span x-show="collapsed" x-cloak
+                                        class="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-brand"></span>
+                                @endif
                                 <span x-show="!collapsed"
                                     class="material-symbols-outlined text-[18px] transition-transform"
                                     :class="open ? 'rotate-180' : ''">expand_more</span>
@@ -723,10 +774,59 @@
                         </label>
                     </div>
 
-                    <button type="button" title="Notifikasi"
-                        class="hidden sm:flex w-8 h-8 shrink-0 items-center justify-center text-white/90 hover:text-white">
-                        <span class="material-symbols-outlined text-[20px]">notifications</span>
-                    </button>
+                    {{-- Lonceng: titik merah (tanpa angka) jika masih ada notifikasi yang belum dibuka.
+                         Bisa diklik -> daftar notifikasi, tiap baris menuju halaman terkait. --}}
+                    @php
+                        $daftarNotif = [];
+                        if (($notif['pbi_kelurahan'] ?? 0) > 0 && \Illuminate\Support\Facades\Route::has('pbi-kelurahan.index')) {
+                            $daftarNotif[] = [
+                                'judul' => 'Verifikasi Kelurahan',
+                                'jumlah' => (int) $notif['pbi_kelurahan'],
+                                'url' => route('pbi-kelurahan.index'),
+                            ];
+                        }
+                        if (($notif['pbi_ajuan'] ?? 0) > 0 && \Illuminate\Support\Facades\Route::has('pbi-apbd.ajuan.index')) {
+                            $daftarNotif[] = [
+                                'judul' => 'Ajuan PBI APBD',
+                                'jumlah' => (int) $notif['pbi_ajuan'],
+                                'url' => route('pbi-apbd.ajuan.index'),
+                            ];
+                        }
+                    @endphp
+                    <div class="relative hidden sm:block shrink-0" x-data="{ notifOpen: false }">
+                        <button type="button" @click="notifOpen = !notifOpen" @click.outside="notifOpen = false"
+                            title="{{ count($daftarNotif) ? 'Ada permohonan yang menunggu tindakan Anda' : 'Notifikasi' }}"
+                            class="relative flex w-8 h-8 items-center justify-center text-white/90 hover:text-white">
+                            <span class="material-symbols-outlined text-[20px]">notifications</span>
+                            @if (count($daftarNotif))
+                                <span class="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-brand"></span>
+                            @endif
+                        </button>
+
+                        <div x-show="notifOpen" x-cloak x-transition:enter="transition ease-out duration-100"
+                            x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+                            class="absolute right-0 mt-3 w-72 bg-surface-container-lowest text-on-surface border border-outline-variant/40 rounded-xl shadow-lg overflow-hidden z-50">
+                            <p class="px-4 py-2.5 text-xs font-bold text-brand border-b border-outline-variant/40">Notifikasi</p>
+
+                            @forelse ($daftarNotif as $n)
+                                <a href="{{ $n['url'] }}"
+                                    class="flex items-start gap-3 px-4 py-3 hover:bg-surface-container transition-colors border-b border-outline-variant/20 last:border-b-0">
+                                    <span class="mt-1.5 w-2 h-2 shrink-0 rounded-full bg-red-500"></span>
+                                    <span class="min-w-0">
+                                        <span class="block text-sm font-semibold text-on-surface">{{ $n['judul'] }}</span>
+                                        <span class="block text-xs text-on-surface-variant mt-0.5">
+                                            {{ $n['jumlah'] }} permohonan baru menunggu tindakan Anda
+                                        </span>
+                                    </span>
+                                </a>
+                            @empty
+                                <div class="px-4 py-6 text-center text-xs text-on-surface-variant">
+                                    <span class="material-symbols-outlined text-[28px] opacity-40 block mb-1">notifications_off</span>
+                                    Tidak ada notifikasi baru.
+                                </div>
+                            @endforelse
+                        </div>
+                    </div>
                     <span class="hidden sm:flex w-8 h-8 shrink-0 items-center justify-center text-white/90"
                         title="Bantuan">
                         <span class="material-symbols-outlined text-[20px]">help</span>

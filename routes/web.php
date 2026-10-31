@@ -74,7 +74,10 @@ Route::post('/logout', [LoginAdminController::class, 'destroy'])
     ->middleware('auth')
     ->name('logout');
 
-
+Route::get('/ganti-tampilan/{mode}', function (string $mode) {
+    session(['view_mode' => $mode]);   // mobile | desktop | auto
+    return back();
+})->whereIn('mode', ['mobile', 'desktop', 'auto'])->name('ganti-tampilan');
 // ==========================================
 // KEMBALI KE SUPER ADMIN (setelah "Masuk sebagai")
 //   Sengaja HANYA middleware 'auth' -- tidak di dalam grup 'staff' atau
