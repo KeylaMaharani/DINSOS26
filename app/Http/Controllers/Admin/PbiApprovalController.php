@@ -1,0 +1,264 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Models\PbiApbd;
+use App\Models\PbiApbdLog;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
+
+/**
+ * Satu controller, tetapi tiap bagian punya FOLDER VIEW sendiri:
+ *   admin/pbi-operator/index.blade.php  &  show.blade.php
+ *   admin/pbi-kabid/index.blade.php     &  show.blade.php
+ *   admin/pbi-kadis/index.blade.php     &  show.blade.php
+ *   admin/pbi-dinkes/index.blade.php    &  show.blade.php
+ *   admin/pbi-bpjs/index.blade.php      &  show.blade.php
+ * Tahap dibaca dari nama route: pbi-approval.{tahap}.xxx
+ * Akses route dibatasi middleware module:pbi-{tahap}.
+ */
+class PbiApprovalController extends Controller
+{
+    private function tahap(Request $request): string
+    {
+        $t = explode('.', (string) $request->route()->getName())[1] ?? '';
+        abort_unless(isset(PbiApbd::TAHAP[$t]), 404);
+
+        return $t;
+    }
+
+    private function perPage(Request $request): int
+    {
+        $n = (int) $request->query('tampilkan', 10);
+
+        return in_array($n, [10, 25, 50, 100], true) ? $n : 10;
+    }
+
+    public function index(Request $request)
+    {
+        $tahap = $this->tahap($request);
+        $cfg = PbiApbd::TAHAP[$tahap];
+
+        $query = PbiApbd::with('logs')->where('status', $cfg['status']);
+
+        if ($request->filled('tanggal_awal')) {
+            $query->whereDate('created_at', '>=', $request->date('tanggal_awal'));
+        }
+        if ($request->filled('tanggal_akhir')) {
+            $query->whereDate('created_at', '<=', $request->date('tanggal_akhir'));
+        }
+        if ($request->filled('search')) {
+            $s = $request->search;
+            $query->where(fn ($q) => $q->where('nama_kepala_keluarga', 'like', "%{$s}%")
+                ->orWhere('no_registrasi', 'like', "%{$s}%")
+                ->orWhere('nik_kepala_keluarga', 'like', "%{$s}%")
+                ->orWhere('no_kk', 'like', "%{$s}%")
+                ->orWhere('alamat', 'like', "%{$s}%"));
+        }
+
+        $ajuan = $query->latest()->paginate($this->perPage($request))->withQueryString();
+
+        $stat = [
+            'total' => PbiApbd::where(fn ($q) => $q->where('status', '!=', 'kelurahan')->orWhereNotNull('data_diisi_at'))->count(),
+            'aktivasi' => PbiApbd::where('status', 'disetujui')->count(),
+            'ditolak' => PbiApbd::where('status', 'ditolak')->count(),
+        ];
+
+        return view("admin.pbi-{$tahap}.index", compact('tahap', 'cfg', 'ajuan', 'stat'));
+    }
+
+    public function show(Request $request, PbiApbd $pbiApbd)
+    {
+        $tahap = $this->tahap($request);
+        $cfg = PbiApbd::TAHAP[$tahap];
+
+        $canAct = $pbiApbd->status === $cfg['status'];
+        $canEdit = $canAct && $cfg['edit'];
+        $canDiagnosa = $canAct && $cfg['diagnosa'];
+
+        if ($canAct) {
+            $pbiApbd->tandaiDilihat(Auth::user());
+        }
+
+        $pbiApbd->load(['anggotaKeluarga', 'logs.user', 'diagnosaLogs.user']);
+
+        $faskesOptions = config('faskes.puskesmas', [])[$pbiApbd->kecamatan] ?? [];
+
+        return view("admin.pbi-{$tahap}.show", [
+            'tahap' => $tahap,
+            'cfg' => $cfg,
+            'data' => $pbiApbd,
+            'canAct' => $canAct,
+            'canEdit' => $canEdit,
+            'canDiagnosa' => $canDiagnosa,
+            'faskesOptions' => $faskesOptions,
+        ]);
+    }
+
+    /** Hanya tahap Operator (route PUT hanya didaftarkan untuk tahap dengan edit = true). */
+    public function update(Request $request, PbiApbd $pbiApbd)
+    {
+        $tahap = $this->tahap($request);
+        $cfg = PbiApbd::TAHAP[$tahap];
+
+        abort_unless($cfg['edit'] && $pbiApbd->status === $cfg['status'], 403);
+
+        $data = $request->validate([
+            'nama_kepala_keluarga' => ['required', 'string', 'max:255'],
+            'no_kk' => ['required', 'string', 'max:20'],
+            'nik_kepala_keluarga' => ['required', 'string', 'max:20'],
+            'alamat' => ['required', 'string', 'max:500'],
+            'rt' => ['nullable', 'string', 'max:5'],
+            'rw' => ['nullable', 'string', 'max:5'],
+            'no_telp' => ['nullable', 'string', 'max:20'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'desil_nasional' => ['nullable', 'string', 'max:50'],
+            'nama_faskes' => ['nullable', 'string', 'max:150'],
+            'kelengkapan_kekurangan_berkas' => ['nullable', 'string', 'max:2000'],
+            'catatan_berkas' => ['nullable', 'string', 'max:2000'],
+            'surat_keterangan' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:4096'],
+        ], [
+            'surat_keterangan.max' => 'Ukuran suket maksimal 4 MB.',
+            'surat_keterangan.mimes' => 'Suket harus berformat PDF, JPG, atau PNG.',
+        ]);
+
+        unset($data['surat_keterangan']);
+
+        if ($request->hasFile('surat_keterangan')) {
+            if ($pbiApbd->surat_keterangan) {
+                Storage::disk('public')->delete($pbiApbd->surat_keterangan);
+            }
+            $data['surat_keterangan'] = $request->file('surat_keterangan')->store('pbi-suket', 'public');
+        }
+
+        $pbiApbd->update($data);
+
+        $diubah = array_keys(array_diff_key($pbiApbd->getChanges(), ['updated_at' => 1]));
+
+        if ($diubah) {
+            $this->catat($pbiApbd, 'Mengubah data pemohon', 'Kolom diubah: ' . implode(', ', $diubah));
+        }
+
+        return back()->with('success', 'Data berhasil disimpan.');
+    }
+
+    public function diagnosa(Request $request, PbiApbd $pbiApbd)
+    {
+        $tahap = $this->tahap($request);
+        $cfg = PbiApbd::TAHAP[$tahap];
+
+        abort_unless($cfg['diagnosa'] && $pbiApbd->status === $cfg['status'], 403);
+
+        $v = $request->validate([
+            'diagnosa' => ['required', 'string', 'max:2000'],
+        ], ['diagnosa.required' => 'Diagnosa tidak boleh kosong.']);
+
+        $user = Auth::user();
+
+        $pbiApbd->diagnosaLogs()->create([
+            'user_id' => $user->id,
+            'username' => $user->name,
+            'role_name' => $user->role->name ?? '-',
+            'diagnosa' => $v['diagnosa'],
+        ]);
+        $pbiApbd->update(['diagnosa' => $v['diagnosa']]);
+
+        return back()->with('success', 'Diagnosa baru berhasil ditambahkan.');
+    }
+
+    /**
+     * Aksi next / back / reject untuk satu atau banyak data (ids[]).
+     * BPJS: next = Aktivasi, reject = Tolak (tidak ada back).
+     * Hanya data yang statusnya = tahap ini yang diproses.
+     */
+    public function aksi(Request $request)
+    {
+        $tahap = $this->tahap($request);
+        $cfg = PbiApbd::TAHAP[$tahap];
+
+        $diizinkan = $tahap === 'bpjs' ? ['next', 'reject'] : ['next', 'back', 'reject'];
+
+        $v = $request->validate([
+            'aksi' => ['required', Rule::in($diizinkan)],
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer'],
+            'catatan' => [
+                Rule::requiredIf(in_array($request->aksi, ['back', 'reject'], true)),
+                'nullable', 'string', 'max:2000',
+            ],
+        ], [
+            'ids.required' => 'Pilih minimal satu data.',
+            'catatan.required' => 'Catatan wajib diisi untuk Back / Reject / Tolak.',
+        ]);
+
+        $user = Auth::user();
+        $catatan = $v['catatan'] ?? null;
+        $berhasil = 0;
+        $dilewati = [];
+
+        $items = PbiApbd::whereIn('id', $v['ids'])->where('status', $cfg['status'])->get();
+
+        foreach ($items as $m) {
+            if ($v['aksi'] === 'next' && $tahap === 'operator' && blank($m->surat_keterangan)) {
+                $dilewati[] = "{$m->no_registrasi} (suket belum diunggah)";
+                continue;
+            }
+
+            $m->tandaiDilihat($user);
+
+            if ($v['aksi'] === 'next') {
+                $next = $m->nextStageKey();
+                $task = $next === 'disetujui'
+                    ? 'Aktivasi PBI APBD'
+                    : 'Meneruskan ke ' . (PbiApbd::STAGES[$next]['label'] ?? $next);
+                $m->update(['status' => $next, 'catatan_internal' => $catatan]);
+            } elseif ($v['aksi'] === 'back') {
+                $prev = $m->previousStageKey();
+                if (! $prev) {
+                    $dilewati[] = "{$m->no_registrasi} (tidak bisa dikembalikan)";
+                    continue;
+                }
+                $task = 'Mengembalikan ke ' . (PbiApbd::STAGES[$prev]['label'] ?? $prev);
+                $m->update(['status' => $prev, 'catatan_internal' => $catatan]
+                    + ($prev === 'kelurahan' ? ['sudah_diverifikasi_kelurahan' => false] : []));
+            } else {
+                $task = $tahap === 'bpjs' ? 'Tolak (BPJS)' : 'Menolak permohonan';
+                $m->update(['status' => 'ditolak', 'catatan_internal' => $catatan]);
+            }
+
+            $this->catat($m, $task, $catatan);
+            $berhasil++;
+        }
+
+        $redirect = redirect()->route("pbi-approval.{$tahap}.index");
+
+        if ($berhasil) {
+            $redirect->with('success', "{$berhasil} data berhasil diproses.");
+        }
+        if ($dilewati) {
+            $redirect->with('error', 'Tidak diproses: ' . implode('; ', $dilewati));
+        }
+        if (! $berhasil && ! $dilewati) {
+            $redirect->with('error', 'Tidak ada data yang bisa diproses pada tahap ini.');
+        }
+
+        return $redirect;
+    }
+
+    private function catat(PbiApbd $m, string $task, ?string $catatan): void
+    {
+        $user = Auth::user();
+
+        PbiApbdLog::create([
+            'pbi_apbd_id' => $m->id,
+            'user_id' => $user->id,
+            'username' => $user->name,
+            'role_name' => $user->role->name ?? '-',
+            'task_name' => $task,
+            'catatan' => $catatan,
+        ]);
+    }
+}

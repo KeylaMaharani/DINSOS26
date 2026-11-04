@@ -31,10 +31,9 @@
         <input type="hidden" name="tab" value="{{ $tab }}">
         <div class="flex-1 min-w-[220px]">
             <label class="block text-xs text-on-surface-variant mb-1">Cari</label>
-            <input type="text" name="search" value="{{ request('search') }}" placeholder="Nama, NIK, No. KK, No. Registrasi..."
+            <input type="text" name="search" value="{{ request('search') }}" placeholder="Nama, NIK, No. KK, No. Registrasi..." data-live-search
                    class="w-full px-3 py-1.5 rounded-lg border border-outline-variant/50 text-xs" />
         </div>
-        <button type="submit" class="px-4 py-1.5 rounded-lg bg-primary hover:bg-secondary text-on-primary text-xs font-medium">Terapkan</button>
         @if (request()->filled('search'))
             <a href="{{ route('pbi-kelurahan.index', ['tab' => $tab]) }}" class="px-4 py-1.5 text-xs text-on-surface-variant hover:text-primary">Reset</a>
         @endif

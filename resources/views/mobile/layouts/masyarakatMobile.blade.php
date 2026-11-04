@@ -58,6 +58,7 @@
             },
         };
     </script>
+    {{-- Alpine.js: dibutuhkan lonceng notifikasi (partials/lonceng) --}}
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
     <style>
         html { -webkit-text-size-adjust: 100%; }
@@ -93,7 +94,7 @@
                 <div class="w-12 h-12 shrink-0 rounded-2xl bg-white flex items-center justify-center shadow-sm">
                     <img src="{{ asset('assets/img/logo/logo.png') }}" alt="SOLID" class="w-8 h-8 object-contain">
                 </div>
-            @endif
+            @endhasSection
 
             {{-- Judul aplikasi + nama halaman (huruf kapital kecil di bawahnya) --}}
             <div class="min-w-0 flex-1 leading-tight">
@@ -103,17 +104,9 @@
                 </p>
             </div>
 
-            {{-- Lonceng notifikasi: tampil hanya jika route-nya sudah ada --}}
-            @if (\Illuminate\Support\Facades\Route::has('masyarakat.notifikasi'))
-                <a href="{{ route('masyarakat.notifikasi') }}" aria-label="Notifikasi"
-                    class="relative w-10 h-10 shrink-0 flex items-center justify-center text-white">
-                    <span class="material-symbols-outlined text-[28px]">notifications</span>
-                    @php $notifBaru = \App\Models\Notifikasi::where('user_id', auth()->id())->whereNull('dibaca_at')->count(); @endphp
-                    @if ($notifBaru > 0)
-                        <span class="absolute top-0.5 right-0 min-w-[18px] h-[18px] px-1 rounded-full bg-secondary-container text-primary text-[10px] font-extrabold flex items-center justify-center ring-2 ring-primary">{{ $notifBaru > 9 ? '9+' : $notifBaru }}</span>
-                    @endif
-                </a>
-            @endif
+            {{-- Lonceng notifikasi: permohonan diproses / dikembalikan / selesai,
+                 serta permintaan izin "Masuk sebagai" dari Super Admin (Setujui / Tolak + OTP) --}}
+            @include('partials.lonceng', ['tone' => 'text-white'])
 
             {{-- Avatar bulat berlingkar, membuka menu akun --}}
             <button type="button" id="m-menu-btn" aria-label="Menu akun"
@@ -204,4 +197,4 @@
     @stack('scripts')
 </body>
 
-</html>
+</html> 

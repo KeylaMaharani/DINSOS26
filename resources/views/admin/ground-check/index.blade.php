@@ -73,12 +73,9 @@
                     </select>
                     <div class="relative">
                         <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[16px] text-on-surface-variant">search</span>
-                        <input type="text" name="q" value="{{ $q }}" placeholder="Cari nama, NIK, atau No KK"
+                        <input type="text" name="q" value="{{ $q }}" placeholder="Cari nama, NIK, atau No KK" data-live-search
                                class="w-60 rounded-lg border border-outline-variant/50 pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30" />
                     </div>
-                    <button type="submit" class="px-3.5 py-1.5 rounded-lg bg-primary text-on-primary text-xs font-semibold hover:bg-secondary transition-colors">
-                        Cari
-                    </button>
                 </form>
             </div>
         </div>

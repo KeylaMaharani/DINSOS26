@@ -1,16 +1,19 @@
 <?php
 
+use App\Http\Controllers\Admin\AkunMasyarakatController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DokumenController;
 use App\Http\Controllers\Admin\DtsenController;
 use App\Http\Controllers\Admin\KartuKksController;
 use App\Http\Controllers\Admin\PbiApbdController;
+use App\Http\Controllers\Admin\PbiApprovalController;
 use App\Http\Controllers\Admin\PlaceholderController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\ImpersonateController;
 use App\Http\Controllers\Auth\LoginAdminController;
 use App\Http\Controllers\Auth\ProfileController;
 use App\Http\Controllers\Auth\UserController;
+use App\Http\Controllers\NotifikasiController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\RegistrasiController;
 use App\Http\Controllers\Layanan\KartuKksAjuanController;
@@ -78,16 +81,28 @@ Route::get('/ganti-tampilan/{mode}', function (string $mode) {
     session(['view_mode' => $mode]);   // mobile | desktop | auto
     return back();
 })->whereIn('mode', ['mobile', 'desktop', 'auto'])->name('ganti-tampilan');
+
 // ==========================================
 // KEMBALI KE SUPER ADMIN (setelah "Masuk sebagai")
-//   Sengaja HANYA middleware 'auth' -- tidak di dalam grup 'staff' atau
-//   module:kelola-akses -- karena saat impersonate, user aktif adalah akun
-//   yang ditiru (bisa staf, bisa masyarakat). Keamanannya dijaga di
-//   controller: butuh session 'impersonator_id' dan pemiliknya harus Super Admin.
+//   Sengaja HANYA middleware 'auth' -- keamanannya dijaga di controller:
+//   butuh session 'impersonator_id' dan pemiliknya harus Super Admin.
 // ==========================================
 Route::post('/kembali-ke-admin', [ImpersonateController::class, 'stop'])
     ->middleware('auth')
     ->name('impersonate.stop');
+
+// ==========================================
+// NOTIFIKASI (lonceng) + PERSETUJUAN "MASUK SEBAGAI"
+// ==========================================
+Route::middleware('auth')->group(function () {
+    Route::get('/notifikasi', [NotifikasiController::class, 'index'])->name('notifikasi.index');
+    Route::post('/notifikasi/baca-semua', [NotifikasiController::class, 'bacaSemua'])->name('notifikasi.baca-semua');
+    Route::post('/notifikasi/{notifikasi}/baca', [NotifikasiController::class, 'baca'])->name('notifikasi.baca');
+
+    // Pemilik akun menyetujui / menolak permintaan masuk dari Super Admin
+    Route::post('/izin-masuk/{izin}/setujui', [ImpersonateController::class, 'setujui'])->name('izin.setujui');
+    Route::post('/izin-masuk/{izin}/tolak', [ImpersonateController::class, 'tolak'])->name('izin.tolak');
+});
 
 
 // ==========================================
@@ -100,24 +115,24 @@ Route::middleware(['auth', 'staff'])->group(function () {
     Route::put('/profil', [ProfileController::class, 'update'])->name('profil.update');
 
     // Menu tunggal "Kelola User & Role" dengan tab: Pengguna | Hak Akses
-    // 'kelola-akses' TIDAK ada di daftar checkbox Role::MODULES, jadi middleware
-    // ini otomatis HANYA meloloskan Super Admin (role lain tidak mungkin punya
-    // string 'kelola-akses' di kolom permissions-nya karena tidak pernah ditawarkan).
     Route::prefix('kelola-role-user')->name('akun.')->middleware('module:kelola-akses')->group(function () {
         Route::get('/', [UserController::class, 'index'])->name('index');
 
+        // Super Admin: minta izin "Masuk sebagai" (butuh persetujuan pemilik akun + OTP).
+        // Didaftarkan SEBELUM rute wildcard {akun:id} supaya tidak tertangkap olehnya.
+        Route::get('/izin-masuk/{izin}', [ImpersonateController::class, 'show'])->name('izin.show');
+        Route::get('/izin-masuk/{izin}/status', [ImpersonateController::class, 'status'])->name('izin.status');
+        Route::post('/izin-masuk/{izin}/verifikasi', [ImpersonateController::class, 'verifikasi'])
+            ->middleware('throttle:10,1')->name('izin.verifikasi');
+
         // Tab Pengguna
         Route::post('/', [UserController::class, 'store'])->name('store');
-        // ':id' dipasang eksplisit supaya binding SELALU lewat kolom id,
-        // apa pun pengaturan getRouteKeyName() di model User -- ini yang
-        // dipakai $user->id di JS (openEdit, form update, tombol hapus),
-        // jadi harus konsisten dengan itu.
         Route::get('/{akun:id}/edit', [UserController::class, 'edit'])->name('edit');
         Route::put('/{akun:id}', [UserController::class, 'update'])->name('update');
         Route::delete('/{akun:id}', [UserController::class, 'destroy'])->name('destroy');
 
-        // Super Admin: "Masuk sebagai" akun staf/masyarakat (lihat ImpersonateController)
-        Route::post('/{akun:id}/masuk-sebagai', [ImpersonateController::class, 'start'])->name('impersonate');
+        // Super Admin: minta izin "Masuk sebagai" akun staf/masyarakat
+        Route::post('/{akun:id}/masuk-sebagai', [ImpersonateController::class, 'minta'])->name('impersonate');
 
         // Tab Hak Akses (Role)
         Route::post('/role', [UserController::class, 'storeRole'])->name('role.store');
@@ -126,9 +141,13 @@ Route::middleware(['auth', 'staff'])->group(function () {
         Route::delete('/role/{role}', [UserController::class, 'destroyRole'])->name('role.destroy');
     });
 
+    // Menu "Kelola Akses Masyarakat" (Data Master)
+    Route::prefix('kelola-akses-masyarakat')->name('akun-masyarakat.')->middleware('module:kelola-akses')->group(function () {
+        Route::get('/', [AkunMasyarakatController::class, 'index'])->name('index');
+    });
+
     // ==========================================
     // Layanan Kelurahan — Ajukan & Riwayat Kartu KKS
-    // Dibatasi modul 'layanan-kartu-kks' (centang di Kelola Hak Akses).
     // ==========================================
     Route::prefix('layanan/kartu-kks')->name('layanan.kartu-kks.')->middleware('module:layanan-kartu-kks')->group(function () {
         Route::get('/ajukan', [KartuKksAjuanController::class, 'create'])->name('ajukan');
@@ -138,7 +157,6 @@ Route::middleware(['auth', 'staff'])->group(function () {
 
     // ==========================================
     // Layanan Kelurahan — Ajukan & Riwayat DTSEN
-    // Dibatasi modul 'layanan-dtsen' (centang di Kelola Hak Akses).
     // ==========================================
     Route::prefix('layanan/dtsen')->name('layanan.dtsen.')->middleware('module:layanan-dtsen')->group(function () {
         Route::get('/ajukan', [DtsenAjuanController::class, 'create'])->name('ajukan');
@@ -147,7 +165,7 @@ Route::middleware(['auth', 'staff'])->group(function () {
     });
 
     // ==========================================
-    // 3. PBI APBD — sudah dibangun penuh
+    // 3. PBI APBD — Ajuan / Arsip / Monitoring / Log (pintu masuk Super Admin, lintas tahap)
     // ==========================================
     Route::prefix('pbi-apbd')->name('pbi-apbd.')->middleware('module:pbi-apbd')->group(function () {
         Route::get('/ajuan', [PbiApbdController::class, 'ajuanIndex'])->name('ajuan.index');
@@ -169,7 +187,36 @@ Route::middleware(['auth', 'staff'])->group(function () {
         Route::post('/{pbiApbd}/aksi', [PbiKelurahanController::class, 'aksi'])->name('aksi');
     });
 
-    // Master Kriteria Kemiskinan (hanya Super Admin, sama seperti Kelola Akses)
+    // ==========================================
+    // BAGIAN APPROVAL PBI APBD (halaman kerja tiap user)
+    //   Operator Dinsos, Kabid, Kadis, Dinkes, BPJS -- masing-masing modul sendiri.
+    //   URL berdiri sendiri per bagian, sama seperti pbi-kelurahan:
+    //     /pbi-operator, /pbi-kabid, /pbi-kadis, /pbi-dinkes, /pbi-bpjs
+    //   Nama route TETAP pbi-approval.{tahap}.* (dipakai sidebar & controller
+    //   untuk membaca tahap), view-nya ada di admin/pbi-{tahap}/.
+    //   Rute statis (/aksi) didaftarkan SEBELUM rute wildcard {pbiApbd}.
+    //   PUT edit hanya ada untuk Operator; diagnosa hanya untuk Operator & Dinkes.
+    //   Kabid / Kadis / BPJS tidak punya rute edit sama sekali.
+    // ==========================================
+    foreach (\App\Models\PbiApbd::TAHAP as $tahapKey => $tahapCfg) {
+        Route::prefix("pbi-{$tahapKey}")
+            ->name("pbi-approval.{$tahapKey}.")
+            ->middleware("module:{$tahapCfg['module']}")
+            ->group(function () use ($tahapCfg) {
+                Route::get('/', [PbiApprovalController::class, 'index'])->name('index');
+                Route::post('/aksi', [PbiApprovalController::class, 'aksi'])->name('aksi');
+                Route::get('/{pbiApbd}', [PbiApprovalController::class, 'show'])->name('show');
+
+                if ($tahapCfg['diagnosa']) {
+                    Route::post('/{pbiApbd}/diagnosa', [PbiApprovalController::class, 'diagnosa'])->name('diagnosa');
+                }
+                if ($tahapCfg['edit']) {
+                    Route::put('/{pbiApbd}', [PbiApprovalController::class, 'update'])->name('update');
+                }
+            });
+    }
+
+    // Master Kriteria Kemiskinan (hanya Super Admin)
     Route::prefix('master/kriteria')->name('master.kriteria.')->middleware('module:kelola-akses')->group(function () {
         Route::get('/', [KriteriaController::class, 'index'])->name('index');
         Route::get('/tambah', [KriteriaController::class, 'create'])->name('create');
@@ -179,7 +226,7 @@ Route::middleware(['auth', 'staff'])->group(function () {
         Route::delete('/{parameter}', [KriteriaController::class, 'destroy'])->name('destroy');
     });
 
-    // Master Kriteria Ground Check (hanya Super Admin, sama seperti Master Kriteria PBI)
+    // Master Kriteria Ground Check (hanya Super Admin)
     Route::prefix('master/kriteria-ground-check')->name('master.gc-kriteria.')->middleware('module:kelola-akses')->group(function () {
         Route::get('/', [GcKriteriaController::class, 'index'])->name('index');
         Route::get('/tambah', [GcKriteriaController::class, 'create'])->name('create');
@@ -216,9 +263,7 @@ Route::middleware(['auth', 'staff'])->group(function () {
     });
 
     // ==========================================
-    // GROUND CHECK 2026 -- alur entry data (Panduan Entry Data SOLID)
-    //   Daftar sasaran -> keluarga -> verifikasi status -> form tab A-G -> submit.
-    //   Dibatasi modul 'ground-check' (centang di Kelola Hak Akses).
+    // GROUND CHECK 2026
     //   Rute statis (/keluarga/...) HARUS sebelum rute wildcard {sasaran}.
     // ==========================================
     Route::prefix('ground-check')->name('ground-check.')->middleware('module:ground-check')->group(function () {
@@ -231,10 +276,8 @@ Route::middleware(['auth', 'staff'])->group(function () {
     });
 
     // ==========================================
-    // 4. Kartu KKS — sudah dibangun penuh (punya Tika)
-    // PENTING: rute /ajuan, /arsip, /monitoring, /log HARUS ada
-    // sebelum rute wildcard /{permohonan}, agar tidak "ketangkap"
-    // oleh wildcard tersebut.
+    // 4. Kartu KKS
+    // PENTING: rute /ajuan, /arsip, /monitoring, /log HARUS sebelum wildcard /{permohonan}.
     // ==========================================
     Route::prefix('kartu-kks')->name('kartu-kks.')->middleware('module:kartu-kks')->group(function () {
         Route::get('/ajuan', [KartuKksController::class, 'ajuan'])->name('ajuan');
@@ -249,7 +292,7 @@ Route::middleware(['auth', 'staff'])->group(function () {
     });
 
     // ==========================================
-    // 5. DTSEN — sudah dibangun penuh
+    // 5. DTSEN
     // ==========================================
     Route::prefix('dtsen')->name('dtsen.')->middleware('module:dtsen')->group(function () {
         Route::get('/ajuan', [DtsenController::class, 'ajuan'])->name('ajuan');
@@ -265,10 +308,7 @@ Route::middleware(['auth', 'staff'])->group(function () {
     });
 
     // ==========================================
-    // 2, 6. Modul lain — kerangka menu dulu, fitur menyusul
-    // (Asesmen SPMB, Kedaruratan Medis)
-    // 'kartu-kks' dan 'dtsen' SUDAH DIHAPUS dari daftar placeholder ini
-    // karena sudah dibangun penuh di atas.
+    // 2, 6. Modul lain — kerangka menu dulu (Asesmen SPMB, Kedaruratan Medis)
     // ==========================================
     $placeholderModules = ['asesmen-spmb', 'kedaruratan-medis'];
     foreach ($placeholderModules as $module) {
@@ -283,9 +323,7 @@ Route::middleware(['auth', 'staff'])->group(function () {
     }
 
     // ==========================================
-    // SIGAP BENCANA (Perlinsos) -- Laporan Bantuan Bencana
-    //   module sigap-bencana : staf Dinsos (Tagana, Perlinsos, Pengurus Barang, Kadis)
-    //   module sigap-proses  : Kelurahan / OPD wilayah (hanya menu Proses Bantuan Kebencanaan)
+    // SIGAP BENCANA (Perlinsos)
     // ==========================================
     Route::prefix('sigap-bencana')->name('sigap.')->group(function () {
 
@@ -303,7 +341,7 @@ Route::middleware(['auth', 'staff'])->group(function () {
             Route::get('/proses', [SigapBencanaController::class, 'prosesIndex'])->name('proses.index');
         });
 
-        // --- Dipakai kedua kelompok (dicek lagi per role & wilayah di controller) ---
+        // --- Dipakai kedua kelompok ---
         Route::middleware('module:sigap-bencana,sigap-proses')->group(function () {
             Route::get('/buat', [SigapBencanaController::class, 'create'])->name('create');
             Route::post('/buat', [SigapBencanaController::class, 'store'])->name('store');
@@ -315,7 +353,7 @@ Route::middleware(['auth', 'staff'])->group(function () {
     });
 
     // ==========================================
-    // PFM -- Beranda monitoring PFM (kerangka; tampilan menyusul)
+    // PFM -- Beranda monitoring PFM (kerangka)
     // ==========================================
     Route::get('/pfm/beranda', [MenuPlaceholderController::class, 'show'])
         ->middleware('module:pbi-apbd,kartu-kks,dtsen')
@@ -323,8 +361,7 @@ Route::middleware(['auth', 'staff'])->group(function () {
         ->name('pfm.beranda');
 
     // ==========================================
-    // PERLINSOS -- menu tambahan (kerangka): Beranda & Laporan SIGAP
-    //   (Laporan Bantuan Bencana & Stock Barang sudah dibangun penuh di atas)
+    // PERLINSOS -- menu tambahan (kerangka)
     // ==========================================
     Route::get('/perlinsos/dashboard', [MenuPlaceholderController::class, 'show'])
         ->middleware('module:sigap-bencana')
@@ -337,9 +374,7 @@ Route::middleware(['auth', 'staff'])->group(function () {
         ->name('perlinsos.laporan');
 
     // ==========================================
-    // DAYASOS -- kerangka menu saja (Dashboard, Ngopi Pagi, Kesan)
-    //   Struktur dibaca dari config/dayasos.php; setiap menu sementara
-    //   menampilkan halaman placeholder. Anak menu mengikuti module induknya.
+    // DAYASOS -- kerangka menu (dibaca dari config/dayasos.php)
     // ==========================================
     $daftarkanDayasos = function (array $nodes, $moduleInduk = null) use (&$daftarkanDayasos) {
         foreach ($nodes as $n) {
@@ -360,9 +395,7 @@ Route::middleware(['auth', 'staff'])->group(function () {
     $daftarkanDayasos(config('dayasos', []));
 
     // ==========================================
-    // PORTAL (dulu "Menu Frontend") -- kerangka menu saja
-    //   Struktur dibaca dari config/portal.php; setiap menu sementara
-    //   menampilkan halaman placeholder. Semua mengikuti module 'menu-frontend'.
+    // PORTAL (dulu "Menu Frontend") -- kerangka menu (config/portal.php)
     // ==========================================
     $daftarkanPortal = function (array $nodes, $moduleInduk) use (&$daftarkanPortal) {
         foreach ($nodes as $n) {
@@ -383,17 +416,13 @@ Route::middleware(['auth', 'staff'])->group(function () {
     $daftarkanPortal(config('portal', []), 'menu-frontend');
 
     // ==========================================
-    // REHABSOS -- Dashboard + PPKS + Rumah Singgah + Data Permohonan Bantuan + Ground Check
-    //   Struktur menu dibaca dari config/rehabsos.php
-    //   module rehabsos-ppks / rehabsos-rumah-singgah / rehabsos-bantuan / rehabsos-ground-check
-    //   Dashboard terbuka untuk role yang punya salah satu dari ketiga modul pertama.
+    // REHABSOS
     // ==========================================
     Route::prefix('rehabsos')->name('rehabsos.')->group(function () {
         Route::get('/dashboard', [RehabsosController::class, 'dashboard'])
             ->middleware('module:rehabsos-ppks,rehabsos-rumah-singgah,rehabsos-bantuan')
             ->name('dashboard');
 
-        // Ground Check khusus data Rehabsos (kerangka menu dulu, halaman menyusul).
         // Didaftarkan SEBELUM loop grup di bawah supaya tidak tertimpa.
         Route::get('/ground-check', [MenuPlaceholderController::class, 'show'])
             ->middleware('module:rehabsos-ground-check')
@@ -415,9 +444,6 @@ Route::middleware(['auth', 'staff'])->group(function () {
 
     // ==========================================
     // 7. Dokumen — template dokumen (lihat, preview & unduh)
-    //   Semua role ber-modul 'dokumen' boleh melihat, preview & mengunduh.
-    //   Tambah/hapus hanya Super Admin (module:kelola-akses hanya meloloskan
-    //   Super Admin; DokumenController mengecek ulang sebagai lapis kedua).
     // ==========================================
     Route::prefix('dokumen')->name('dokumen.')->middleware('module:dokumen')->group(function () {
         Route::get('/', [DokumenController::class, 'index'])->name('index');
@@ -439,24 +465,18 @@ Route::middleware(['auth', 'staff'])->group(function () {
 Route::middleware(['auth', 'role:masyarakat'])->prefix('akun-saya')->name('masyarakat.')->group(function () {
     Route::get('/', [MasyarakatController::class, 'dashboard'])->name('dashboard');
 
-    // Daftar semua permohonan milik warga (PBI APBD + DTSEN)
     Route::get('/permohonan', [MasyarakatController::class, 'permohonan'])->name('permohonan');
-
-    // Lacak permohonan berdasarkan nomor register (hanya milik warga yang login)
     Route::get('/tracking', [MasyarakatController::class, 'tracking'])->name('tracking');
 
-    // Anggota keluarga (milik pengajuan PBI APBD warga): daftar, tambah, ubah
     Route::get('/keluarga', [MasyarakatController::class, 'keluarga'])->name('keluarga');
     Route::post('/keluarga', [MasyarakatController::class, 'keluargaStore'])->name('keluarga.store');
     Route::put('/keluarga/{anggota}', [MasyarakatController::class, 'keluargaUpdate'])
         ->whereNumber('anggota')
         ->name('keluarga.update');
 
-    // Profil / data diri warga (tab 1)
     Route::get('/profil', [MasyarakatController::class, 'profil'])->name('profil');
     Route::put('/profil', [MasyarakatController::class, 'profilUpdate'])->name('profil.update');
 
-    // Akun & kata sandi (tab 2)
     Route::get('/password', [MasyarakatController::class, 'password'])->name('password');
     Route::put('/password', [MasyarakatController::class, 'akunUpdate'])->name('password.update');
 
@@ -465,11 +485,8 @@ Route::middleware(['auth', 'role:masyarakat'])->prefix('akun-saya')->name('masya
         Route::post('/lengkapi', [MasyarakatController::class, 'lengkapiDataStore'])->name('lengkapi.store');
     });
 
-    // DTSEN: pintu masuk menu sidebar -> arahkan ke form pengajuan milik user (atau ke Beranda)
     Route::get('/dtsen', [MasyarakatController::class, 'dtsen'])->name('dtsen');
 
-    // DTSEN: warga melengkapi data diri & lampiran pengajuannya
-    // Nama route: masyarakat.dtsen.lengkapi  &  masyarakat.dtsen.lengkapi.store
     Route::prefix('dtsen/{permohonan}')->name('dtsen.')->group(function () {
         Route::get('/lengkapi', [MasyarakatController::class, 'lengkapiDtsen'])->name('lengkapi');
         Route::post('/lengkapi', [MasyarakatController::class, 'lengkapiDtsenStore'])->name('lengkapi.store');

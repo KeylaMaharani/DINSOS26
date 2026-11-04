@@ -9,12 +9,9 @@
     <form method="GET" class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-4 flex flex-wrap items-end gap-3">
         <div class="flex-1 min-w-[220px]">
             <label class="block text-xs text-on-surface-variant mb-1">Cari (Nama / NIK)</label>
-            <input type="text" name="search" value="{{ request('search') }}"
+            <input type="text" name="search" value="{{ request('search') }}" data-live-search placeholder="Ketik nama atau NIK..."
                 class="w-full px-3 py-2 rounded-lg border border-outline-variant/50 text-sm" />
         </div>
-        <button type="submit" class="px-4 py-2 rounded-lg bg-primary hover:bg-secondary text-on-primary text-sm font-medium">
-            Cari
-        </button>
         <a href="{{ route('kartu-kks.monitoring') }}"
             class="px-4 py-2 rounded-lg bg-surface-container text-on-surface text-sm font-medium hover:bg-surface-container-high">
             &larr; Kembali ke Monitoring

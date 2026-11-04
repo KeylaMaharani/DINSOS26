@@ -298,6 +298,9 @@
             ],
 
             // ---------- PFM ----------
+            // Catatan: "Approval PBI APBD" TIDAK lagi di dalam folder PFM.
+            // Tiap bagian (Operator, Kabid, Kadis, Dinkes, BPJS) sekarang jadi
+            // menu tingkat atas sendiri di grup "Bagian" (lihat di bawah).
             [
                 'label' => 'Bidang P. Fakir Miskin',
                 'icon' => 'account_balance_wallet',
@@ -367,6 +370,54 @@
                 'children' => $rehabChildren,
             ],
 
+            // ==================== BAGIAN (Approval PBI APBD) ====================
+            // Dulu satu folder "Approval PBI APBD"; sekarang tiap bagian berdiri
+            // sendiri sebagai menu tingkat atas, sama seperti "Verifikasi Kelurahan".
+            // Nama route TIDAK berubah (pbi-approval.{tahap}.*), jadi routes/web.php
+            // dan controller tidak perlu diubah selain nama view-nya.
+            ['separator' => 'Bagian'],
+
+            [
+                'label' => 'Bagian Operator Dinsos',
+                'icon' => 'support_agent',
+                'route' => 'pbi-approval.operator.index',
+                'match' => ['pbi-approval.operator.*'],
+                'module' => 'pbi-operator',
+                'badge' => 'pbi_operator',
+            ],
+            [
+                'label' => 'Bagian Kabid',
+                'icon' => 'supervisor_account',
+                'route' => 'pbi-approval.kabid.index',
+                'match' => ['pbi-approval.kabid.*'],
+                'module' => 'pbi-kabid',
+                'badge' => 'pbi_kabid',
+            ],
+            [
+                'label' => 'Bagian Kadis',
+                'icon' => 'verified_user',
+                'route' => 'pbi-approval.kadis.index',
+                'match' => ['pbi-approval.kadis.*'],
+                'module' => 'pbi-kadis',
+                'badge' => 'pbi_kadis',
+            ],
+            [
+                'label' => 'Bagian Dinkes',
+                'icon' => 'local_hospital',
+                'route' => 'pbi-approval.dinkes.index',
+                'match' => ['pbi-approval.dinkes.*'],
+                'module' => 'pbi-dinkes',
+                'badge' => 'pbi_dinkes',
+            ],
+            [
+                'label' => 'Bagian BPJS',
+                'icon' => 'health_and_safety',
+                'route' => 'pbi-approval.bpjs.index',
+                'match' => ['pbi-approval.bpjs.*'],
+                'module' => 'pbi-bpjs',
+                'badge' => 'pbi_bpjs',
+            ],
+
             // ---------- Menu tunggal ----------
             [
                 'label' => 'Verifikasi Kelurahan',
@@ -405,6 +456,14 @@
                 'icon' => 'manage_accounts',
                 'route' => 'akun.index',
                 'match' => ['akun.*'],
+                'superadmin_only' => true,
+            ],
+            // Daftar akun warga (No, Nama, NIK, No. Telp) -- dipisah dari Kelola Akses staf
+            [
+                'label' => 'Kelola Akses Masyarakat',
+                'icon' => 'supervised_user_circle',
+                'route' => 'akun-masyarakat.index',
+                'match' => ['akun-masyarakat.*'],
                 'superadmin_only' => true,
             ],
             [
@@ -496,6 +555,26 @@
             }
             $menuItems[] = $node;
         }
+
+        // Daftar datar semua menu yang boleh dilihat role, untuk pencarian navbar.
+        $searchIndex = [];
+        $flatten = function (array $nodes, array $trail = []) use (&$flatten, &$searchIndex, $visible) {
+            foreach ($nodes as $n) {
+                if (isset($n['separator']) || !$visible($n)) {
+                    continue;
+                }
+                if (isset($n['children'])) {
+                    $flatten($n['children'], array_merge($trail, [$n['label']]));
+                } else {
+                    $searchIndex[] = [
+                        'label' => $n['label'],
+                        'path' => implode(' › ', $trail),
+                        'url' => route($n['route']),
+                    ];
+                }
+            }
+        };
+        $flatten($menuItems);
 
         // Render anak menu (rekursif, kedalaman berapa pun). $floating = versi panel melayang (sidebar ciut)
         $renderChildren = function (array $nodes, bool $floating) use (&$renderChildren, $visible, $active, $badgeOf, $badgePill) {
@@ -593,7 +672,7 @@
                                    oleh overflow nav)
                  - Nav SELALU bisa di-scroll vertikal agar ikon tidak tumpah keluar card
                  - Class `sidebar-scroll` memunculkan scrollbar tipis (lihat <style> di atas)
-                 - Separator     : label grup (Bidang / Data Master) saat lebar, garis tipis saat ciut --}}
+                 - Separator     : label grup (Bidang / Bagian / Data Master) saat lebar, garis tipis saat ciut --}}
             {{-- Pembungkus nav + indikator scroll:
                  - up/down   : true jika masih ada menu tersembunyi di atas/bawah
                  - check()   : dihitung ulang saat scroll, resize, accordion dibuka/ditutup,
@@ -761,21 +840,55 @@
                     @yield('page_title', 'Beranda')
                 </h1>
 
-                {{-- Bar biru: pencarian + notifikasi + bantuan + pengguna --}}
+                {{-- Bar biru: pencarian menu + notifikasi + pengguna --}}
                 <div
                     class="ml-auto min-w-0 max-w-full h-14 rounded-xl bg-brand shadow-[0_6px_18px_rgba(10,92,168,0.30)] ring-1 ring-white/20 flex items-center gap-3 px-3 sm:px-5">
 
-                    <div class="flex min-w-0">
+                    {{-- Pencarian menu (live, hasil mengikuti hak akses role) --}}
+                    <div class="relative flex min-w-0"
+                        x-data="{
+                            q: '',
+                            open: false,
+                            idx: @js($searchIndex),
+                            get hasil() {
+                                const k = this.q.trim().toLowerCase();
+                                if (!k) return [];
+                                return this.idx
+                                    .filter(i => (i.label + ' ' + i.path).toLowerCase().includes(k))
+                                    .slice(0, 8);
+                            }
+                        }"
+                        @click.outside="open = false">
                         <label
                             class="w-40 sm:w-56 max-w-full h-9 rounded-lg bg-surface-container-low flex items-center gap-2 px-3 shadow-inner">
                             <span class="material-symbols-outlined text-[18px] text-on-surface-variant">search</span>
-                            <input type="text" placeholder="Cari data, ajuan, atau dokumen..."
+                            <input type="text" x-model="q" @input="open = true" @focus="open = true"
+                                @keydown.escape="open = false; q = ''"
+                                @keydown.enter.prevent="if (hasil.length) window.location = hasil[0].url"
+                                placeholder="Cari menu..."
                                 class="w-full min-w-0 bg-transparent border-0 outline-none text-xs text-on-surface placeholder:text-on-surface-variant/70 focus:ring-0" />
                         </label>
+
+                        <div x-show="open && q.trim() !== ''" x-cloak
+                            class="absolute right-0 top-full mt-2 w-72 max-w-[85vw] bg-surface-container-lowest text-on-surface border border-outline-variant/40 rounded-xl shadow-lg overflow-hidden z-50">
+                            <template x-for="h in hasil" :key="h.url">
+                                <a :href="h.url"
+                                    class="block px-4 py-2.5 hover:bg-surface-container transition-colors border-b border-outline-variant/20 last:border-b-0">
+                                    <span class="block text-sm font-semibold" x-text="h.label"></span>
+                                    <span class="block text-[11px] text-on-surface-variant" x-text="h.path"></span>
+                                </a>
+                            </template>
+                            <div x-show="hasil.length === 0"
+                                class="px-4 py-5 text-center text-xs text-on-surface-variant">
+                                Menu tidak ditemukan.
+                            </div>
+                        </div>
                     </div>
 
-                    {{-- Lonceng: titik merah (tanpa angka) jika masih ada notifikasi yang belum dibuka.
-                         Bisa diklik -> daftar notifikasi, tiap baris menuju halaman terkait. --}}
+                    {{-- Lonceng: gabungan (1) permohonan yang menunggu tindakan (badge lama)
+                         dan (2) notifikasi dari tabel notifikasis, termasuk permintaan izin
+                         "Masuk sebagai" dari Super Admin (Setujui / Tolak + OTP).
+                         Isi & perilakunya ada di partials/lonceng.blade.php. --}}
                     @php
                         $daftarNotif = [];
                         if (($notif['pbi_kelurahan'] ?? 0) > 0 && \Illuminate\Support\Facades\Route::has('pbi-kelurahan.index')) {
@@ -793,44 +906,7 @@
                             ];
                         }
                     @endphp
-                    <div class="relative hidden sm:block shrink-0" x-data="{ notifOpen: false }">
-                        <button type="button" @click="notifOpen = !notifOpen" @click.outside="notifOpen = false"
-                            title="{{ count($daftarNotif) ? 'Ada permohonan yang menunggu tindakan Anda' : 'Notifikasi' }}"
-                            class="relative flex w-8 h-8 items-center justify-center text-white/90 hover:text-white">
-                            <span class="material-symbols-outlined text-[20px]">notifications</span>
-                            @if (count($daftarNotif))
-                                <span class="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-brand"></span>
-                            @endif
-                        </button>
-
-                        <div x-show="notifOpen" x-cloak x-transition:enter="transition ease-out duration-100"
-                            x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
-                            class="absolute right-0 mt-3 w-72 bg-surface-container-lowest text-on-surface border border-outline-variant/40 rounded-xl shadow-lg overflow-hidden z-50">
-                            <p class="px-4 py-2.5 text-xs font-bold text-brand border-b border-outline-variant/40">Notifikasi</p>
-
-                            @forelse ($daftarNotif as $n)
-                                <a href="{{ $n['url'] }}"
-                                    class="flex items-start gap-3 px-4 py-3 hover:bg-surface-container transition-colors border-b border-outline-variant/20 last:border-b-0">
-                                    <span class="mt-1.5 w-2 h-2 shrink-0 rounded-full bg-red-500"></span>
-                                    <span class="min-w-0">
-                                        <span class="block text-sm font-semibold text-on-surface">{{ $n['judul'] }}</span>
-                                        <span class="block text-xs text-on-surface-variant mt-0.5">
-                                            {{ $n['jumlah'] }} permohonan baru menunggu tindakan Anda
-                                        </span>
-                                    </span>
-                                </a>
-                            @empty
-                                <div class="px-4 py-6 text-center text-xs text-on-surface-variant">
-                                    <span class="material-symbols-outlined text-[28px] opacity-40 block mb-1">notifications_off</span>
-                                    Tidak ada notifikasi baru.
-                                </div>
-                            @endforelse
-                        </div>
-                    </div>
-                    <span class="hidden sm:flex w-8 h-8 shrink-0 items-center justify-center text-white/90"
-                        title="Bantuan">
-                        <span class="material-symbols-outlined text-[20px]">help</span>
-                    </span>
+                    @include('partials.lonceng', ['extra' => $daftarNotif])
 
                     {{-- ===== Dropdown user + Edit Profil (pop-up, tidak lewat halaman Kelola Akses) ===== --}}
                     <div class="shrink-0" x-data="{ userMenuOpen: false, profileModalOpen: {{ $errors->profil->any() ? 'true' : 'false' }} }">
@@ -1701,6 +1777,9 @@
             window.addEventListener('help-flipbook-open', initFlipbook);
         })();
     </script>
+
+    {{-- Pencarian otomatis (input ber-atribut data-live-search) --}}
+    @include('partials.live-search')
 
     @stack('scripts')
 </body>

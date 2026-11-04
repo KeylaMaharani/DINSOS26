@@ -293,7 +293,7 @@ class GcKetenagakerjaanSeeder extends Seeder
                 $o = $p->opsis()->create(['label' => $label, 'urutan' => $i + 1]);
             }
             $keep[] = $o->id;
-        }
+        } 
 
         GcKriteriaOpsi::where('parameter_id', $p->id)->whereNotIn('id', $keep)->delete();
     }

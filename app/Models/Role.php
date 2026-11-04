@@ -15,25 +15,25 @@ class Role extends Model
 
     /**
      * Daftar modul yang bisa dicentang di form "Kelola Hak Akses".
-     * key   = dipakai di middleware module:xxx & pengecekan hasModule().
-     * value = label checkbox. Urutan di sini = urutan tampil, dan diberi
-     *         awalan nama bidang supaya otomatis terkelompok.
-     *
-     * Tambahkan/hapus baris di sini kalau ada modul baru: otomatis muncul di
-     * form Tambah/Edit Hak Akses tanpa perlu ubah view.
      * (Key lama TIDAK diubah, jadi hak akses role yang sudah tersimpan tetap berlaku.)
      */
     public const MODULES = [
         'beranda' => 'Beranda',
 
         // --- Portal (menu website; dulu bernama "Front End") ---
-        // Key tetap 'menu-frontend' supaya konfigurasi lama tidak rusak.
         'menu-frontend' => 'Portal - Kelola Menu Website',
 
         // --- PFM (Monitoring) ---
-        'pbi-apbd' => 'PFM - PBI APBD',
+        'pbi-apbd' => 'PFM - PBI APBD (Super Admin: Ajuan, Arsip, Monitoring)',
         'kartu-kks' => 'PFM - Kartu KKS',
         'dtsen' => 'PFM - DTSEN',
+
+        // --- PFM: halaman approval PBI APBD per tahap ---
+        'pbi-operator' => 'PFM - Approval PBI APBD: Operator Dinsos',
+        'pbi-kabid' => 'PFM - Approval PBI APBD: Kepala Bidang',
+        'pbi-kadis' => 'PFM - Approval PBI APBD: Kepala Dinas',
+        'pbi-dinkes' => 'PFM - Approval PBI APBD: Dinas Kesehatan',
+        'pbi-bpjs' => 'PFM - Approval PBI APBD: BPJS Kesehatan',
 
         // --- Dayasos ---
         'dayasos-ngopi-pagi' => 'Dayasos - Ngopi Pagi',
@@ -77,8 +77,7 @@ class Role extends Model
     }
 
     /**
-     * Slug yang sudah dinormalisasi (lowercase, strip -/spasi jadi _),
-     * supaya "Super Admin", "super-admin", "SUPERADMIN" dianggap sama.
+     * Slug yang sudah dinormalisasi (lowercase, strip -/spasi jadi _).
      */
     public function normalizedSlug(): string
     {
@@ -86,9 +85,7 @@ class Role extends Model
     }
 
     /**
-     * Super Admin SELALU bypass semua pengecekan modul & bisa akses
-     * "Kelola Akses" (menu ini TIDAK termasuk di MODULES -- sengaja
-     * tidak bisa dicentang, khusus Super Admin saja).
+     * Super Admin SELALU bypass semua pengecekan modul.
      */
     public function isSuperAdmin(): bool
     {
@@ -97,7 +94,6 @@ class Role extends Model
 
     /**
      * Cek apakah role ini boleh mengakses modul tertentu (key di MODULES).
-     * Super Admin selalu true untuk modul apapun.
      */
     public function hasModule(string $key): bool
     {

@@ -10,6 +10,7 @@
         previewUrl: '',
         previewTitle: '',
         loading: false,
+        q: '',
         bukaPreview(url, judul) {
             this.previewUrl = url;
             this.previewTitle = judul;
@@ -24,7 +25,14 @@
     }" @keydown.escape.window="tutupPreview()">
 
         <div class="flex items-center justify-between gap-3 mb-4">
-            <p class="text-sm text-on-surface-variant">Template dokumen yang dapat diunduh.</p>
+            <div class="flex flex-wrap items-center gap-3 min-w-0">
+                <p class="text-sm text-on-surface-variant">Template dokumen yang dapat diunduh.</p>
+                <label class="w-56 max-w-full h-9 rounded-lg bg-surface-container-lowest border border-outline-variant/50 flex items-center gap-2 px-3">
+                    <span class="material-symbols-outlined text-[18px] text-on-surface-variant">search</span>
+                    <input type="text" x-model="q" @keydown.escape="q = ''" placeholder="Cari nama dokumen..."
+                        class="w-full min-w-0 bg-transparent border-0 outline-none text-xs focus:ring-0" />
+                </label>
+            </div>
             @if ($isSuperAdmin)
                 <button type="button" @click="open = true"
                     class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-on-primary text-sm font-medium hover:bg-secondary transition-colors">
@@ -47,7 +55,9 @@
                 </thead>
                 <tbody>
                     @forelse ($dokumens as $d)
-                        <tr class="border-t border-outline-variant/30">
+                        <tr class="border-t border-outline-variant/30"
+                            data-cari="{{ \Illuminate\Support\Str::lower($d->nama . ' ' . $d->file_name . ' ' . $d->keterangan) }}"
+                            x-show="q.trim() === '' || $el.dataset.cari.includes(q.trim().toLowerCase())">
                             <td class="px-4 py-3">{{ $loop->iteration }}</td>
                             <td class="px-4 py-3 font-medium">
                                 {{ $d->nama }}

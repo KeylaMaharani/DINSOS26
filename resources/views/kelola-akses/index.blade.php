@@ -27,13 +27,15 @@
             </button>
         </div>
 
-        {{-- ============== TAB PENGGUNA ============== --}}
+        {{-- ============== TAB PENGGUNA (staf) ============== --}}
         <div x-show="tab === 'pengguna'" x-cloak x-data="userManager()"
             class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-5">
 
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <h2 class="text-base font-semibold text-on-surface">Daftar Pengguna</h2>
+                    <p class="text-xs text-on-surface-variant mt-0.5">Akun staf. Akun masyarakat ada di menu
+                        "Kelola Akses Masyarakat".</p>
                 </div>
                 <button @click="openCreate()"
                     class="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-on-primary">
@@ -42,11 +44,29 @@
                 </button>
             </div>
 
+            <form method="GET" action="{{ route('akun.index') }}" class="mb-4">
+                <input type="hidden" name="tab" value="pengguna">
+                <label class="w-full sm:w-72 h-9 rounded-lg bg-surface-container-low border border-outline-variant/40 flex items-center gap-2 px-3">
+                    <span class="material-symbols-outlined text-[18px] text-on-surface-variant">search</span>
+                    <input type="text" name="search" value="{{ request('search') }}" data-live-search
+                        placeholder="Cari username, email, atau hak akses..."
+                        class="w-full min-w-0 bg-transparent border-0 outline-none text-xs focus:ring-0" />
+                </label>
+            </form>
+
             @if (session('success') && $activeTab === 'pengguna')
                 <div id="alert-success"
                     class="mb-4 flex items-center gap-2 px-4 py-3 rounded-lg text-sm bg-green-50 border border-green-200 text-green-700 transition-opacity duration-500">
                     <span class="material-symbols-outlined text-[18px]">check_circle</span>
                     {{ session('success') }}
+                </div>
+            @endif
+
+            @if (session('error') && $activeTab === 'pengguna')
+                <div
+                    class="mb-4 flex items-center gap-2 px-4 py-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700">
+                    <span class="material-symbols-outlined text-[18px]">error</span>
+                    {{ session('error') }}
                 </div>
             @endif
 
@@ -68,7 +88,6 @@
                             <th class="py-2">Username</th>
                             <th class="py-2">Email</th>
                             <th class="py-2">Hak Akses</th>
-                            <th class="py-2">Password Default</th>
                             <th class="py-2 text-center">Aksi</th>
                         </tr>
                     </thead>
@@ -97,30 +116,14 @@
                                     @endif
                                 </td>
 
-                                {{-- Password default: halaman ini hanya bisa dibuka Super Admin (module:kelola-akses) --}}
-                                <td class="py-2 whitespace-nowrap" x-data="{ show: false }">
-                                    @php $defaultPw = $user->defaultPasswordOrNull(); @endphp
-                                    @if ($defaultPw)
-                                        <span class="font-mono text-xs"
-                                            x-text="show ? @js($defaultPw) : '••••••••'"></span>
-                                        <button type="button" @click="show = !show" tabindex="-1"
-                                            class="ml-1 align-middle text-on-surface-variant"
-                                            :aria-label="show ? 'Sembunyikan password default' : 'Tampilkan password default'">
-                                            <span class="material-symbols-outlined text-[16px]"
-                                                x-text="show ? 'visibility_off' : 'visibility'"></span>
-                                        </button>
-                                    @else
-                                        <span class="text-on-surface-variant" title="Reset password sekali untuk mengisinya">—</span>
-                                    @endif
-                                </td>
-
                                 <td class="py-2 text-center">
                                     <div class="inline-flex items-center justify-center gap-2">
-                                        @if ($user->id !== auth()->id())
+                                        {{-- Butuh izin pemilik akun + OTP. Tidak tersedia untuk diri sendiri / Super Admin lain. --}}
+                                        @if ($user->id !== auth()->id() && !$user->role?->isSuperAdmin())
                                             <form action="{{ route('akun.impersonate', ['akun' => $user->id]) }}"
                                                 method="POST" class="inline">
                                                 @csrf
-                                                <button type="submit" title="Masuk sebagai {{ $user->username }}"
+                                                <button type="submit" title="Minta izin masuk sebagai {{ $user->username }}"
                                                     class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-brand text-white hover:opacity-90 transition">
                                                     <span class="material-symbols-outlined text-[14px]">login</span>
                                                     Masuk sebagai
@@ -132,16 +135,19 @@
                                             <span class="material-symbols-outlined text-[14px]">edit</span>
                                             Edit
                                         </button>
-                                        <form action="{{ route('akun.destroy', $user) }}?tab=pengguna" method="POST"
-                                            class="inline" onsubmit="return confirm('Yakin hapus akun ini?')">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit"
-                                                class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 transition">
-                                                <span class="material-symbols-outlined text-[14px]">delete</span>
-                                                Hapus
-                                            </button>
-                                        </form>
+                                        @if ($user->id !== auth()->id())
+                                            <form action="{{ route('akun.destroy', ['akun' => $user->id]) }}?tab=pengguna"
+                                                method="POST" class="inline"
+                                                onsubmit="return confirm('Yakin hapus akun ini?')">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit"
+                                                    class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 transition">
+                                                    <span class="material-symbols-outlined text-[14px]">delete</span>
+                                                    Hapus
+                                                </button>
+                                            </form>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -230,7 +236,7 @@
                                     mengubah kata sandi.</p>
                             </template>
                             <div class="relative" x-data="{ show: false }">
-                                <input name="password" :type="show ? 'text' : 'password'"
+                                <input name="password" :type="show ? 'text' : 'password'" autocomplete="new-password"
                                     class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 pr-10 text-sm"
                                     :required="mode === 'create'" />
                                 <button type="button" @click="show = !show" tabindex="-1"
@@ -249,6 +255,7 @@
                             </label>
                             <div class="relative" x-data="{ show: false }">
                                 <input name="password_confirmation" :type="show ? 'text' : 'password'"
+                                    autocomplete="new-password"
                                     class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 pr-10 text-sm"
                                     :required="mode === 'create'" />
                                 <button type="button" @click="show = !show" tabindex="-1"
@@ -271,7 +278,7 @@
             </div>
         </div>
 
-        {{-- ============== TAB ROLE & PERMISSION (LANGSUNG DI SINI, TIDAK DI-INCLUDE) ============== --}}
+        {{-- ============== TAB ROLE & PERMISSION ============== --}}
         <div x-show="tab === 'role'" x-cloak x-data="roleManager()"
             class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-5">
 

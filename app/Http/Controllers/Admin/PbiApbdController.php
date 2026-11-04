@@ -12,13 +12,6 @@ use Illuminate\Validation\Rule;
 
 class PbiApbdController extends Controller
 {
-    /**
-     * Tambahkan kondisi OR pencarian pada kolom created_at (Tgl Insert).
-     * Mendukung input sebagian maupun penuh, format dd-mm-yyyy (tampilan di tabel)
-     * atau yyyy-mm-dd. Tanda "/" otomatis dianggap "-".
-     * Contoh: "25-09-2026", "25-09", "09-2026", "2026-09-25".
-     * Disamakan dengan DtsenController::orWhereTanggalLike().
-     */
     private function orWhereTanggalLike($q, string $term): void
     {
         $term = str_replace('/', '-', trim($term));
@@ -34,10 +27,6 @@ class PbiApbdController extends Controller
         }
     }
 
-    /**
-     * Ambil jumlah data per halaman dari query string dan batasi
-     * hanya ke pilihan yang valid (10/25/50/100).
-     */
     private function perPage(Request $request, string $key = 'tampilkan'): int
     {
         $perPage = (int) $request->query($key, 10);
@@ -47,14 +36,12 @@ class PbiApbdController extends Controller
 
     /**
      * ================= AJUAN =================
-     * List permohonan yang masih berjalan (belum final).
-     * Filter: tanggal, tahap saat ini, pencarian (termasuk tanggal).
+     * List permohonan yang masih berjalan (belum final), lintas semua tahap.
      */
     public function ajuanIndex(Request $request)
     {
         $query = PbiApbd::query()
             ->whereNotIn('status', ['disetujui', 'ditolak'])
-            // Draft warga (status awal 'kelurahan' tapi belum pernah "Simpan Data") bukan ajuan
             ->where(fn ($q) => $q->where('status', '!=', 'kelurahan')->orWhereNotNull('data_diisi_at'));
 
         if ($request->filled('tanggal_awal')) {
@@ -71,7 +58,6 @@ class PbiApbdController extends Controller
                     ->orWhere('no_registrasi', 'like', "%{$s}%")
                     ->orWhere('nik_kepala_keluarga', 'like', "%{$s}%")
                     ->orWhere('no_kk', 'like', "%{$s}%");
-                // Pencarian juga mencocokkan Tgl Insert (dd-mm-yyyy atau yyyy-mm-dd)
                 $this->orWhereTanggalLike($q, $s);
             });
         }
@@ -87,7 +73,6 @@ class PbiApbdController extends Controller
 
     public function ajuanShow(PbiApbd $pbiApbd)
     {
-        // Tandai sudah dibuka oleh user ini pada tahap saat ini (badge notifikasi berkurang)
         $pbiApbd->tandaiDilihat(Auth::user());
 
         $pbiApbd->load(['anggotaKeluarga', 'logs.user', 'diagnosaLogs.user']);
@@ -102,10 +87,6 @@ class PbiApbdController extends Controller
         ]);
     }
 
-    /**
-     * Update Nama Faskes (field overwrite, bukan riwayat).
-     * Diagnosa TIDAK lagi ditangani di sini — lihat ajuanTambahDiagnosa().
-     */
     public function ajuanUpdateTambahan(Request $request, PbiApbd $pbiApbd)
     {
         if (!$this->userCanActOn($pbiApbd)) {
@@ -123,10 +104,6 @@ class PbiApbdController extends Controller
         return back()->with('success', 'Data berhasil diperbarui.');
     }
 
-    /**
-     * Tambah entri baru ke riwayat Diagnosa (bisa diisi berulang kali,
-     * tidak menghapus/menimpa entri sebelumnya).
-     */
     public function ajuanTambahDiagnosa(Request $request, PbiApbd $pbiApbd)
     {
         if (!$this->userCanActOn($pbiApbd)) {
@@ -154,16 +131,11 @@ class PbiApbdController extends Controller
             'diagnosa' => $validated['diagnosa'],
         ]);
 
-        // Simpan juga nilai terakhir di kolom utama untuk tampilan ringkas/cepat
         $pbiApbd->update(['diagnosa' => $validated['diagnosa']]);
 
         return back()->with('success', 'Diagnosa baru berhasil ditambahkan.');
     }
 
-    /**
-     * Daftar opsi Nama Faskes berdasarkan kecamatan pada data permohonan.
-     * Sementara masih hardcoded di config/faskes.php (belum ada tabel master).
-     */
     private function faskesOptions(PbiApbd $pbiApbd): array
     {
         $master = config('faskes.puskesmas', []);
@@ -189,10 +161,6 @@ class PbiApbdController extends Controller
             return back()->with('error', 'Anda tidak berwenang memproses permohonan pada tahap ini.');
         }
 
-        // Apa pun tombolnya (simpan/next/back/reject), permohonan dianggap sudah ditangani
-        // oleh user ini pada tahap sekarang -> badge notifikasinya berkurang.
-        // Dipanggil SEBELUM status berubah; tahap berikutnya otomatis jadi notifikasi baru
-        // untuk role di tahap tsb (lihat PbiApbd::booted()).
         $pbiApbd->tandaiDilihat(Auth::user());
 
         $user = Auth::user();
@@ -207,6 +175,11 @@ class PbiApbdController extends Controller
                 break;
 
             case 'next':
+                // Aturan suket: Operator Dinsos wajib mengunggah suket sebelum meneruskan ke Kabid
+                if ($pbiApbd->status === 'operator_dinsos' && blank($pbiApbd->surat_keterangan)) {
+                    return back()->with('error', 'Suket belum diunggah. Unggah dulu sebelum meneruskan ke Kepala Bidang.');
+                }
+
                 $next = $pbiApbd->nextStageKey();
                 if (!$next) {
                     return back()->with('error', 'Tidak ada tahap selanjutnya.');
@@ -258,9 +231,6 @@ class PbiApbdController extends Controller
 
     /**
      * ================= ARSIP =================
-     * List permohonan yang sudah final: Disetujui + Ditolak.
-     * Bisa difilter per status lewat query string ?status=disetujui|ditolak.
-     * Disamakan dengan DtsenController::arsip().
      */
     public function arsipIndex(Request $request)
     {
@@ -275,7 +245,6 @@ class PbiApbdController extends Controller
             $query->whereDate('created_at', '<=', $request->date('tanggal_akhir'));
         }
 
-        // Filter status (hanya menerima disetujui / ditolak)
         if ($request->filled('status') && in_array($request->status, $statusArsip, true)) {
             $query->where('status', $request->status);
         }
@@ -286,7 +255,6 @@ class PbiApbdController extends Controller
                 $q->where('nama_kepala_keluarga', 'like', "%{$s}%")
                     ->orWhere('nik_kepala_keluarga', 'like', "%{$s}%")
                     ->orWhere('no_registrasi', 'like', "%{$s}%");
-                // Pencarian juga mencocokkan Tgl Insert (dd-mm-yyyy atau yyyy-mm-dd)
                 $this->orWhereTanggalLike($q, $s);
             });
         }
@@ -302,10 +270,6 @@ class PbiApbdController extends Controller
         ]);
     }
 
-    /**
-     * GET /pbi-apbd/arsip/{pbiApbd}/detail (dipanggil via fetch() untuk modal Arsip)
-     * Hanya untuk permohonan yang sudah final.
-     */
     public function arsipDetail(PbiApbd $pbiApbd)
     {
         abort_unless($pbiApbd->isFinal(), 404);
@@ -317,7 +281,6 @@ class PbiApbdController extends Controller
 
     /**
      * ================= MONITORING =================
-     * Semua proses (aktif maupun final) + status per tahap.
      */
     public function monitoringIndex(Request $request)
     {
@@ -350,7 +313,6 @@ class PbiApbdController extends Controller
 
     /**
      * ================= LOG =================
-     * Semua log proses lintas permohonan (untuk modul PBI APBD).
      */
     public function logIndex(Request $request)
     {
@@ -369,11 +331,6 @@ class PbiApbdController extends Controller
         return view('admin.pbi-apbd.monitoring.log', compact('logs'));
     }
 
-    /**
-     * User boleh bertindak (simpan/next/back/reject) kalau:
-     * - dia super_admin (menerima variasi penulisan: superadmin, super_admin, super-admin), ATAU
-     * - role dia cocok dengan role yang berwenang di status saat ini
-     */
     private function userCanActOn(PbiApbd $pbiApbd): bool
     {
         $user = Auth::user();

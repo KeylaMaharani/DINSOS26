@@ -20,14 +20,12 @@ class User extends Authenticatable
         'email',
         'role_id',
         'password',
-        'default_password',
         'kecamatan',
         'kelurahan',
     ];
 
     protected $hidden = [
         'password',
-        'default_password',
         'remember_token',
     ];
 
@@ -41,19 +39,12 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            // Terenkripsi (APP_KEY) di database, otomatis didekripsi saat dibaca.
-            'default_password' => 'encrypted',
         ];
     }
 
     /**
-     * Pakai `username` sebagai slug di URL (route model binding) untuk
-     * halaman "Kelola User & Role" di admin, bukan `id` numerik.
-     *
-     * PENTING: ini AMAN dipakai HANYA jika kolom `username` unique di
-     * database. Kalau migration users Anda belum punya unique constraint
-     * di kolom ini, tambahkan dulu (lihat catatan di chat) sebelum pasang
-     * method ini — supaya tidak ada 2 user beda ke-resolve ke username sama.
+     * Pakai `username` sebagai slug di URL (route model binding).
+     * Aman karena kolom `username` unique di database.
      */
     public function getRouteKeyName(): string
     {
@@ -66,17 +57,11 @@ class User extends Authenticatable
     }
 
     /**
-     * Password default yang tampil di Kelola Akses (khusus Super Admin).
-     * Kalau gagal didekripsi (misalnya APP_KEY pernah diganti), kembalikan
-     * null supaya halaman Kelola Akses tidak error.
+     * Notifikasi milik user ini (lonceng).
      */
-    public function defaultPasswordOrNull(): ?string
+    public function notifikasis(): HasMany
     {
-        try {
-            return $this->default_password;
-        } catch (\Throwable $e) {
-            return null;
-        }
+        return $this->hasMany(Notifikasi::class, 'user_id');
     }
 
     /**

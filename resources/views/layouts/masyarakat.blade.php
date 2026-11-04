@@ -60,7 +60,7 @@
             },
         };
     </script>
-    {{-- Alpine.js: dibutuhkan sidebar + dropdown "Lihat / Unduh" pada komponen <x-lampiran-preview> --}}
+    {{-- Alpine.js: dibutuhkan sidebar + lonceng + dropdown "Lihat / Unduh" pada komponen <x-lampiran-preview> --}}
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
     <style>
         /* Cegah teks otomatis membesar saat layar diputar di iOS */
@@ -416,6 +416,10 @@
                 {{-- Bar pengguna: bar biru di layar >= sm, hanya avatar bulat di mobile --}}
                 <div
                     class="ml-auto min-w-0 max-w-full h-14 flex items-center gap-3 sm:rounded-xl sm:bg-brand sm:shadow-[0_6px_18px_rgba(10,92,168,0.30)] sm:ring-1 sm:ring-white/20 sm:px-5">
+
+                    {{-- Lonceng notifikasi (permohonan diproses / dikembalikan / selesai,
+                         serta permintaan izin "Masuk sebagai" dari Super Admin) --}}
+                    @include('partials.lonceng', ['tone' => 'text-brand sm:text-white/90 sm:hover:text-white'])
 
                     <div class="shrink-0">
                         <div class="relative">

@@ -21,17 +21,8 @@ class PbiApbd extends Model
     ];
 
     /**
-     * Pakai `no_registrasi` sebagai "slug" di URL (route model binding),
-     * bukan `id` numerik. Berlaku otomatis untuk SEMUA route yang punya
-     * parameter {pbiApbd} — baik di sisi admin maupun masyarakat —
-     * karena semua route() di Blade sudah pass objek model, bukan ->id.
-     *
-     * Contoh sebelum: /akun-saya/pbi-apbd/5/lengkapi
-     * Contoh sesudah : /akun-saya/pbi-apbd/PBI-APBD-2026-0001/lengkapi
-     *
-     * Aman dipakai karena kolom no_registrasi sudah unique() di migration.
-     * $this->id (primary key asli) tetap tidak berubah dan tetap dipakai
-     * normal untuk foreign key, relasi, dsb — ini HANYA mengubah tampilan URL.
+     * Pakai `no_registrasi` sebagai "slug" di URL (route model binding).
+     * $this->id tetap dipakai untuk foreign key dan relasi.
      */
     public function getRouteKeyName(): string
     {
@@ -40,8 +31,7 @@ class PbiApbd extends Model
 
     /**
      * Notifikasi badge: saat status/pengembalian berubah, hapus catatan "sudah dilihat"
-     * untuk tahap yang baru, supaya role di tahap itu melihatnya sebagai notifikasi baru
-     * (next, back, atau dikembalikan ke warga lalu diajukan ulang).
+     * untuk tahap yang baru, supaya role di tahap itu melihatnya sebagai notifikasi baru.
      */
     protected static function booted(): void
     {
@@ -57,7 +47,6 @@ class PbiApbd extends Model
 
     /**
      * Catat bahwa user ini sudah membuka / menindaklanjuti permohonan pada tahap saat ini.
-     * Dipakai MenuBadge supaya angka notifikasi berkurang.
      */
     public function tandaiDilihat(?User $user): void
     {
@@ -72,8 +61,8 @@ class PbiApbd extends Model
     }
 
     // ==========================================================
-    // ALUR STATUS INTERNAL DINSOS
-    // Urutan linear: kelurahan -> operator_dinsos -> kabid -> kadis -> disetujui
+    // ALUR STATUS
+    // kelurahan -> operator_dinsos -> kabid -> kadis -> dinkes -> bpjs -> disetujui
     // "ditolak" adalah status akhir terpisah (bisa terjadi dari tahap manapun)
     // ==========================================================
     public const OPERATOR_ROLE = 'dayasos';
@@ -81,7 +70,7 @@ class PbiApbd extends Model
     public const STAGES = [
         'kelurahan' => [
             'label' => 'Kelurahan',
-            'role' => 'kelurahan', // role yang bertanggung jawab
+            'role' => 'kelurahan',
         ],
         'operator_dinsos' => [
             'label' => 'Operator Dinsos',
@@ -95,6 +84,14 @@ class PbiApbd extends Model
             'label' => 'Kepala Dinas',
             'role' => 'kadis',
         ],
+        'dinkes' => [
+            'label' => 'Dinas Kesehatan',
+            'role' => 'dinkes',
+        ],
+        'bpjs' => [
+            'label' => 'BPJS Kesehatan',
+            'role' => 'bpjs',
+        ],
     ];
 
     public const STATUS_LABELS = [
@@ -102,8 +99,25 @@ class PbiApbd extends Model
         'operator_dinsos' => 'Di Operator Dinsos',
         'kabid' => 'Di Kepala Bidang',
         'kadis' => 'Di Kepala Dinas',
-        'disetujui' => 'Disetujui',
+        'dinkes' => 'Di Dinas Kesehatan',
+        'bpjs' => 'Di BPJS Kesehatan',
+        'disetujui' => 'Disetujui (Teraktivasi)',
         'ditolak' => 'Ditolak',
+    ];
+
+    /**
+     * Halaman approval per tahap (dipakai PbiApprovalController, route, sidebar, badge).
+     *  status   : nilai kolom status yang ditampilkan di halaman tahap itu
+     *  module   : key di Role::MODULES
+     *  edit     : boleh ubah data pemohon & unggah suket (hanya Operator)
+     *  diagnosa : boleh menambah diagnosa
+     */
+    public const TAHAP = [
+        'operator' => ['status' => 'operator_dinsos', 'label' => 'Operator Dinsos', 'module' => 'pbi-operator', 'edit' => true,  'diagnosa' => true],
+        'kabid'    => ['status' => 'kabid',           'label' => 'Kepala Bidang',   'module' => 'pbi-kabid',    'edit' => false, 'diagnosa' => false],
+        'kadis'    => ['status' => 'kadis',           'label' => 'Kepala Dinas',    'module' => 'pbi-kadis',    'edit' => false, 'diagnosa' => false],
+        'dinkes'   => ['status' => 'dinkes',          'label' => 'Dinas Kesehatan', 'module' => 'pbi-dinkes',   'edit' => false, 'diagnosa' => true],
+        'bpjs'     => ['status' => 'bpjs',            'label' => 'BPJS Kesehatan',  'module' => 'pbi-bpjs',     'edit' => false, 'diagnosa' => false],
     ];
 
     public function anggotaKeluarga()
@@ -122,8 +136,7 @@ class PbiApbd extends Model
     }
 
     /**
-     * Riwayat diagnosa yang pernah diinput petugas (bisa berulang kali,
-     * setiap entri tersimpan sebagai baris baru, tidak menimpa entri lama).
+     * Riwayat diagnosa yang pernah diinput petugas (setiap entri baris baru).
      */
     public function diagnosaLogs()
     {
@@ -141,13 +154,8 @@ class PbiApbd extends Model
     }
 
     /**
-     * Apakah masyarakat (pemilik pengajuan) masih boleh mengisi / memperbaiki data.
-     *
-     * Aturan sementara: terkunci HANYA kalau sudah disetujui.
-     * Status lain (termasuk "ditolak") masih boleh diisi ulang.
-     *
-     * Kalau nanti mau dibatasi lagi, cukup ubah di sini, contoh:
-     *   return in_array($this->status, ['kelurahan', 'ditolak'], true);
+     * Apakah masyarakat masih boleh mengisi / memperbaiki data.
+     * Terkunci HANYA kalau sudah disetujui.
      */
     public function masyarakatBisaEdit(): bool
     {
@@ -155,9 +163,7 @@ class PbiApbd extends Model
     }
 
     /**
-     * Masih berupa draft: warga belum pernah menekan "Simpan Data" (belum diajukan ke Kelurahan).
-     * Selama draft, isian boleh tersimpan sebagian (draft otomatis) dan statusnya tidak berubah.
-     * Asumsi: kolom data_diisi_at masih kosong saat registrasi dan baru terisi ketika warga menyimpan data.
+     * Masih berupa draft: warga belum pernah menekan "Simpan Data".
      */
     public function masyarakatMasihDraft(): bool
     {
@@ -182,14 +188,14 @@ class PbiApbd extends Model
         $idx = $this->currentStageIndex();
         if ($idx === null) return null;
         $keys = self::stageKeys();
-        // tahap terakhir (kadis) -> disetujui
+        // tahap terakhir (bpjs) -> disetujui
         return $keys[$idx + 1] ?? 'disetujui';
     }
 
     public function previousStageKey(): ?string
     {
         $idx = $this->currentStageIndex();
-        if ($idx === null || $idx === 0) return null; // sudah paling awal, tidak bisa back
+        if ($idx === null || $idx === 0) return null;
         $keys = self::stageKeys();
         return $keys[$idx - 1];
     }
@@ -206,8 +212,7 @@ class PbiApbd extends Model
     }
 
     /**
-     * Bangun urutan progress untuk ditampilkan sebagai stepper di halaman masyarakat.
-     * Tidak dipakai untuk status 'ditolak' — status itu ditampilkan sebagai banner terpisah.
+     * Urutan progress untuk stepper di halaman masyarakat.
      */
     public function progressSteps(): array
     {
