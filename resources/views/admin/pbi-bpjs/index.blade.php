@@ -6,24 +6,31 @@
 @section('content')
 <div class="space-y-5" x-data="{ sel: [], modal: null, aksiBaris(id, a) { this.sel = [id]; this.modal = a; } }">
 
-    <div class="px-4 py-2.5 rounded-lg bg-surface-container text-xs text-on-surface-variant">
-        BPJS adalah tahap terakhir. <strong>Aktivasi</strong> menyelesaikan permohonan (status Disetujui/Teraktivasi), <strong>Tolak</strong> menolak permohonan (catatan wajib).
+    {{-- Tab: Perlu Diaktivasi / Sudah Diaktivasi --}}
+    <div class="flex gap-2 border-b border-outline-variant/40">
+        @foreach (['proses' => 'Perlu Diaktivasi', 'riwayat' => 'Sudah Diaktivasi'] as $key => $label)
+            <a href="{{ route("pbi-approval.bpjs.index", ['tab' => $key]) }}"
+               class="px-4 py-2 text-sm font-medium border-b-2 {{ $tab === $key ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant hover:text-primary' }}">
+                {{ $label }}
+            </a>
+        @endforeach
     </div>
 
     {{-- Filter + statistik --}}
     <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-5 shadow-sm space-y-5">
         <form method="GET" class="flex flex-wrap items-end gap-3">
+            <input type="hidden" name="tab" value="{{ $tab }}">
             <div>
                 <label class="block text-xs font-semibold mb-1">Tanggal Awal</label>
-                <input type="date" name="tanggal_awal" value="{{ request('tanggal_awal') }}" class="px-3 py-2 rounded-lg border border-outline-variant/50 text-xs">
+                <input type="date" name="tanggal_awal" value="{{ request('tanggal_awal') }}" onchange="this.form.submit()" class="px-3 py-2 rounded-lg border border-outline-variant/50 text-xs">
             </div>
             <div>
                 <label class="block text-xs font-semibold mb-1">Tanggal Akhir</label>
-                <input type="date" name="tanggal_akhir" value="{{ request('tanggal_akhir') }}" class="px-3 py-2 rounded-lg border border-outline-variant/50 text-xs">
+                <input type="date" name="tanggal_akhir" value="{{ request('tanggal_akhir') }}" onchange="this.form.submit()" class="px-3 py-2 rounded-lg border border-outline-variant/50 text-xs">
             </div>
             <div class="flex-1 min-w-[200px]">
                 <label class="block text-xs font-semibold mb-1">Pencarian</label>
-                <input type="text" name="search" value="{{ request('search') }}" data-live-search placeholder="Nama, NIK, No. KK, No. Reg..."
+                <input type="text" name="search" value="{{ request('search') }}" autocomplete="off" oninput="clearTimeout(this._t); this._t = setTimeout(() => this.form.submit(), 500)" @if (request()->filled('search')) autofocus onfocus="this.setSelectionRange(this.value.length, this.value.length)" @endif placeholder="Nama, NIK, No. KK, No. Reg..."
                        class="w-full px-3 py-2 rounded-lg border border-outline-variant/50 text-xs">
             </div>
             <div>
@@ -34,22 +41,26 @@
                     @endforeach
                 </select>
             </div>
-            <button class="px-4 py-2 rounded-lg bg-brand text-white text-xs font-semibold">Filter</button>
-            <a href="{{ route('pbi-approval.bpjs.index') }}" class="px-4 py-2 rounded-lg bg-amber-400 text-white text-xs font-semibold">Reset</a>
+            {{-- Filter berjalan otomatis (tanggal, tampilkan, dan pencarian live), tombol Filter tidak diperlukan --}}
+            <a href="{{ route('pbi-approval.bpjs.index', ['tab' => $tab]) }}" class="px-4 py-2 rounded-lg bg-amber-400 text-white text-xs font-semibold">Reset</a>
         </form>
 
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto">
-            <div class="rounded-lg border border-purple-300 text-center py-3">
-                <p class="text-sm text-purple-600">Total Usulan PBI APBD</p>
-                <p class="text-3xl font-semibold text-purple-700">{{ number_format($stat['total']) }}</p>
+        {{-- Kartu ringkasan (gaya sama dengan Ground Check) --}}
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="relative overflow-hidden rounded-2xl bg-brand text-white px-5 py-4 shadow-sm">
+                <span class="material-symbols-outlined absolute -right-2 -bottom-3 text-[84px] opacity-15">inventory_2</span>
+                <p class="text-[11px] uppercase tracking-wider opacity-80">Total Usulan PBI APBD</p>
+                <p class="text-3xl font-extrabold mt-0.5">{{ number_format($stat['total'], 0, ',', '.') }}</p>
             </div>
-            <div class="rounded-lg border border-green-300 text-center py-3">
-                <p class="text-sm text-green-600">Usulan di Aktivasi</p>
-                <p class="text-3xl font-semibold text-green-700">{{ number_format($stat['aktivasi']) }}</p>
+            <div class="relative overflow-hidden rounded-2xl bg-success text-white px-5 py-4 shadow-sm">
+                <span class="material-symbols-outlined absolute -right-2 -bottom-3 text-[84px] opacity-15">task_alt</span>
+                <p class="text-[11px] uppercase tracking-wider opacity-80">Usulan di Aktivasi</p>
+                <p class="text-3xl font-extrabold mt-0.5">{{ number_format($stat['aktivasi'], 0, ',', '.') }}</p>
             </div>
-            <div class="rounded-lg border border-red-300 text-center py-3">
-                <p class="text-sm text-red-600">Usulan di Tolak</p>
-                <p class="text-3xl font-semibold text-red-700">{{ number_format($stat['ditolak']) }}</p>
+            <div class="relative overflow-hidden rounded-2xl bg-error text-on-error px-5 py-4 shadow-sm">
+                <span class="material-symbols-outlined absolute -right-2 -bottom-3 text-[84px] opacity-15">cancel</span>
+                <p class="text-[11px] uppercase tracking-wider opacity-80">Usulan di Tolak</p>
+                <p class="text-3xl font-extrabold mt-0.5">{{ number_format($stat['ditolak'], 0, ',', '.') }}</p>
             </div>
         </div>
     </div>
@@ -66,7 +77,10 @@
                         <th class="px-3 py-3 text-left">Alamat</th>
                         <th class="px-3 py-3 text-left">Tgl Permohonan</th>
                         <th class="px-3 py-3 text-left">Proses Terakhir</th>
-                        <th class="px-3 py-3 text-left">Proses Selanjutnya</th>
+                        <th class="px-3 py-3 text-left">{{ $tab === 'riwayat' ? 'Status' : 'Proses Selanjutnya' }}</th>
+                        @if ($tab === 'riwayat')
+                            <th class="px-3 py-3 text-left">Tanda</th>
+                        @endif
                         <th class="px-3 py-3 text-left">Catatan</th>
                         <th class="px-3 py-3 text-center">Aksi</th>
                     </tr>
@@ -74,7 +88,7 @@
                 <tbody class="divide-y divide-outline-variant/30">
                     @forelse ($ajuan as $item)
                         @php $last = $item->logs->first(); @endphp
-                        <tr class="hover:bg-surface-container-low">
+                        <tr class="hover:bg-surface-container-low transition-colors">
                             <td class="px-3 py-3 whitespace-nowrap">
                                 <div class="font-semibold text-primary">{{ $item->nik_kepala_keluarga }}</div>
                                 <div class="text-[10px] text-on-surface-variant">{{ $item->no_registrasi }}</div>
@@ -88,16 +102,38 @@
                                     {{ $last->task_name }}<div class="font-semibold">{{ $last->role_name }}</div>
                                 @else - @endif
                             </td>
-                            <td class="px-3 py-3">Aktivasi PBI APBD</td>
+                            <td class="px-3 py-3">{{ $tab === 'riwayat' ? $item->statusLabel() : 'Aktivasi PBI APBD' }}</td>
+                            @if ($tab === 'riwayat')
+                                <td class="px-3 py-3">@switch($item->tanda_riwayat ?? null)
+                                        @case('diaktivasi')
+                                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-success-container text-on-success-container whitespace-nowrap"><span class="material-symbols-outlined text-[14px]">task_alt</span>Diaktivasi</span>
+                                            @break
+                                        @case('ditolak')
+                                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-error text-on-error whitespace-nowrap"><span class="material-symbols-outlined text-[14px]">cancel</span>Ditolak</span>
+                                            @break
+                                        @default
+                                            <span class="text-on-surface-variant">-</span>
+                                    @endswitch</td>
+                            @endif
                             <td class="px-3 py-3 text-on-surface-variant">{{ $item->catatan_internal ?: '-' }}</td>
                             <td class="px-3 py-3 text-center whitespace-nowrap">
-                                <a href="{{ route('pbi-approval.bpjs.show', $item) }}" class="inline-block px-2.5 py-1 rounded bg-sky-600 text-white text-[11px] font-semibold">Detail</a>
-                                <button type="button" @click="aksiBaris({{ $item->id }}, 'next')" class="px-2.5 py-1 rounded bg-green-600 text-white text-[11px] font-semibold">Aktivasi</button>
-                                <button type="button" @click="aksiBaris({{ $item->id }}, 'reject')" class="px-2.5 py-1 rounded bg-red-600 text-white text-[11px] font-semibold">Tolak</button>
+                                <div class="inline-flex items-center gap-1.5">
+                                    <a href="{{ route('pbi-approval.bpjs.show', $item) }}" title="{{ $tab === 'riwayat' ? 'Lihat detail' : 'Lihat detail' }}"
+                                       class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-on-primary text-[11px] font-semibold shadow-sm hover:bg-secondary transition-colors whitespace-nowrap">
+                                        <span class="material-symbols-outlined text-[15px]">visibility</span>
+                                        Detail
+                                    </a>
+                                    @if ($tab !== 'riwayat')
+                                        <button type="button" @click="aksiBaris({{ $item->id }}, 'next')" class="px-3 py-1.5 rounded-lg bg-green-600 text-white text-[11px] font-semibold shadow-sm hover:opacity-90 transition-all">Aktivasi</button>
+                                        <button type="button" @click="aksiBaris({{ $item->id }}, 'reject')" class="px-3 py-1.5 rounded-lg bg-red-600 text-white text-[11px] font-semibold shadow-sm hover:opacity-90 transition-all">Tolak</button>
+                                    @endif
+                                </div>
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="9" class="px-4 py-10 text-center text-on-surface-variant">Tidak ada usulan yang menunggu aktivasi.</td></tr>
+                        <tr><td colspan="{{ $tab === 'riwayat' ? 10 : 9 }}" class="px-4 py-10 text-center text-on-surface-variant">
+                            {{ $tab === 'riwayat' ? 'Belum ada usulan yang diaktivasi atau ditolak dari tahap ini.' : 'Tidak ada usulan yang menunggu aktivasi.' }}
+                        </td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -108,7 +144,6 @@
             <div>{{ $ajuan->links() }}</div>
         </div>
     </div>
-
     {{-- Modal catatan --}}
     <div x-show="modal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
         <form method="POST" action="{{ route('pbi-approval.bpjs.aksi') }}" @click.outside="modal = null"

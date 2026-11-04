@@ -34,10 +34,6 @@
         <span class="inline-flex px-4 py-1.5 rounded-full text-sm font-semibold {{ $statusColor }}">{{ $data->statusLabel() }}</span>
     </div>
 
-    <div class="px-4 py-2.5 rounded-lg bg-surface-container text-xs text-on-surface-variant">
-        Halaman ini <strong>baca saja</strong>. BPJS memutuskan <strong>Aktivasi</strong> atau <strong>Tolak</strong>.
-    </div>
-
     {{-- Data pemohon --}}
     <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
         <div class="px-5 py-4 border-b border-outline-variant/40">

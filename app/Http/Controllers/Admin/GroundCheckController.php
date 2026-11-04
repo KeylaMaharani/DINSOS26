@@ -33,12 +33,33 @@ class GroundCheckController extends Controller
 {
     private const TAHUN = 2026;
 
-    /** Langkah 3: daftar sasaran + ringkasan. */
+    /** Langkah 3: daftar sasaran + ringkasan (dengan filter tahun & rentang tanggal). */
     public function index(Request $request)
     {
-        $tahun = self::TAHUN;
         $q = trim((string) $request->query('q'));
         $perPage = in_array((int) $request->query('per_page'), [10, 25, 50], true) ? (int) $request->query('per_page') : 10;
+
+        // Filter tahun & tanggal = waktu masyarakat MENGIRIM PENGAJUAN (tabel pbi_apbds.created_at),
+        // dihubungkan ke sasaran lewat No KK. Badge/progres/ringkasan tetap memakai tahun Ground Check.
+        $tahunPilih = $request->query('tahun');
+        $tahunPilih = ctype_digit((string) $tahunPilih) ? (int) $tahunPilih : null;
+        $tglDari = $request->query('tgl_dari') ?: null;
+        $tglSampai = $request->query('tgl_sampai') ?: null;
+        $tahun = self::TAHUN;
+
+        $adaFilterPengajuan = $tahunPilih || $tglDari || $tglSampai;
+
+        // Syarat pengajuan (dipakai bersama oleh daftar dan kartu ringkasan).
+        $filterPengajuan = function ($s) use ($tahunPilih, $tglDari, $tglSampai) {
+            $s->whereExists(function ($e) use ($tahunPilih, $tglDari, $tglSampai) {
+                $e->select(DB::raw(1))
+                    ->from('pbi_apbds as p')
+                    ->whereRaw('TRIM(p.no_kk) = TRIM(gc_sasarans.no_kk)')
+                    ->when($tahunPilih, fn ($x) => $x->whereYear('p.created_at', $tahunPilih))
+                    ->when($tglDari, fn ($x) => $x->whereDate('p.created_at', '>=', $tglDari))
+                    ->when($tglSampai, fn ($x) => $x->whereDate('p.created_at', '<=', $tglSampai));
+            });
+        };
 
         $sasarans = GcSasaran::query()
             ->select('gc_sasarans.*')
@@ -54,6 +75,9 @@ class GroundCheckController extends Controller
                     ->where('v.status_entry', 'submit');
             }, 'kk_selesai')
             ->with(['verifikasis' => fn ($v) => $v->where('tahun', $tahun)])
+            // Filter tahun & tanggal pengajuan: hanya sasaran yang No KK-nya punya pengajuan
+            // masyarakat sesuai (tahun & rentang tanggal dicek pada satu pengajuan yang sama).
+            ->when($adaFilterPengajuan, $filterPengajuan)
             ->when($q !== '', function ($s) use ($q) {
                 $like = "%{$q}%";
                 $s->where(fn ($w) => $w->where('nama', 'like', $like)->orWhere('nik', 'like', $like)->orWhere('no_kk', 'like', $like));
@@ -62,17 +86,32 @@ class GroundCheckController extends Controller
             ->paginate($perPage)
             ->withQueryString();
 
-        $total = GcSasaran::count();
-        $sudah = GcVerifikasi::where('tahun', $tahun)->where('status_entry', 'submit')->count();
+        // Kartu ringkasan mengikuti filter tahun/tanggal (tanpa pencarian nama).
+        $basis = GcSasaran::query()->when($adaFilterPengajuan, $filterPengajuan);
+        $total = (clone $basis)->count();
+        $sudah = (clone $basis)
+            ->whereHas('verifikasis', fn ($v) => $v->where('tahun', $tahun)->where('status_entry', 'submit'))
+            ->count();
         $belum = max($total - $sudah, 0);
         $progres = $total > 0 ? round($sudah / $total * 100, 1) : 0;
+
+        // Daftar tahun untuk dropdown: tahun pengajuan yang ada + 2024 sampai tahun ini.
+        $tahunList = DB::table('pbi_apbds')
+            ->selectRaw('YEAR(created_at) as th')
+            ->whereNotNull('created_at')
+            ->distinct()
+            ->pluck('th')
+            ->map(fn ($t) => (int) $t)
+            ->merge(range((int) now()->year, 2024))
+            ->unique()->sortDesc()->values();
 
         // Saran isian untuk form Tambah (diambil dari wilayah yang sudah ada di daftar sasaran).
         $kecamatanList = GcSasaran::whereNotNull('kecamatan')->distinct()->orderBy('kecamatan')->pluck('kecamatan');
         $kelurahanList = GcSasaran::whereNotNull('kelurahan')->distinct()->orderBy('kelurahan')->pluck('kelurahan');
 
         return view('admin.ground-check.index', compact(
-            'sasarans', 'total', 'sudah', 'belum', 'progres', 'q', 'perPage', 'kecamatanList', 'kelurahanList'
+            'sasarans', 'total', 'sudah', 'belum', 'progres', 'q', 'perPage',
+            'kecamatanList', 'kelurahanList', 'tahunList', 'tahun'
         ));
     }
 

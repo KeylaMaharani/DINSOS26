@@ -257,7 +257,7 @@
         // Ground Check khusus data Rehabsos (posisi sama seperti di PFM: paling bawah).
         // Hak akses terpisah lewat modul 'rehabsos-ground-check'.
         $rehabChildren[] = [
-            'label' => 'Ground Check 2026',
+            'label' => 'Ground Check',
             'route' => 'rehabsos.ground-check',
             'match' => ['rehabsos.ground-check*'],
             'module' => 'rehabsos-ground-check',
@@ -334,7 +334,7 @@
                         ],
                     ],
                     // Ground Check ada di dalam modul PFM (hak akses tetap 'ground-check')
-                    ['label' => 'Ground Check 2026', 'route' => 'ground-check.index', 'match' => ['ground-check.*'], 'module' => 'ground-check'],
+                    ['label' => 'Ground Check', 'route' => 'ground-check.index', 'match' => ['ground-check.*'], 'module' => 'ground-check'],
                 ],
             ],
 
@@ -467,12 +467,6 @@
                 'superadmin_only' => true,
             ],
             [
-                'label' => 'Penyakit Kronis/Menahun',
-                'icon' => 'medical_services',
-                'route' => 'master.penyakit-kronis.index',
-                'match' => ['master.penyakit-kronis.*'],
-            ],
-            [
                 'label' => 'Master Kriteria',
                 'icon' => 'rule',
                 'superadmin_only' => true,
@@ -481,6 +475,7 @@
                     ['label' => 'Kriteria Ground Check', 'route' => 'master.gc-kriteria.index', 'match' => ['master.gc-kriteria.*']],
                     ['label' => 'Lapangan Usaha & Pekerjaan', 'route' => 'master.lapangan-usaha.index', 'match' => ['master.lapangan-usaha.*']],
                     ['label' => 'Keterampilan Khusus', 'route' => 'master.keterampilan.index', 'match' => ['master.keterampilan.*']],
+                    ['label' => 'Penyakit Kronis/Menahun', 'route' => 'master.penyakit-kronis.index', 'match' => ['master.penyakit-kronis.*']],
                 ],
             ],
         ];

@@ -50,6 +50,14 @@ class PbiKelurahanController extends Controller
             ? $query->where('status', 'kelurahan')->whereNotNull('data_diisi_at')
             : $query->where('status', '!=', 'kelurahan');
 
+        // Filter tanggal permohonan (created_at)
+        if ($request->filled('tanggal_awal')) {
+            $query->whereDate('created_at', '>=', $request->tanggal_awal);
+        }
+        if ($request->filled('tanggal_akhir')) {
+            $query->whereDate('created_at', '<=', $request->tanggal_akhir);
+        }
+
         if ($request->filled('search')) {
             $s = $request->search;
             $query->where(function ($q) use ($s) {
@@ -60,11 +68,25 @@ class PbiKelurahanController extends Controller
             });
         }
 
-        $ajuan = $query->latest()->paginate(10)->withQueryString();
+        // Jumlah baris per halaman (hanya nilai yang tersedia di dropdown)
+        $perPage = (int) $request->query('tampilkan', 10);
+        if (! in_array($perPage, [10, 25, 50, 100], true)) {
+            $perPage = 10;
+        }
+
+        $ajuan = $query->latest()->paginate($perPage)->withQueryString();
         $totalParameter = count($idTetap);
         $wilayahBelumDiatur = ! $user->role?->isSuperAdmin() && blank($user->kelurahan);
 
-        return view('admin.pbi-kelurahan.index', compact('ajuan', 'tab', 'totalParameter', 'wilayahBelumDiatur', 'user'));
+        // Kartu ringkasan: dibatasi wilayah petugas (scope yang sama dengan daftar), tidak ikut pencarian/tab.
+        $basis = PbiApbd::query()->untukKelurahan($user);
+        $stat = [
+            'total' => (clone $basis)->where(fn ($q) => $q->where('status', '!=', 'kelurahan')->orWhereNotNull('data_diisi_at'))->count(),
+            'aktivasi' => (clone $basis)->where('status', 'disetujui')->count(),
+            'ditolak' => (clone $basis)->where('status', 'ditolak')->count(),
+        ];
+
+        return view('admin.pbi-kelurahan.index', compact('ajuan', 'tab', 'totalParameter', 'wilayahBelumDiatur', 'user', 'stat'));
     }
 
     public function show(PbiApbd $pbiApbd)

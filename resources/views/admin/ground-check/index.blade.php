@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
-@section('title', 'Ground Check 2026')
-@section('page_title', 'Ground Check 2026')
+@section('title', 'Ground Check ')
+@section('page_title', 'Ground Check ')
 
 @php
     use App\Models\GcVerifikasi;
@@ -22,6 +22,7 @@
 
     $galatTambah = $errors->getBag('tambah');
     $in = 'w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30';
+    $inFilter = 'rounded-lg border border-outline-variant/50 px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary/30';
 @endphp
 
 @section('content')
@@ -31,17 +32,17 @@
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div class="relative overflow-hidden rounded-2xl bg-error text-on-error px-5 py-4 shadow-sm">
             <span class="material-symbols-outlined absolute -right-2 -bottom-3 text-[84px] opacity-15">pending_actions</span>
-            <p class="text-[11px] uppercase tracking-wider opacity-80">Belum</p>
+            <p class="text-[11px] uppercase tracking-wider opacity-80">Belum · {{ request('tahun') ?: 'Semua tahun' }}</p>
             <p class="text-3xl font-extrabold mt-0.5">{{ number_format($belum, 0, ',', '.') }}</p>
         </div>
         <div class="relative overflow-hidden rounded-2xl bg-success text-white px-5 py-4 shadow-sm">
             <span class="material-symbols-outlined absolute -right-2 -bottom-3 text-[84px] opacity-15">task_alt</span>
-            <p class="text-[11px] uppercase tracking-wider opacity-80">Sudah</p>
+            <p class="text-[11px] uppercase tracking-wider opacity-80">Sudah · {{ request('tahun') ?: 'Semua tahun' }}</p>
             <p class="text-3xl font-extrabold mt-0.5">{{ number_format($sudah, 0, ',', '.') }}</p>
         </div>
         <div class="relative overflow-hidden rounded-2xl bg-brand text-white px-5 py-4 shadow-sm">
             <span class="material-symbols-outlined absolute -right-2 -bottom-3 text-[84px] opacity-15">monitoring</span>
-            <p class="text-[11px] uppercase tracking-wider opacity-80">Progres</p>
+            <p class="text-[11px] uppercase tracking-wider opacity-80">Progres · {{ request('tahun') ?: 'Semua tahun' }}</p>
             <p class="text-3xl font-extrabold mt-0.5">{{ number_format($progres, 1, ',', '.') }}%</p>
             <div class="mt-2 h-1.5 rounded-full bg-white/25 overflow-hidden">
                 <div class="h-full bg-white rounded-full" style="width: {{ min($progres, 100) }}%"></div>
@@ -50,10 +51,10 @@
     </div>
 
     <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-2xl overflow-hidden shadow-sm">
-        {{-- Header, tombol Tambah & pencarian --}}
+        {{-- Header, tombol Tambah, filter & pencarian --}}
         <div class="px-5 py-4 flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant/30">
             <div>
-                <h2 class="text-sm font-bold text-on-surface">Daftar Sasaran Ground Check 2026</h2>
+                <h2 class="text-sm font-bold text-on-surface">Daftar Sasaran Ground Check</h2>
                 <p class="text-xs text-on-surface-variant mt-0.5">
                     Klik <span class="font-semibold">Detail</span> pada kolom Aksi untuk melihat anggota KK dan mulai memasukkan data.
                 </p>
@@ -64,18 +65,42 @@
                     <span class="material-symbols-outlined text-[16px]">person_add</span> Tambah
                 </button>
 
-                <form method="GET" class="flex items-center gap-2">
-                    <select name="per_page" onchange="this.form.submit()"
-                            class="rounded-lg border border-outline-variant/50 px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary/30">
+                <form method="GET" class="flex flex-wrap items-center gap-2">
+                    <select name="per_page" onchange="this.form.submit()" class="{{ $inFilter }}">
                         @foreach ([10, 25, 50] as $n)
                             <option value="{{ $n }}" @selected($perPage === $n)>{{ $n }} / halaman</option>
                         @endforeach
                     </select>
+
+                    {{-- Filter tahun pengajuan masyarakat --}}
+                    <select name="tahun" onchange="this.form.submit()" title="Tahun pengajuan masyarakat" class="{{ $inFilter }}">
+                        <option value="">Semua tahun pengajuan</option>
+                        @foreach ($tahunList as $th)
+                            <option value="{{ $th }}" @selected((string) request('tahun') === (string) $th)>{{ $th }}</option>
+                        @endforeach
+                    </select>
+
+                    {{-- Filter rentang tanggal pengajuan --}}
+                    <div class="flex items-center gap-1.5">
+                        <input type="date" name="tgl_dari" value="{{ request('tgl_dari') }}" max="{{ now()->format('Y-m-d') }}"
+                               onchange="this.form.submit()" title="Tanggal pengajuan: dari" class="{{ $inFilter }}" />
+                        <span class="text-on-surface-variant">–</span>
+                        <input type="date" name="tgl_sampai" value="{{ request('tgl_sampai') }}" max="{{ now()->format('Y-m-d') }}"
+                               onchange="this.form.submit()" title="Tanggal pengajuan: sampai" class="{{ $inFilter }}" />
+                    </div>
+
                     <div class="relative">
                         <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[16px] text-on-surface-variant">search</span>
                         <input type="text" name="q" value="{{ $q }}" placeholder="Cari nama, NIK, atau No KK" data-live-search
                                class="w-60 rounded-lg border border-outline-variant/50 pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30" />
                     </div>
+
+                    @if (request()->hasAny(['q', 'tahun', 'tgl_dari', 'tgl_sampai']))
+                        <a href="{{ url()->current() }}?per_page={{ $perPage }}"
+                           class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-outline-variant/50 text-xs hover:bg-surface-container-low transition-colors">
+                            <span class="material-symbols-outlined text-[15px]">restart_alt</span> Reset
+                        </a>
+                    @endif
                 </form>
             </div>
         </div>
@@ -174,7 +199,7 @@
                 @empty
                     <tr><td colspan="9" class="px-4 py-12 text-center text-on-surface-variant">
                         <span class="material-symbols-outlined text-[32px] opacity-40 block mb-1">search_off</span>
-                        {{ $q !== '' ? 'Tidak ada data yang cocok dengan pencarian.' : 'Belum ada data sasaran.' }}
+                        {{ request()->hasAny(['q', 'tahun', 'tgl_dari', 'tgl_sampai']) ? 'Tidak ada data yang cocok dengan pencarian/filter.' : 'Belum ada data sasaran.' }}
                     </td></tr>
                 @endforelse
             </tbody>
