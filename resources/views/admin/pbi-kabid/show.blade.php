@@ -10,7 +10,7 @@
 
 @section('title', 'Detail Ajuan PBI APBD - Kepala Bidang')
 @section('page_title', 'PBI APBD — Kepala Bidang')
- 
+
 @section('content')
 <div class="space-y-5 max-w-5xl">
 
@@ -32,10 +32,6 @@
             <p class="text-sm text-on-surface-variant mt-1">{{ $data->nama_kepala_keluarga }} — NIK {{ $data->nik_kepala_keluarga }}</p>
         </div>
         <span class="inline-flex px-4 py-1.5 rounded-full text-sm font-semibold {{ $statusColor }}">{{ $data->statusLabel() }}</span>
-    </div>
-
-    <div class="px-4 py-2.5 rounded-lg bg-surface-container text-xs text-on-surface-variant">
-        Halaman ini <strong>baca saja</strong>. Kepala Bidang tidak dapat mengubah data pemohon.
     </div>
 
     {{-- Data pemohon --}}

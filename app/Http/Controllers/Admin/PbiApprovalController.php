@@ -8,6 +8,7 @@ use App\Models\PbiApbdLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 /**
@@ -42,32 +43,103 @@ class PbiApprovalController extends Controller
         $tahap = $this->tahap($request);
         $cfg = PbiApbd::TAHAP[$tahap];
 
-        $query = PbiApbd::with('logs')->where('status', $cfg['status']);
+        // Filter tanggal & pencarian: dipakai bersama oleh tabel dan kartu ringkasan.
+        $filter = function ($query) use ($request) {
+            if ($request->filled('tanggal_awal')) {
+                $query->whereDate('created_at', '>=', $request->date('tanggal_awal'));
+            }
+            if ($request->filled('tanggal_akhir')) {
+                $query->whereDate('created_at', '<=', $request->date('tanggal_akhir'));
+            }
+            if ($request->filled('search')) {
+                $s = $request->search;
+                $query->where(fn ($q) => $q->where('nama_kepala_keluarga', 'like', "%{$s}%")
+                    ->orWhere('no_registrasi', 'like', "%{$s}%")
+                    ->orWhere('nik_kepala_keluarga', 'like', "%{$s}%")
+                    ->orWhere('no_kk', 'like', "%{$s}%")
+                    ->orWhere('alamat', 'like', "%{$s}%"));
+            }
+        };
 
-        if ($request->filled('tanggal_awal')) {
-            $query->whereDate('created_at', '>=', $request->date('tanggal_awal'));
+        $tab = $request->query('tab', 'proses') === 'riwayat' ? 'riwayat' : 'proses';
+
+        // Riwayat dibatasi pada log milik role user (kolom role_name, sama seperti saat dicatat).
+        // Super Admin tidak punya log tahap sendiri, jadi tidak difilter per role.
+        $user = Auth::user()->loadMissing('role');
+        $roleName = $user->role?->isSuperAdmin() ? null : ($user->role->name ?? null);
+
+        $query = PbiApbd::with('logs');
+
+        if ($tab === 'proses') {
+            // Perlu diproses: berkas yang saat ini berada di tahap ini.
+            $query->where('status', $cfg['status']);
+        } else {
+            // Sudah diteruskan: berkas yang sudah tidak di tahap ini dan pernah diteruskan /
+            // dikembalikan / ditolak oleh tahap ini.
+            $query->where('status', '!=', $cfg['status'])
+                ->whereHas('logs', fn ($l) => $this->logAksi($l, $roleName));
         }
-        if ($request->filled('tanggal_akhir')) {
-            $query->whereDate('created_at', '<=', $request->date('tanggal_akhir'));
-        }
-        if ($request->filled('search')) {
-            $s = $request->search;
-            $query->where(fn ($q) => $q->where('nama_kepala_keluarga', 'like', "%{$s}%")
-                ->orWhere('no_registrasi', 'like', "%{$s}%")
-                ->orWhere('nik_kepala_keluarga', 'like', "%{$s}%")
-                ->orWhere('no_kk', 'like', "%{$s}%")
-                ->orWhere('alamat', 'like', "%{$s}%"));
-        }
+        $filter($query);
 
         $ajuan = $query->latest()->paginate($this->perPage($request))->withQueryString();
 
+        if ($tab === 'riwayat') {
+            // Tanda per baris diambil dari aksi terakhir tahap ini (logs sudah urut terbaru dulu).
+            $ajuan->getCollection()->each(function ($m) use ($roleName) {
+                $log = $m->logs->first(fn ($l) => $this->cocokAksi($l->task_name)
+                    && ($roleName === null || $l->role_name === $roleName));
+
+                $m->tanda_riwayat = $log ? $this->tandaDariTask($log->task_name) : null;
+            });
+        }
+
+        // Kartu ringkasan ikut filter tanggal & pencarian.
+        $basis = PbiApbd::query();
+        $filter($basis);
+
         $stat = [
-            'total' => PbiApbd::where(fn ($q) => $q->where('status', '!=', 'kelurahan')->orWhereNotNull('data_diisi_at'))->count(),
-            'aktivasi' => PbiApbd::where('status', 'disetujui')->count(),
-            'ditolak' => PbiApbd::where('status', 'ditolak')->count(),
+            'total' => (clone $basis)->where(fn ($q) => $q->where('status', '!=', 'kelurahan')->orWhereNotNull('data_diisi_at'))->count(),
+            'aktivasi' => (clone $basis)->where('status', 'disetujui')->count(),
+            'ditolak' => (clone $basis)->where('status', 'ditolak')->count(),
         ];
 
-        return view("admin.pbi-{$tahap}.index", compact('tahap', 'cfg', 'ajuan', 'stat'));
+        return view("admin.pbi-{$tahap}.index", compact('tahap', 'cfg', 'ajuan', 'stat', 'tab'));
+    }
+
+    /** Awalan task_name pada log yang menandai tahap meneruskan / mengembalikan / menolak. */
+    private const AKSI_TASK = ['Meneruskan ke', 'Mengembalikan ke', 'Aktivasi', 'Menolak', 'Tolak'];
+
+    private function cocokAksi(?string $task): bool
+    {
+        return $task !== null && Str::startsWith($task, self::AKSI_TASK);
+    }
+
+    private function tandaDariTask(string $task): string
+    {
+        if (str_starts_with($task, 'Mengembalikan')) {
+            return 'dikembalikan';
+        }
+        if (str_starts_with($task, 'Menolak') || str_starts_with($task, 'Tolak')) {
+            return 'ditolak';
+        }
+
+        if (str_starts_with($task, 'Aktivasi')) {
+            return 'diaktivasi'; // hanya BPJS (tahap terakhir)
+        }
+
+        return 'diteruskan'; // Meneruskan ke ...
+    }
+
+    /** Batasi query log ke aksi tahap (dan role user bila diketahui). */
+    private function logAksi($logQuery, ?string $roleName)
+    {
+        return $logQuery
+            ->where(function ($w) {
+                foreach (self::AKSI_TASK as $awalan) {
+                    $w->orWhere('task_name', 'like', $awalan . '%');
+                }
+            })
+            ->when($roleName, fn ($q) => $q->where('role_name', $roleName));
     }
 
     public function show(Request $request, PbiApbd $pbiApbd)

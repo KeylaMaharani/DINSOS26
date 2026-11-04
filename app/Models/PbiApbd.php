@@ -143,6 +143,15 @@ class PbiApbd extends Model
         return $this->hasMany(PbiApbdDiagnosaLog::class)->latest();
     }
 
+    /**
+     * Jawaban Ground Check per parameter untuk permohonan ini
+     * (tabel pbi_apbd_gc_jawabans, unik per pbi_apbd_id + parameter_id).
+     */
+    public function gcJawabans()
+    {
+        return $this->hasMany(GcPbiJawaban::class, 'pbi_apbd_id');
+    }
+
     public function statusLabel(): string
     {
         return self::STATUS_LABELS[$this->status] ?? $this->status;
