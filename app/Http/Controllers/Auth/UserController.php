@@ -27,6 +27,7 @@ class UserController
             ->when($search !== "", function ($q) use ($search) {
                 $q->where(function ($w) use ($search) {
                     $w->where("username", "like", "%{$search}%")
+                        ->orWhere("name", "like", "%{$search}%")
                         ->orWhere("email", "like", "%{$search}%")
                         ->orWhereHas("role", fn ($r) => $r->where("name", "like", "%{$search}%"));
                 });
@@ -49,6 +50,8 @@ class UserController
             "username.max" => "Username maksimal 255 karakter.",
             "username.unique" => "Username sudah digunakan, silakan pilih yang lain.",
 
+            "name.max" => "Nama lengkap maksimal 255 karakter.",
+
             "email.required" => "Email wajib diisi.",
             "email.email" => "Format email tidak valid.",
             "email.max" => "Email maksimal 255 karakter.",
@@ -63,6 +66,10 @@ class UserController
 
             "kecamatan.max" => "Kecamatan maksimal 100 karakter.",
             "kelurahan.max" => "Kelurahan maksimal 100 karakter.",
+
+            "nip.max" => "NIP maksimal 30 karakter.",
+            "pangkat.max" => "Pangkat maksimal 100 karakter.",
+            "jabatan.max" => "Jabatan maksimal 100 karakter.",
         ];
     }
 
@@ -75,6 +82,17 @@ class UserController
         ];
     }
 
+    /** Nama lengkap + data penandatangan surat (dipakai pada surat pengantar / suket). */
+    private function profilRules(): array
+    {
+        return [
+            "name" => ["nullable", "string", "max:255"],
+            "nip" => ["nullable", "string", "max:30"],
+            "pangkat" => ["nullable", "string", "max:100"],
+            "jabatan" => ["nullable", "string", "max:100"],
+        ];
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -83,18 +101,20 @@ class UserController
             "role_id" => ["required", "exists:roles,id"],
             "password" => ["required", "string", "min:6", "confirmed"],
             ...$this->wilayahRules(),
+            ...$this->profilRules(),
         ], $this->userMessages());
 
         User::create([
-            // Form "Tambah Pengguna" tidak punya field nama terpisah, sedangkan
-            // kolom `name` di tabel users NOT NULL tanpa default -- jadi
-            // dipakaikan nilai username supaya insert tidak gagal.
-            "name" => $validated["username"],
+            // Kolom `name` NOT NULL: kalau Nama Lengkap tidak diisi, pakai username.
+            "name" => filled($validated["name"] ?? null) ? trim($validated["name"]) : $validated["username"],
             "username" => $validated["username"],
             "email" => $validated["email"],
             "role_id" => $validated["role_id"],
             "kecamatan" => $validated["kecamatan"] ?? null,
             "kelurahan" => $validated["kelurahan"] ?? null,
+            "nip" => $validated["nip"] ?? null,
+            "pangkat" => $validated["pangkat"] ?? null,
+            "jabatan" => $validated["jabatan"] ?? null,
             // Hanya hash. Password asli TIDAK disimpan / ditampilkan di mana pun.
             "password" => Hash::make($validated["password"]),
         ]);
@@ -105,7 +125,9 @@ class UserController
 
     public function edit(User $akun)
     {
-        return response()->json($akun->only(["id", "username", "email", "role_id", "kecamatan", "kelurahan"]));
+        return response()->json($akun->only([
+            "id", "username", "name", "email", "role_id", "kecamatan", "kelurahan", "nip", "pangkat", "jabatan",
+        ]));
     }
 
     public function update(Request $request, User $akun)
@@ -116,13 +138,21 @@ class UserController
             "role_id" => ["required", "exists:roles,id"],
             "password" => ["nullable", "string", "min:6", "confirmed"],
             ...$this->wilayahRules(),
+            ...$this->profilRules(),
         ], $this->userMessages());
 
         $akun->username = $validated["username"];
+        // Nama lengkap dikosongkan -> jangan timpa nama yang sudah ada dengan string kosong
+        if (filled($validated["name"] ?? null)) {
+            $akun->name = trim($validated["name"]);
+        }
         $akun->email = $validated["email"];
         $akun->role_id = $validated["role_id"];
         $akun->kecamatan = $validated["kecamatan"] ?? null;
         $akun->kelurahan = $validated["kelurahan"] ?? null;
+        $akun->nip = $validated["nip"] ?? null;
+        $akun->pangkat = $validated["pangkat"] ?? null;
+        $akun->jabatan = $validated["jabatan"] ?? null;
 
         if (!empty($validated["password"])) {
             $akun->password = Hash::make($validated["password"]);

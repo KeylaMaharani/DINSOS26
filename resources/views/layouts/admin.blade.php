@@ -209,7 +209,29 @@
 
         // Angka badge merah di menu = jumlah permohonan yang menunggu tindakan role ini
         // (lihat App\Support\MenuBadge). Dipakai lewat key 'badge' di peta menu di bawah.
-        $notif = \App\Support\MenuBadge::untuk(auth()->user());
+        $notif = class_exists(\App\Support\MenuBadge::class) ? \App\Support\MenuBadge::untuk(auth()->user()) : [];
+
+        // Badge Ground Check: jumlah keluarga (No KK) yang belum selesai di-ground check.
+        // Dihitung langsung di sini (tanpa kelas tambahan); tahun Ground Check = 2026.
+        $notif = (array) $notif;
+        $punyaGc = $currentRole && ($currentRole->isSuperAdmin() || $currentRole->hasModule('ground-check'));
+        $notif['ground_check'] = $punyaGc
+            ? \App\Models\GcSasaran::query()
+                ->whereDoesntHave('verifikasis', fn($v) => $v->where('tahun', 2026)->where('status_entry', 'submit'))
+                ->distinct()
+                ->count('no_kk')
+            : 0;
+
+        // Badge Ngopi Pagi: jumlah kasus di tiap tahap.
+        $punyaNgopi = $currentRole && ($currentRole->isSuperAdmin() || $currentRole->hasModule('dayasos-ngopi-pagi'));
+        $ngopiHitung = $punyaNgopi
+            ? \App\Models\NgopiPagiKonsultasi::selectRaw('tahap, count(*) as total')
+                ->groupBy('tahap')
+                ->pluck('total', 'tahap')
+            : collect();
+        foreach (['chat_masuk', 'screening', 'konsultasi', 'tindak_lanjut', 'monitoring', 'konfirmasi'] as $t) {
+            $notif['ngopi_' . $t] = (int) ($ngopiHitung[$t] ?? 0);
+        }
 
         // URL file PDF panduan penggunaan yang akan ditampilkan sebagai flipbook.
         // Taruh file PDF-nya di public/assets/help/panduan-penggunaan.pdf,
@@ -299,8 +321,8 @@
 
             // ---------- PFM ----------
             // Catatan: "Approval PBI APBD" TIDAK lagi di dalam folder PFM.
-            // Tiap bagian (Operator, Kabid, Kadis, Dinkes, BPJS) sekarang jadi
-            // menu tingkat atas sendiri di grup "Bagian" (lihat di bawah).
+            // Tiap tahap approval (Operator, Kabid, Kadis, Dinkes, BPJS) sekarang jadi
+            // menu tingkat atas sendiri di grup "Approval PBI APBD" (lihat di bawah).
             [
                 'label' => 'Bidang P. Fakir Miskin',
                 'icon' => 'account_balance_wallet',
@@ -310,7 +332,12 @@
                         'label' => 'PBI APBD',
                         'module' => 'pbi-apbd',
                         'children' => [
-                            ['label' => 'Ajuan', 'route' => 'pbi-apbd.ajuan.index', 'match' => ['pbi-apbd.ajuan.*'], 'badge' => 'pbi_ajuan'],
+                            [
+                                'label' => 'Ajuan',
+                                'route' => 'pbi-apbd.ajuan.index',
+                                'match' => ['pbi-apbd.ajuan.*'],
+                                'badge' => 'pbi_ajuan',
+                            ],
                             ['label' => 'Arsip', 'route' => 'pbi-apbd.arsip.index', 'match' => ['pbi-apbd.arsip.*']],
                             ['label' => 'Monitoring', 'route' => 'pbi-apbd.monitoring.index'],
                         ],
@@ -319,7 +346,11 @@
                         'label' => 'Kartu KKS',
                         'module' => 'kartu-kks',
                         'children' => [
-                            ['label' => 'Ajuan', 'route' => 'kartu-kks.ajuan', 'match' => ['kartu-kks.show', 'kartu-kks.detail*', 'kartu-kks.proses']],
+                            [
+                                'label' => 'Ajuan',
+                                'route' => 'kartu-kks.ajuan',
+                                'match' => ['kartu-kks.show', 'kartu-kks.detail*', 'kartu-kks.proses'],
+                            ],
                             ['label' => 'Arsip', 'route' => 'kartu-kks.arsip'],
                             ['label' => 'Monitoring', 'route' => 'kartu-kks.monitoring'],
                         ],
@@ -328,13 +359,29 @@
                         'label' => 'DTSEN',
                         'module' => 'dtsen',
                         'children' => [
-                            ['label' => 'Ajuan', 'route' => 'dtsen.ajuan', 'match' => ['dtsen.show', 'dtsen.detail*', 'dtsen.bansos.*', 'dtsen.lampiran.*', 'dtsen.proses']],
+                            [
+                                'label' => 'Ajuan',
+                                'route' => 'dtsen.ajuan',
+                                'match' => [
+                                    'dtsen.show',
+                                    'dtsen.detail*',
+                                    'dtsen.bansos.*',
+                                    'dtsen.lampiran.*',
+                                    'dtsen.proses',
+                                ],
+                            ],
                             ['label' => 'Arsip', 'route' => 'dtsen.arsip'],
                             ['label' => 'Monitoring', 'route' => 'dtsen.monitoring'],
                         ],
                     ],
                     // Ground Check ada di dalam modul PFM (hak akses tetap 'ground-check')
-                    ['label' => 'Ground Check', 'route' => 'ground-check.index', 'match' => ['ground-check.*'], 'module' => 'ground-check'],
+                    [
+                        'label' => 'Ground Check',
+                        'route' => 'ground-check.index',
+                        'match' => ['ground-check.*'],
+                        'module' => 'ground-check',
+                        'badge' => 'ground_check',
+                    ],
                 ],
             ],
 
@@ -355,7 +402,11 @@
                         'label' => 'Sigap Bencana',
                         'module' => 'sigap-bencana',
                         'children' => [
-                            ['label' => 'Laporan Bantuan Bencana', 'route' => 'sigap.index', 'match' => ['sigap.show', 'sigap.create']],
+                            [
+                                'label' => 'Laporan Bantuan Bencana',
+                                'route' => 'sigap.index',
+                                'match' => ['sigap.show', 'sigap.create'],
+                            ],
                             ['label' => 'Stock Barang', 'route' => 'sigap.stok.index', 'match' => ['sigap.stok.*']],
                             ['label' => 'Laporan', 'route' => 'perlinsos.laporan'],
                         ],
@@ -370,15 +421,15 @@
                 'children' => $rehabChildren,
             ],
 
-            // ==================== BAGIAN (Approval PBI APBD) ====================
-            // Dulu satu folder "Approval PBI APBD"; sekarang tiap bagian berdiri
+            // ==================== APPROVAL PBI APBD ====================
+            // Dulu satu folder "Approval PBI APBD"; sekarang tiap tahap berdiri
             // sendiri sebagai menu tingkat atas, sama seperti "Verifikasi Kelurahan".
             // Nama route TIDAK berubah (pbi-approval.{tahap}.*), jadi routes/web.php
             // dan controller tidak perlu diubah selain nama view-nya.
-            ['separator' => 'Bagian'],
+            ['separator' => 'Approval PBI APBD'],
 
             [
-                'label' => 'Bagian Operator Dinsos',
+                'label' => 'Operator Dinas Sosial',
                 'icon' => 'support_agent',
                 'route' => 'pbi-approval.operator.index',
                 'match' => ['pbi-approval.operator.*'],
@@ -386,7 +437,7 @@
                 'badge' => 'pbi_operator',
             ],
             [
-                'label' => 'Bagian Kabid',
+                'label' => 'Kepala Bidang',
                 'icon' => 'supervisor_account',
                 'route' => 'pbi-approval.kabid.index',
                 'match' => ['pbi-approval.kabid.*'],
@@ -394,7 +445,7 @@
                 'badge' => 'pbi_kabid',
             ],
             [
-                'label' => 'Bagian Kadis',
+                'label' => 'Kepala Dinas',
                 'icon' => 'verified_user',
                 'route' => 'pbi-approval.kadis.index',
                 'match' => ['pbi-approval.kadis.*'],
@@ -402,7 +453,7 @@
                 'badge' => 'pbi_kadis',
             ],
             [
-                'label' => 'Bagian Dinkes',
+                'label' => 'Dinas Kesehatan',
                 'icon' => 'local_hospital',
                 'route' => 'pbi-approval.dinkes.index',
                 'match' => ['pbi-approval.dinkes.*'],
@@ -410,7 +461,7 @@
                 'badge' => 'pbi_dinkes',
             ],
             [
-                'label' => 'Bagian BPJS',
+                'label' => 'BPJS',
                 'icon' => 'health_and_safety',
                 'route' => 'pbi-approval.bpjs.index',
                 'match' => ['pbi-approval.bpjs.*'],
@@ -472,10 +523,26 @@
                 'superadmin_only' => true,
                 'children' => [
                     ['label' => 'Kriteria PBI', 'route' => 'master.kriteria.index', 'match' => ['master.kriteria.*']],
-                    ['label' => 'Kriteria Ground Check', 'route' => 'master.gc-kriteria.index', 'match' => ['master.gc-kriteria.*']],
-                    ['label' => 'Lapangan Usaha & Pekerjaan', 'route' => 'master.lapangan-usaha.index', 'match' => ['master.lapangan-usaha.*']],
-                    ['label' => 'Keterampilan Khusus', 'route' => 'master.keterampilan.index', 'match' => ['master.keterampilan.*']],
-                    ['label' => 'Penyakit Kronis/Menahun', 'route' => 'master.penyakit-kronis.index', 'match' => ['master.penyakit-kronis.*']],
+                    [
+                        'label' => 'Kriteria Ground Check',
+                        'route' => 'master.gc-kriteria.index',
+                        'match' => ['master.gc-kriteria.*'],
+                    ],
+                    [
+                        'label' => 'Lapangan Usaha & Pekerjaan',
+                        'route' => 'master.lapangan-usaha.index',
+                        'match' => ['master.lapangan-usaha.*'],
+                    ],
+                    [
+                        'label' => 'Keterampilan Khusus',
+                        'route' => 'master.keterampilan.index',
+                        'match' => ['master.keterampilan.*'],
+                    ],
+                    [
+                        'label' => 'Penyakit Kronis/Menahun',
+                        'route' => 'master.penyakit-kronis.index',
+                        'match' => ['master.penyakit-kronis.*'],
+                    ],
                 ],
             ],
         ];
@@ -519,7 +586,11 @@
 
         // Bulatan merah berisi angka. $attrs = atribut tambahan (mis. x-show Alpine).
         $badgePill = fn(int $n, string $attrs = '') => $n > 0
-            ? '<span ' . $attrs . ' class="ml-auto min-w-[20px] h-5 px-1.5 shrink-0 rounded-full bg-red-500 text-white text-[11px] font-bold leading-none flex items-center justify-center">' . ($n > 99 ? '99+' : $n) . '</span>'
+            ? '<span ' .
+                $attrs .
+                ' class="ml-auto min-w-[20px] h-5 px-1.5 shrink-0 rounded-full bg-red-500 text-white text-[11px] font-bold leading-none flex items-center justify-center">' .
+                ($n > 99 ? '99+' : $n) .
+                '</span>'
             : '';
 
         // Node aktif jika halaman sekarang ada di dalamnya (folder: salah satu turunannya)
@@ -572,7 +643,13 @@
         $flatten($menuItems);
 
         // Render anak menu (rekursif, kedalaman berapa pun). $floating = versi panel melayang (sidebar ciut)
-        $renderChildren = function (array $nodes, bool $floating) use (&$renderChildren, $visible, $active, $badgeOf, $badgePill) {
+        $renderChildren = function (array $nodes, bool $floating) use (
+            &$renderChildren,
+            $visible,
+            $active,
+            $badgeOf,
+            $badgePill,
+        ) {
             $on = $floating ? 'bg-brand/10 text-brand font-semibold' : 'bg-white/20 text-white font-semibold';
             $off = $floating
                 ? 'text-on-surface-variant hover:bg-surface-container'
@@ -590,19 +667,32 @@
                     $open = $active($n) ? 'true' : 'false';
                     $html .=
                         '<div x-data="{ g: ' . $open . ' }">' .
-                        '<button type="button" x-on:click="g = !g" class="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-[13px] font-semibold transition-colors ' . $head . '">' .
-                        '<span class="text-left">' . e($n['label']) . '</span>' .
+                        '<button type="button" x-on:click="g = !g" class="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-[13px] font-semibold transition-colors ' .
+                        $head .
+                        '">' .
+                        '<span class="text-left">' .
+                        e($n['label']) .
+                        '</span>' .
                         // Badge folder hanya tampil saat tertutup (saat terbuka, badge ada di anaknya)
                         $badgePill($badgeOf($n), 'x-show="!g"') .
                         '<span class="material-symbols-outlined text-[16px] transition-transform" :class="g ? \'rotate-180\' : \'\'">expand_more</span>' .
                         '</button>' .
-                        '<div x-show="g" x-cloak class="ml-3 pl-3 border-l ' . $line . ' space-y-0.5">' .
+                        '<div x-show="g" x-cloak class="ml-3 pl-3 border-l ' .
+                        $line .
+                        ' space-y-0.5">' .
                         $renderChildren($n['children'], $floating) .
                         '</div></div>';
                 } else {
                     $html .=
-                        '<a href="' . route($n['route']) . '" class="flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg text-[13px] transition-colors ' .
-                        ($active($n) ? $on : $off) . '"><span>' . e($n['label']) . '</span>' . $badgePill($badgeOf($n)) . '</a>';
+                        '<a href="' .
+                        route($n['route']) .
+                        '" class="flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg text-[13px] transition-colors ' .
+                        ($active($n) ? $on : $off) .
+                        '"><span>' .
+                        e($n['label']) .
+                        '</span>' .
+                        $badgePill($badgeOf($n)) .
+                        '</a>';
                 }
             }
 
@@ -667,7 +757,7 @@
                                    oleh overflow nav)
                  - Nav SELALU bisa di-scroll vertikal agar ikon tidak tumpah keluar card
                  - Class `sidebar-scroll` memunculkan scrollbar tipis (lihat <style> di atas)
-                 - Separator     : label grup (Bidang / Bagian / Data Master) saat lebar, garis tipis saat ciut --}}
+                 - Separator     : label grup (Bidang / Approval PBI APBD / Data Master) saat lebar, garis tipis saat ciut --}}
             {{-- Pembungkus nav + indikator scroll:
                  - up/down   : true jika masih ada menu tersembunyi di atas/bawah
                  - check()   : dihitung ulang saat scroll, resize, accordion dibuka/ditutup,
@@ -681,60 +771,59 @@
                     this.up = n.scrollTop > 4;
                     this.down = n.scrollTop + n.clientHeight < n.scrollHeight - 4;
                 }
-            }"
-                x-init="$nextTick(() => check());
-                new ResizeObserver(() => check()).observe($refs.nav);
-                new MutationObserver(() => $nextTick(() => check())).observe($refs.nav, { childList: true, subtree: true, attributes: true });
-                $watch('collapsed', () => setTimeout(() => check(), 250));"
+            }" x-init="$nextTick(() => check());
+            new ResizeObserver(() => check()).observe($refs.nav);
+            new MutationObserver(() => $nextTick(() => check())).observe($refs.nav, { childList: true, subtree: true, attributes: true });
+            $watch('collapsed', () => setTimeout(() => check(), 250));"
                 @resize.window="check()">
 
-            <nav x-ref="nav" @scroll.passive="check()"
-                class="sidebar-scroll h-full px-3 pt-2 pb-12 space-y-1.5 overflow-y-auto overflow-x-hidden">
-                @foreach ($menuItems as $top)
-                    @if (isset($top['separator']))
-                        {{-- Pemisah grup menu --}}
-                        <div class="pt-2">
-                            <div class="mx-3 border-t border-white/15"></div>
-                            <p x-show="!collapsed"
-                                class="px-3 pt-2 pb-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-white/50">
-                                {{ $top['separator'] }}
-                            </p>
-                        </div>
-                        @continue
-                    @endif
+                <nav x-ref="nav" @scroll.passive="check()"
+                    class="sidebar-scroll h-full px-3 pt-2 pb-12 space-y-1.5 overflow-y-auto overflow-x-hidden">
+                    @foreach ($menuItems as $top)
+                        @if (isset($top['separator']))
+                            {{-- Pemisah grup menu --}}
+                            <div class="pt-2">
+                                <div class="mx-3 border-t border-white/15"></div>
+                                <p x-show="!collapsed"
+                                    class="px-3 pt-2 pb-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-white/50">
+                                    {{ $top['separator'] }}
+                                </p>
+                            </div>
+                            @continue
+                        @endif
 
-                    @php
-                        $isAct = $active($top);
-                        $cnt = $badgeOf($top);
-                        // Ikon menu tingkat atas; jika lupa diisi, pakai 'circle' agar sidebar tidak error
-                        $topIcon = $top['icon'] ?? 'circle';
-                    @endphp
+                        @php
+                            $isAct = $active($top);
+                            $cnt = $badgeOf($top);
+                            // Ikon menu tingkat atas; jika lupa diisi, pakai 'circle' agar sidebar tidak error
+                            $topIcon = $top['icon'] ?? 'circle';
+                        @endphp
 
-                    @if (!isset($top['children']))
-                        {{-- Menu tunggal (link langsung) --}}
-                        <a href="{{ route($top['route']) }}" :title="collapsed ? '{{ $top['label'] }}' : null"
-                            :class="collapsed ? 'w-12 mx-auto justify-center' : 'w-full px-3 gap-3'"
-                            class="relative h-12 rounded-xl flex items-center transition-colors
+                        @if (!isset($top['children']))
+                            {{-- Menu tunggal (link langsung) --}}
+                            <a href="{{ route($top['route']) }}" :title="collapsed ? '{{ $top['label'] }}' : null"
+                                :class="collapsed ? 'w-12 mx-auto justify-center' : 'w-full px-3 gap-3'"
+                                class="relative h-12 rounded-xl flex items-center transition-colors
                                 {{ $isAct ? 'bg-white/25 text-white shadow-inner' : 'text-white/80 hover:bg-white/15 hover:text-white' }}">
-                            <span class="material-symbols-outlined text-[24px] shrink-0">{{ $topIcon }}</span>
-                            <span x-show="!collapsed" class="text-sm font-medium truncate">{{ $top['label'] }}</span>
-                            @if ($cnt > 0)
-                                {{-- Sidebar lebar: angka. Sidebar ciut: titik merah di pojok ikon --}}
+                                <span class="material-symbols-outlined text-[24px] shrink-0">{{ $topIcon }}</span>
                                 <span x-show="!collapsed"
-                                    class="ml-auto min-w-[20px] h-5 px-1.5 shrink-0 rounded-full bg-red-500 text-white text-[11px] font-bold leading-none flex items-center justify-center">{{ $cnt > 99 ? '99+' : $cnt }}</span>
-                                <span x-show="collapsed" x-cloak
-                                    class="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-brand"></span>
-                            @endif
-                        </a>
-                    @else
-                        {{-- Folder (Portal, PFM, Dayasos, Perlinsos, Rehabsos, Master Kriteria) --}}
-                        <div class="relative" x-data="{ open: false, top: 0, maxH: 400 }"
-                            x-init="open = {{ $isAct ? 'true' : 'false' }} && !collapsed;
+                                    class="text-sm font-medium truncate">{{ $top['label'] }}</span>
+                                @if ($cnt > 0)
+                                    {{-- Sidebar lebar: angka. Sidebar ciut: titik merah di pojok ikon --}}
+                                    <span x-show="!collapsed"
+                                        class="ml-auto min-w-[20px] h-5 px-1.5 shrink-0 rounded-full bg-red-500 text-white text-[11px] font-bold leading-none flex items-center justify-center">{{ $cnt > 99 ? '99+' : $cnt }}</span>
+                                    <span x-show="collapsed" x-cloak
+                                        class="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-brand"></span>
+                                @endif
+                            </a>
+                        @else
+                            {{-- Folder (Portal, PFM, Dayasos, Perlinsos, Rehabsos, Master Kriteria) --}}
+                            <div class="relative" x-data="{ open: false, top: 0, maxH: 400 }" x-init="open = {{ $isAct ? 'true' : 'false' }} && !collapsed;
                             $watch('collapsed', function(v) { open = v ? false : {{ $isAct ? 'true' : 'false' }}; })"
-                            @click.outside="if (collapsed) open = false">
+                                @click.outside="if (collapsed) open = false">
 
-                            <button
-                                @click="
+                                <button
+                                    @click="
                                     if (collapsed) {
                                         const r = $el.getBoundingClientRect();
                                         const a = $el.closest('aside').getBoundingClientRect();
@@ -743,51 +832,51 @@
                                     }
                                     open = !open
                                 "
-                                type="button" :title="collapsed ? '{{ $top['label'] }}' : null"
-                                :class="collapsed ? 'w-12 mx-auto justify-center' : 'w-full px-3 gap-3'"
-                                class="relative h-12 rounded-xl flex items-center transition-colors
+                                    type="button" :title="collapsed ? '{{ $top['label'] }}' : null"
+                                    :class="collapsed ? 'w-12 mx-auto justify-center' : 'w-full px-3 gap-3'"
+                                    class="relative h-12 rounded-xl flex items-center transition-colors
                                     {{ $isAct ? 'bg-white/25 text-white shadow-inner' : 'text-white/80 hover:bg-white/15 hover:text-white' }}">
-                                <span class="material-symbols-outlined text-[24px] shrink-0">{{ $topIcon }}</span>
-                                <span x-show="!collapsed"
-                                    class="flex-1 text-left text-sm font-medium truncate">{{ $top['label'] }}</span>
-                                @if ($cnt > 0)
-                                    {{-- Angka hanya saat folder tertutup; saat dibuka, angka ada di menu anaknya --}}
-                                    <span x-show="!collapsed && !open"
-                                        class="min-w-[20px] h-5 px-1.5 shrink-0 rounded-full bg-red-500 text-white text-[11px] font-bold leading-none flex items-center justify-center">{{ $cnt > 99 ? '99+' : $cnt }}</span>
-                                    <span x-show="collapsed" x-cloak
-                                        class="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-brand"></span>
-                                @endif
-                                <span x-show="!collapsed"
-                                    class="material-symbols-outlined text-[18px] transition-transform"
-                                    :class="open ? 'rotate-180' : ''">expand_more</span>
-                            </button>
+                                    <span
+                                        class="material-symbols-outlined text-[24px] shrink-0">{{ $topIcon }}</span>
+                                    <span x-show="!collapsed"
+                                        class="flex-1 text-left text-sm font-medium truncate">{{ $top['label'] }}</span>
+                                    @if ($cnt > 0)
+                                        {{-- Angka hanya saat folder tertutup; saat dibuka, angka ada di menu anaknya --}}
+                                        <span x-show="!collapsed && !open"
+                                            class="min-w-[20px] h-5 px-1.5 shrink-0 rounded-full bg-red-500 text-white text-[11px] font-bold leading-none flex items-center justify-center">{{ $cnt > 99 ? '99+' : $cnt }}</span>
+                                        <span x-show="collapsed" x-cloak
+                                            class="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-brand"></span>
+                                    @endif
+                                    <span x-show="!collapsed"
+                                        class="material-symbols-outlined text-[18px] transition-transform"
+                                        :class="open ? 'rotate-180' : ''">expand_more</span>
+                                </button>
 
-                            {{-- Accordion (sidebar lebar) --}}
-                            <div x-show="open && !collapsed" x-cloak
-                                x-transition:enter="transition ease-out duration-150"
-                                x-transition:enter-start="opacity-0 -translate-y-1"
-                                x-transition:enter-end="opacity-100 translate-y-0"
-                                class="mt-1 ml-6 pl-4 border-l border-white/20 space-y-0.5">
-                                {!! $renderChildren($top['children'], false) !!}
-                            </div>
+                                {{-- Accordion (sidebar lebar) --}}
+                                <div x-show="open && !collapsed" x-cloak
+                                    x-transition:enter="transition ease-out duration-150"
+                                    x-transition:enter-start="opacity-0 -translate-y-1"
+                                    x-transition:enter-end="opacity-100 translate-y-0"
+                                    class="mt-1 ml-6 pl-4 border-l border-white/20 space-y-0.5">
+                                    {!! $renderChildren($top['children'], false) !!}
+                                </div>
 
-                            {{-- Panel melayang (sidebar ciut).
+                                {{-- Panel melayang (sidebar ciut).
                                  `fixed` + <aside> ber-transform => posisinya mengacu ke aside,
                                  sehingga top dihitung relatif terhadap aside (lihat @click tombol di atas).
                                  Class `sidebar-scroll-light` = scrollbar tipis untuk latar putih. --}}
-                            <div x-show="open && collapsed" x-cloak
-                                :style="`top:${top}px; max-height:${maxH}px`"
-                                x-transition:enter="transition ease-out duration-150"
-                                x-transition:enter-start="opacity-0 -translate-x-1"
-                                x-transition:enter-end="opacity-100 translate-x-0"
-                                class="sidebar-scroll-light fixed left-full ml-5 w-64 overflow-y-auto bg-white text-on-surface rounded-2xl shadow-xl border border-outline-variant/30 p-2 z-50">
-                                <p class="px-3 py-1.5 text-xs font-bold text-brand">{{ $top['label'] }}</p>
-                                {!! $renderChildren($top['children'], true) !!}
+                                <div x-show="open && collapsed" x-cloak :style="`top:${top}px; max-height:${maxH}px`"
+                                    x-transition:enter="transition ease-out duration-150"
+                                    x-transition:enter-start="opacity-0 -translate-x-1"
+                                    x-transition:enter-end="opacity-100 translate-x-0"
+                                    class="sidebar-scroll-light fixed left-full ml-5 w-64 overflow-y-auto bg-white text-on-surface rounded-2xl shadow-xl border border-outline-variant/30 p-2 z-50">
+                                    <p class="px-3 py-1.5 text-xs font-bold text-brand">{{ $top['label'] }}</p>
+                                    {!! $renderChildren($top['children'], true) !!}
+                                </div>
                             </div>
-                        </div>
-                    @endif
-                @endforeach
-            </nav>
+                        @endif
+                    @endforeach
+                </nav>
 
                 {{-- Indikator: masih ada menu di ATAS (muncul setelah di-scroll ke bawah) --}}
                 <div x-show="up" x-cloak x-transition.opacity
@@ -840,20 +929,18 @@
                     class="ml-auto min-w-0 max-w-full h-14 rounded-xl bg-brand shadow-[0_6px_18px_rgba(10,92,168,0.30)] ring-1 ring-white/20 flex items-center gap-3 px-3 sm:px-5">
 
                     {{-- Pencarian menu (live, hasil mengikuti hak akses role) --}}
-                    <div class="relative flex min-w-0"
-                        x-data="{
-                            q: '',
-                            open: false,
-                            idx: @js($searchIndex),
-                            get hasil() {
-                                const k = this.q.trim().toLowerCase();
-                                if (!k) return [];
-                                return this.idx
-                                    .filter(i => (i.label + ' ' + i.path).toLowerCase().includes(k))
-                                    .slice(0, 8);
-                            }
-                        }"
-                        @click.outside="open = false">
+                    <div class="relative flex min-w-0" x-data="{
+                        q: '',
+                        open: false,
+                        idx: @js($searchIndex),
+                        get hasil() {
+                            const k = this.q.trim().toLowerCase();
+                            if (!k) return [];
+                            return this.idx
+                                .filter(i => (i.label + ' ' + i.path).toLowerCase().includes(k))
+                                .slice(0, 8);
+                        }
+                    }" @click.outside="open = false">
                         <label
                             class="w-40 sm:w-56 max-w-full h-9 rounded-lg bg-surface-container-low flex items-center gap-2 px-3 shadow-inner">
                             <span class="material-symbols-outlined text-[18px] text-on-surface-variant">search</span>
@@ -886,14 +973,20 @@
                          Isi & perilakunya ada di partials/lonceng.blade.php. --}}
                     @php
                         $daftarNotif = [];
-                        if (($notif['pbi_kelurahan'] ?? 0) > 0 && \Illuminate\Support\Facades\Route::has('pbi-kelurahan.index')) {
+                        if (
+                            ($notif['pbi_kelurahan'] ?? 0) > 0 &&
+                            \Illuminate\Support\Facades\Route::has('pbi-kelurahan.index')
+                        ) {
                             $daftarNotif[] = [
                                 'judul' => 'Verifikasi Kelurahan',
                                 'jumlah' => (int) $notif['pbi_kelurahan'],
                                 'url' => route('pbi-kelurahan.index'),
                             ];
                         }
-                        if (($notif['pbi_ajuan'] ?? 0) > 0 && \Illuminate\Support\Facades\Route::has('pbi-apbd.ajuan.index')) {
+                        if (
+                            ($notif['pbi_ajuan'] ?? 0) > 0 &&
+                            \Illuminate\Support\Facades\Route::has('pbi-apbd.ajuan.index')
+                        ) {
                             $daftarNotif[] = [
                                 'judul' => 'Ajuan PBI APBD',
                                 'jumlah' => (int) $notif['pbi_ajuan'],

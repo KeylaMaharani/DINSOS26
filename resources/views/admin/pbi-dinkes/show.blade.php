@@ -95,9 +95,10 @@
         <div class="px-5 py-4 border-b border-outline-variant/40">
             <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">attach_file</span> Lampiran & Surat Keterangan</h3>
         </div>
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-5">
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-5 pb-16">
             @foreach ([
                 'surat_keterangan' => 'Surat Keterangan (Suket)',
+                'scan_surat_pengantar' => 'Surat Pengantar Kelurahan',
                 'scan_ktp' => 'Scan KTP', 'scan_kk' => 'Scan Kartu Keluarga',
                 'foto_rumah' => 'Foto Rumah', 'foto_kamar_mandi' => 'Foto Kamar Mandi',
                 'foto_selfie_ktp' => 'Foto Selfie dengan KTP', 'surat_rawat_inap' => 'Surat Ket. Rawat Inap',
@@ -181,8 +182,8 @@
                 @csrf
                 <input type="hidden" name="ids[]" value="{{ $data->id }}">
                 <div class="mb-5">
-                    <label class="block text-sm font-bold mb-2">Catatan <span class="text-xs font-normal text-on-surface-variant">(wajib untuk Back / Reject)</span></label>
-                    <textarea name="catatan" rows="3" class="w-full px-4 py-3 rounded-lg border border-outline-variant/60 text-sm">{{ old('catatan') }}</textarea>
+                    <label class="block text-sm font-bold mb-2">Catatan <span class="text-error">*</span></label>
+                    <textarea name="catatan" rows="3" required class="w-full px-4 py-3 rounded-lg border border-outline-variant/60 text-sm">{{ old('catatan') }}</textarea>
                 </div>
                 <div class="flex flex-col sm:flex-row flex-wrap items-center gap-3">
                     <button type="submit" name="aksi" value="back" class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-5 py-2.5 rounded-lg border border-outline-variant hover:bg-surface-container-highest text-sm font-bold">

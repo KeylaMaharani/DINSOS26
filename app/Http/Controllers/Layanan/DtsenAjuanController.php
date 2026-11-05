@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DtsenPermohonan;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\GroundCheckSinkron;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -91,6 +92,15 @@ class DtsenAjuanController extends Controller
 
             return $permohonan;
         });
+
+        GroundCheckSinkron::individu([
+            'nik' => $validated['nik'],
+            'nama' => $validated['nama'],
+            'no_kk' => $validated['no_kk'],
+            'tanggal_lahir' => $validated['tanggal_lahir'],
+            'alamat' => $validated['alamat'],
+            'kelurahan' => $validated['kelurahan'],
+        ]);
 
         return redirect()->route('layanan.dtsen.riwayat')
             ->with('success', 'Pengajuan DTSEN berhasil dikirim, nomor permohonan #' . $permohonan->id);

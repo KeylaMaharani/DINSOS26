@@ -30,12 +30,6 @@ trait HasKriteriaSkor
         return $this->hasMany(PbiApbdJawaban::class);
     }
 
-    /** Masyarakat boleh mengisi/mengubah data selama berkas masih di Kelurahan. */
-    public function masyarakatBisaEdit(): bool
-    {
-        return $this->status === 'kelurahan';
-    }
-
     /**
      * Indeks Kumulatif = Σ (Indeks x Bobot x Indeks Terintegrasi), dibulatkan 2 desimal.
      * Dihitung dengan integer (mikro-poin) supaya pembulatan .xx5 tidak meleset akibat float.

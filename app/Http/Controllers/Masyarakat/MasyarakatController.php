@@ -13,6 +13,7 @@ use App\Models\GcPbiJawaban;
 use App\Models\GcPenyakitKronis;
 use App\Models\PbiApbdLog;
 use App\Models\PbiKriteriaParameter;
+use App\Support\GroundCheckSinkron;
 use App\Support\PbiGcForm;
 use Illuminate\Support\Str;
 use App\Models\Role;
@@ -437,6 +438,8 @@ class MasyarakatController extends Controller
 
         $pbi->anggotaKeluarga()->create($data + ['keanggotaan_bpjs' => 'Belum Terdaftar']);
 
+        $pbi->sinkronGroundCheck();
+
         return redirect()->route('masyarakat.keluarga')
             ->with('success', 'Anggota keluarga berhasil ditambahkan.');
     }
@@ -458,6 +461,8 @@ class MasyarakatController extends Controller
         $data = $this->validasiKeluarga($request, $pbi, $baris->id);
 
         $baris->update($data);
+
+        $pbi->sinkronGroundCheck();
 
         return redirect()->route('masyarakat.keluarga')
             ->with('success', 'Data anggota keluarga berhasil diperbarui.');
@@ -1140,6 +1145,7 @@ class MasyarakatController extends Controller
             // Baris snapshot yatim (parameter_id NULL) tidak disentuh.
             GcPbiJawaban::where('pbi_apbd_id', $pbiApbd->id)->whereNotNull('parameter_id')
                 ->whereNotIn('parameter_id', GcKriteriaParameter::pluck('id'))->delete();
+
             // Draft berhenti di sini: hanya lokasi (kalau sudah terambil) yang ikut disimpan.
             // Status, skor/kelas kemiskinan, data_diisi_at, dan log baru diproses saat warga menekan "Simpan Data".
             if ($draft) {
@@ -1188,13 +1194,11 @@ class MasyarakatController extends Controller
             ]);
         }
 
+        // Submit sungguhan -> anggota keluarga masuk Ground Check + notifikasi petugas
+        $pbiApbd->sinkronGroundCheck();
+
         return redirect()->route('masyarakat.dashboard')
             ->with('success', 'Data berhasil disimpan dan akan diverifikasi oleh petugas kelurahan.');
-    }
-
-    private function authorizePemilik(Request $request, PbiApbd $pbiApbd): void
-    {
-        abort_unless($pbiApbd->user_id === $request->user()->id, 403, 'Ini bukan pengajuan Anda.');
     }
 
     // ==========================================================
@@ -1341,8 +1345,28 @@ class MasyarakatController extends Controller
             }
         }
 
+        GroundCheckSinkron::individu([
+            'nik' => $validated['nik'],
+            'nama' => $validated['nama'],
+            'no_kk' => $validated['no_kk'],
+            'tanggal_lahir' => $validated['tanggal_lahir'],
+            'alamat' => $validated['alamat'],
+            'kelurahan' => $permohonan->kelurahan,
+        ]);
+
         return redirect()->route('masyarakat.dashboard')
             ->with('success', 'Data DTSEN berhasil disimpan dan akan diperiksa oleh petugas.');
+    }
+
+    /** Pemilik = pengajuan PBI APBD ada di relasi User::pengajuanPbiApbd() milik user yang login. */
+    private function authorizePemilik(Request $request, PbiApbd $pbiApbd): void
+    {
+        $milik = $request->user()
+            ->pengajuanPbiApbd()
+            ->whereKey($pbiApbd->getKey())
+            ->exists();
+
+        abort_unless($milik, 403, 'Ini bukan pengajuan Anda.');
     }
 
     /** Pemilik = pengajuan ada di relasi User::pengajuanDtsen() milik user yang login. */

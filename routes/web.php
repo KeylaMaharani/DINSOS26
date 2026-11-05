@@ -29,6 +29,10 @@ use App\Http\Controllers\Admin\SigapBencanaController;
 use App\Http\Controllers\Admin\GcLapanganUsahaController;
 use App\Http\Controllers\Admin\GcKeterampilanController;
 use App\Http\Controllers\Admin\GcPenyakitKronisController;
+// --- Ngopi Pagi ---
+use App\Http\Controllers\Admin\NgopiPagiController as NgopiPagiAdminController;
+use App\Http\Controllers\NgopiPagiPublikController;
+use App\Models\NgopiPagiKonsultasi;
 use Illuminate\Support\Facades\Route;
 
 
@@ -55,6 +59,22 @@ Route::get('/kontak', [PageController::class, 'kontak'])->name('kontak');
 Route::post('/kontak', [PageController::class, 'kontakStore'])->name('kontak.store')->middleware('throttle:5,1');
 Route::get('/ppks-psks', [PageController::class, 'ppksPsks'])->name('ppks-psks');
 Route::get('/regulasi', [PageController::class, 'regulasi'])->name('regulasi');
+
+// ==========================================
+// NGOPI PAGI (publik, tanpa login) -- akses chat lewat token acak di URL
+// ==========================================
+Route::prefix('ngopi-pagi')->name('ngopi-pagi.')->group(function () {
+    $token = '[A-Za-z0-9]{40}';
+
+    Route::get('/', [NgopiPagiPublikController::class, 'index'])->name('index');
+    Route::get('/mulai', [NgopiPagiPublikController::class, 'mulai'])->name('mulai');
+    Route::post('/mulai', [NgopiPagiPublikController::class, 'store'])->name('store')->middleware('throttle:5,10');
+
+    Route::get('/chat/{token}', [NgopiPagiPublikController::class, 'chat'])->where('token', $token)->name('chat');
+    Route::get('/chat/{token}/pesan', [NgopiPagiPublikController::class, 'pesan'])->where('token', $token)->middleware('throttle:90,1')->name('chat.pesan');
+    Route::post('/chat/{token}/pesan', [NgopiPagiPublikController::class, 'kirim'])->where('token', $token)->middleware('throttle:30,1')->name('chat.kirim');
+    Route::post('/chat/{token}/konfirmasi', [NgopiPagiPublikController::class, 'konfirmasi'])->where('token', $token)->middleware('throttle:10,1')->name('chat.konfirmasi');
+});
 
 
 // ==========================================
@@ -374,10 +394,40 @@ Route::middleware(['auth', 'staff'])->group(function () {
         ->name('perlinsos.laporan');
 
     // ==========================================
+    // NGOPI PAGI (admin) -- alur layanan LK3
+    //   Rute statis & /kasus HARUS sebelum rute tahap yang punya {konsultasi?}.
+    //   Harus didaftarkan SEBELUM loop DAYASOS di bawah.
+    // ==========================================
+    Route::prefix('dayasos/ngopi-pagi')->name('ngopi-pagi.admin.')->middleware('module:dayasos-ngopi-pagi')->group(function () {
+        Route::get('/rekapitulasi', [NgopiPagiAdminController::class, 'rekap'])->name('rekap');
+        Route::get('/rekapitulasi/export', [NgopiPagiAdminController::class, 'export'])->name('rekap.export');
+
+        Route::get('/kasus/{konsultasi}', [NgopiPagiAdminController::class, 'kasus'])->whereNumber('konsultasi')->name('kasus');
+        Route::post('/kasus/{konsultasi}/aksi', [NgopiPagiAdminController::class, 'aksi'])->whereNumber('konsultasi')->name('kasus.aksi');
+        Route::get('/kasus/{konsultasi}/pesan', [NgopiPagiAdminController::class, 'pesan'])->whereNumber('konsultasi')->name('kasus.pesan');
+        Route::post('/kasus/{konsultasi}/pesan', [NgopiPagiAdminController::class, 'kirimPesan'])->whereNumber('konsultasi')->name('kasus.pesan.kirim');
+
+        // Satu halaman per tahap: tahap.chat_masuk, tahap.screening, dst. (nama dipakai sidebar)
+        foreach (NgopiPagiKonsultasi::TAHAP as $key => $cfg) {
+            if (($cfg['menu'] ?? true) === false) {
+                continue;
+            }
+            Route::get('/' . $cfg['url'] . '/{konsultasi?}', [NgopiPagiAdminController::class, 'tahap'])
+                ->defaults('tahap', $key)
+                ->whereNumber('konsultasi')
+                ->name('tahap.' . $key);
+        }
+    });
+
+    // ==========================================
     // DAYASOS -- kerangka menu (dibaca dari config/dayasos.php)
     // ==========================================
     $daftarkanDayasos = function (array $nodes, $moduleInduk = null) use (&$daftarkanDayasos) {
         foreach ($nodes as $n) {
+            if (! empty($n['custom'])) {
+                continue; // rute Ngopi Pagi sudah dibuat di blok NGOPI PAGI di atas
+            }
+
             $module = $n['module'] ?? $moduleInduk;
 
             if (isset($n['children'])) {

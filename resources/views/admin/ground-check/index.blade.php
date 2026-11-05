@@ -56,7 +56,7 @@
             <div>
                 <h2 class="text-sm font-bold text-on-surface">Daftar Sasaran Ground Check</h2>
                 <p class="text-xs text-on-surface-variant mt-0.5">
-                    Klik <span class="font-semibold">Detail</span> pada kolom Aksi untuk melihat anggota KK dan mulai memasukkan data.
+                    Satu baris = satu keluarga (KK). Klik <span class="font-semibold">Detail</span> pada kolom Aksi untuk melihat anggota KK dan mulai memasukkan data.
                 </p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
@@ -130,13 +130,16 @@
                     <tr class="hover:bg-surface-container-low transition-colors">
                         <td class="pl-5 pr-2 py-3 text-center text-on-surface-variant">{{ $sasarans->firstItem() + $loop->index }}</td>
 
-                        {{-- Nama / NIK --}}
+                        {{-- Nama / NIK (wakil keluarga) --}}
                         <td class="px-3 py-3">
                             <div class="flex items-center gap-2.5">
                                 <span class="shrink-0 w-8 h-8 rounded-full bg-primary/10 text-primary text-[12px] font-bold flex items-center justify-center">{{ $inisial }}</span>
                                 <div class="min-w-0">
                                     <p class="font-semibold text-on-surface leading-tight">{{ $s->nama }}</p>
                                     <p class="text-[11px] text-on-surface-variant mt-0.5 tabular-nums whitespace-nowrap">{{ $s->nik }}</p>
+                                    @if ($s->kk_total > 1)
+                                        <p class="text-[10.5px] text-primary font-medium mt-0.5">{{ $s->kk_total }} anggota KK</p>
+                                    @endif
                                 </div>
                             </div>
                         </td>
@@ -206,7 +209,7 @@
         </table>
 
         <div class="px-5 py-3 border-t border-outline-variant/30 flex flex-wrap items-center justify-between gap-2 text-xs text-on-surface-variant">
-            <span>Menampilkan {{ $sasarans->firstItem() ?? 0 }} sampai {{ $sasarans->lastItem() ?? 0 }} dari {{ number_format($sasarans->total(), 0, ',', '.') }} data</span>
+            <span>Menampilkan {{ $sasarans->firstItem() ?? 0 }} sampai {{ $sasarans->lastItem() ?? 0 }} dari {{ number_format($sasarans->total(), 0, ',', '.') }} keluarga</span>
             <div>{{ $sasarans->links() }}</div>
         </div>
     </div>

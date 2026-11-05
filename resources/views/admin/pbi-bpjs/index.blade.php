@@ -144,8 +144,9 @@
             <div>{{ $ajuan->links() }}</div>
         </div>
     </div>
-    {{-- Modal catatan --}}
-    <div x-show="modal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    {{-- Modal catatan: dipindah ke <body> (x-teleport) supaya backdrop menutup seluruh layar --}}
+    <template x-teleport="body">
+    <div x-show="modal" x-cloak class="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
         <form method="POST" action="{{ route('pbi-approval.bpjs.aksi') }}" @click.outside="modal = null"
               class="bg-surface-container-lowest w-full max-w-md rounded-xl shadow-lg p-5 space-y-4">
             @csrf
@@ -154,8 +155,8 @@
 
             <h3 class="text-base font-semibold" x-text="modal === 'next' ? 'Aktivasi PBI APBD' : 'Tolak Usulan'"></h3>
             <div>
-                <label class="block text-xs font-semibold mb-1">Catatan <span x-show="modal !== 'next'" class="text-error">*</span></label>
-                <textarea name="catatan" rows="3" :required="modal !== 'next'" class="w-full px-3 py-2 rounded-lg border border-outline-variant/60 text-sm"></textarea>
+                <label class="block text-xs font-semibold mb-1">Catatan <span class="text-error">*</span></label>
+                <textarea name="catatan" rows="3" required class="w-full px-3 py-2 rounded-lg border border-outline-variant/60 text-sm"></textarea>
             </div>
             <div class="flex justify-end gap-2">
                 <button type="button" @click="modal = null" class="px-4 py-2 rounded-lg text-sm border border-outline-variant/50">Batal</button>
@@ -165,5 +166,6 @@
             </div>
         </form>
     </div>
+    </template>
 </div>
 @endsection

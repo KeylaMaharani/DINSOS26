@@ -94,7 +94,7 @@
                 <div class="w-12 h-12 shrink-0 rounded-2xl bg-white flex items-center justify-center shadow-sm">
                     <img src="{{ asset('assets/img/logo/logo.png') }}" alt="SOLID" class="w-8 h-8 object-contain">
                 </div>
-            @endhasSection
+            @endif
 
             {{-- Judul aplikasi + nama halaman (huruf kapital kecil di bawahnya) --}}
             <div class="min-w-0 flex-1 leading-tight">

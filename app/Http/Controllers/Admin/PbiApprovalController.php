@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\PbiApbd;
 use App\Models\PbiApbdLog;
+use App\Support\PbiSuratIsian;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -93,12 +95,17 @@ class PbiApprovalController extends Controller
             });
         }
 
-        // Kartu ringkasan ikut filter tanggal & pencarian.
-        $basis = PbiApbd::query();
+        // Kartu ringkasan: hanya menghitung data yang bisa tampil di daftar tahap ini
+        // (tab Proses + tab Riwayat), ikut filter tanggal & pencarian.
+        $basis = PbiApbd::query()->where(function ($q) use ($cfg, $roleName) {
+            $q->where('status', $cfg['status'])
+                ->orWhere(fn ($r) => $r->where('status', '!=', $cfg['status'])
+                    ->whereHas('logs', fn ($l) => $this->logAksi($l, $roleName)));
+        });
         $filter($basis);
 
         $stat = [
-            'total' => (clone $basis)->where(fn ($q) => $q->where('status', '!=', 'kelurahan')->orWhereNotNull('data_diisi_at'))->count(),
+            'total' => (clone $basis)->count(),
             'aktivasi' => (clone $basis)->where('status', 'disetujui')->count(),
             'ditolak' => (clone $basis)->where('status', 'ditolak')->count(),
         ];
@@ -191,19 +198,23 @@ class PbiApprovalController extends Controller
             'nama_faskes' => ['nullable', 'string', 'max:150'],
             'kelengkapan_kekurangan_berkas' => ['nullable', 'string', 'max:2000'],
             'catatan_berkas' => ['nullable', 'string', 'max:2000'],
-            'surat_keterangan' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:4096'],
+            // Suket boleh PDF, Word (DOC/DOCX), atau gambar
+            'surat_keterangan' => ['nullable', 'file', 'mimes:pdf,doc,docx,jpg,jpeg,png', 'max:4096'],
         ], [
             'surat_keterangan.max' => 'Ukuran suket maksimal 4 MB.',
-            'surat_keterangan.mimes' => 'Suket harus berformat PDF, JPG, atau PNG.',
+            'surat_keterangan.mimes' => 'Suket harus berformat PDF, Word (DOC/DOCX), JPG, atau PNG.',
         ]);
 
         unset($data['surat_keterangan']);
 
+        $suketBaru = null;
         if ($request->hasFile('surat_keterangan')) {
             if ($pbiApbd->surat_keterangan) {
                 Storage::disk('public')->delete($pbiApbd->surat_keterangan);
             }
-            $data['surat_keterangan'] = $request->file('surat_keterangan')->store('pbi-suket', 'public');
+            // Disimpan dengan nama asli yang terbaca (acak6__nama-asli.ext)
+            $data['surat_keterangan'] = $this->simpanDenganNama($request->file('surat_keterangan'), 'pbi-suket');
+            $suketBaru = $data['surat_keterangan'];
         }
 
         $pbiApbd->update($data);
@@ -214,7 +225,11 @@ class PbiApprovalController extends Controller
             $this->catat($pbiApbd, 'Mengubah data pemohon', 'Kolom diubah: ' . implode(', ', $diubah));
         }
 
-        return back()->with('success', 'Data berhasil disimpan.');
+        // Isi placeholder ${...} pada suket (.docx) memakai data TERBARU (setelah update di atas).
+        // Nomor surat otomatis = No. Registrasi; isian lain diambil dari data pengajuan & akun user.
+        $info = PbiSuratIsian::isiBerkas($pbiApbd->fresh('anggotaKeluarga'), $suketBaru, Auth::user());
+
+        return back()->with('success', trim('Data berhasil disimpan. ' . $info));
     }
 
     public function diagnosa(Request $request, PbiApbd $pbiApbd)
@@ -257,13 +272,11 @@ class PbiApprovalController extends Controller
             'aksi' => ['required', Rule::in($diizinkan)],
             'ids' => ['required', 'array', 'min:1'],
             'ids.*' => ['integer'],
-            'catatan' => [
-                Rule::requiredIf(in_array($request->aksi, ['back', 'reject'], true)),
-                'nullable', 'string', 'max:2000',
-            ],
+            // Catatan wajib untuk semua tahap dan semua aksi (Teruskan / Aktivasi / Back / Reject / Tolak)
+            'catatan' => ['required', 'string', 'max:2000'],
         ], [
             'ids.required' => 'Pilih minimal satu data.',
-            'catatan.required' => 'Catatan wajib diisi untuk Back / Reject / Tolak.',
+            'catatan.required' => 'Catatan wajib diisi.',
         ]);
 
         $user = Auth::user();
@@ -318,6 +331,19 @@ class PbiApprovalController extends Controller
         }
 
         return $redirect;
+    }
+
+    /**
+     * Simpan file ke disk public dengan nama asli yang tetap terbaca.
+     * Format: "acak6__nama-asli.ext". Komponen <x-lampiran-preview> menampilkan bagian setelah "__".
+     */
+    private function simpanDenganNama(UploadedFile $file, string $folder): string
+    {
+        $nama = Str::limit(Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME)), 60, '');
+        $nama = $nama !== '' ? $nama : 'berkas';
+        $ext = strtolower($file->getClientOriginalExtension() ?: $file->extension());
+
+        return $file->storeAs($folder, Str::random(6) . '__' . $nama . '.' . $ext, 'public');
     }
 
     private function catat(PbiApbd $m, string $task, ?string $catatan): void

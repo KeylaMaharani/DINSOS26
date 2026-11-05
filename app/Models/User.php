@@ -22,6 +22,10 @@ class User extends Authenticatable
         'password',
         'kecamatan',
         'kelurahan',
+        // Data penandatangan surat (dipakai App\Support\PbiSuratIsian)
+        'nip',
+        'pangkat',
+        'jabatan',
     ];
 
     protected $hidden = [

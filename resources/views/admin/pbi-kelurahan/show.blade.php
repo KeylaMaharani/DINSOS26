@@ -8,6 +8,8 @@
     // Isian masyarakat = jawaban Ground Check (sama dengan form warga & hitungan kelengkapan di controller)
     $jawabans = $gcJawabans->sortBy('urutan')->values();
     $dataLengkap = $totalParameter > 0 && $terjawab >= $totalParameter;
+    // Field yang punya kartu sendiri (tidak ikut grid "Lampiran Hasil Verifikasi Lapangan")
+    $lampiranTerpisah = ['ttd_kelurahan', 'scan_surat_pengantar'];
 @endphp
 
 @section('content')
@@ -114,7 +116,8 @@
                                     @if ($j->parameter_id && ! in_array($j->parameter_id, $idAktif, true))
                                         <span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">Disembunyikan dari warga</span>
                                     @endif
-                                </td>                                <td class="px-5 py-3 font-semibold">
+                                </td>
+                                <td class="px-5 py-3 font-semibold">
                                     @if (blank($nilai))
                                         <span class="font-normal text-on-surface-variant">Belum diisi</span>
                                     @elseif ($j->tipe_input === 'foto')
@@ -154,21 +157,67 @@
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 p-5">
                     @foreach ($lampiran as $field => [$label, $wajib, $mimes])
-                        {{-- TTD punya kartu sendiri di bawah (pilih: digambar di layar / unggah foto) --}}
-                        @continue($field === 'ttd_kelurahan')
-                        <div class="min-w-0">
+                        {{-- TTD & Surat Pengantar punya kartu sendiri di bawah --}}
+                        @continue(in_array($field, $lampiranTerpisah, true))
+                        <div class="min-w-0" x-data="{ nama: null }">
                             <label for="{{ $field }}" class="block text-xs font-semibold mb-1">{{ $label }} @if($wajib)<span class="text-error">*</span>@endif</label>
                             @if ($data->{$field})
                                 <div class="flex items-center gap-3 mb-2">
-                                    <div class="w-20 shrink-0"><x-lampiran-preview :src="asset('storage/' . $data->{$field})" :label="$label" /></div>
+                                    <div class="w-24 shrink-0"><x-lampiran-preview :src="asset('storage/' . $data->{$field})" :label="$label" /></div>
                                     <span class="flex items-center gap-1 text-xs text-success"><span class="material-symbols-outlined text-[15px]">check_circle</span> Sudah diunggah</span>
                                 </div>
                             @endif
-                            <input type="file" id="{{ $field }}" name="{{ $field }}" accept="{{ collect(explode(',', $mimes))->map(fn($m) => $m === 'pdf' ? '.pdf' : 'image/' . ($m === 'jpg' ? 'jpeg' : $m))->unique()->implode(',') }}"
+                            <input type="file" id="{{ $field }}" name="{{ $field }}"
+                                   accept="{{ collect(explode(',', $mimes))->map(fn ($m) => match ($m) {
+                                       'pdf' => '.pdf',
+                                       'doc' => '.doc',
+                                       'docx' => '.docx',
+                                       default => 'image/' . ($m === 'jpg' ? 'jpeg' : $m),
+                                   })->unique()->implode(',') }}"
+                                   @change="const f = $event.target.files[0]; if (f && f.size > 4 * 1024 * 1024) { alert('Ukuran file maksimal 4 MB.'); $event.target.value = ''; nama = null; } else { nama = f ? f.name : null; }"
                                    class="block w-full text-xs border border-outline-variant/40 rounded-lg file:mr-3 file:py-2.5 file:px-3 file:border-0 file:bg-surface-container file:text-xs file:font-semibold" />
+                            <p x-show="nama" x-cloak class="mt-1 flex items-center gap-1 text-[11px] text-primary">
+                                <span class="material-symbols-outlined text-[14px]">attach_file</span>
+                                <span class="truncate"><strong x-text="nama"></strong> <span class="text-on-surface-variant">(belum disimpan)</span></span>
+                            </p>
                             @error($field)<p class="text-error text-xs mt-1">{{ $message }}</p>@enderror
                         </div>
                     @endforeach
+                </div>
+            </div>
+
+            {{-- Surat Pengantar Kelurahan: kartu sendiri, tampilan bersih --}}
+            @php
+                [$labelSp, , $mimesSp] = $lampiran['scan_surat_pengantar'];
+                $acceptSp = collect(explode(',', $mimesSp))->map(fn ($m) => match ($m) {
+                    'pdf' => '.pdf',
+                    'doc' => '.doc',
+                    'docx' => '.docx',
+                    default => 'image/' . ($m === 'jpg' ? 'jpeg' : $m),
+                })->unique()->implode(',');
+            @endphp
+            <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
+                <div class="px-5 py-4 border-b border-outline-variant/40">
+                    <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">description</span> {{ $labelSp }}</h3>
+                    <p class="text-xs text-on-surface-variant mt-1">PDF / Word (DOC/DOCX) / JPG / PNG, maks. 4 MB.</p>
+                </div>
+                <div class="p-5 space-y-3">
+                    @if ($data->scan_surat_pengantar)
+                        <div class="flex items-center gap-3">
+                            <div class="w-24 shrink-0"><x-lampiran-preview :src="asset('storage/' . $data->scan_surat_pengantar)" :label="$labelSp" /></div>
+                            <span class="flex items-center gap-1 text-xs text-success"><span class="material-symbols-outlined text-[15px]">check_circle</span> Sudah diunggah. Pilih file baru untuk mengganti.</span>
+                        </div>
+                    @endif
+
+                    <input type="file" id="scan_surat_pengantar" name="scan_surat_pengantar" accept="{{ $acceptSp }}"
+                           onchange="if (this.files[0] && this.files[0].size > 4*1024*1024) { alert('Ukuran file maksimal 4 MB.'); this.value=''; }"
+                           class="block w-full text-xs border border-outline-variant/40 rounded-lg file:mr-3 file:py-2.5 file:px-3 file:border-0 file:bg-surface-container file:text-xs file:font-semibold" />
+                    @error('scan_surat_pengantar')<p class="text-error text-xs">{{ $message }}</p>@enderror
+
+                    <button type="submit" name="aksi" value="simpan_surat"
+                        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-on-primary text-sm font-medium">
+                        <span class="material-symbols-outlined text-[18px]">save</span> Simpan Surat Pengantar
+                    </button>
                 </div>
             </div>
 
@@ -248,7 +297,7 @@
             <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm" x-data="ttdPad()" @resize.window="siap()">
                 <div class="px-5 py-4 border-b border-outline-variant/40">
                     <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">draw</span> Tanda Tangan Kelurahan</h3>
-                    <p class="text-xs text-on-surface-variant mt-1">Pilih salah satu: tanda tangan langsung di layar, atau unggah foto tanda tangan. Tersimpan saat menekan Simpan Draft atau Validasi.</p>
+                    <p class="text-xs text-on-surface-variant mt-1">Tanda tangan langsung di layar, atau unggah foto tanda tangan.</p>
                 </div>
 
                 <div class="p-5 space-y-4">
@@ -298,6 +347,11 @@
                         <p class="text-[11px] text-on-surface-variant mt-1">Format JPG atau PNG. Maks. 4 MB.</p>
                         @error('ttd_kelurahan')<p class="text-error text-xs mt-1">{{ $message }}</p>@enderror
                     </div>
+
+                    <button type="submit" name="aksi" value="simpan_surat"
+                        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-on-primary text-sm font-medium">
+                        <span class="material-symbols-outlined text-[18px]">save</span> Simpan Tanda Tangan
+                    </button>
                 </div>
             </div>
 
@@ -345,6 +399,18 @@
             <h4 class="text-base font-bold mt-1">Sudah diproses Kelurahan</h4>
             <p class="text-sm text-on-surface-variant">Status saat ini: <strong>{{ $data->statusLabel() }}</strong>.</p>
             @if ($data->kesimpulan_rekomendasi)<p class="text-sm mt-3"><span class="text-on-surface-variant">Kesimpulan:</span> {{ $data->kesimpulan_rekomendasi }}</p>@endif
+        </div>
+
+        {{-- Lampiran tetap bisa dilihat (termasuk Surat Pengantar) setelah berkas diteruskan --}}
+        <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
+            <div class="px-5 py-4 border-b border-outline-variant/40">
+                <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">attach_file</span> Lampiran</h3>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-5">
+                @foreach ($lampiran as $field => [$label])
+                    <x-lampiran-preview :src="$data->{$field} ? asset('storage/' . $data->{$field}) : null" :label="$label" />
+                @endforeach
+            </div>
         </div>
     @endif
 

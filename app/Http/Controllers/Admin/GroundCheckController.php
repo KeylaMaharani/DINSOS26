@@ -7,9 +7,11 @@ use App\Models\GcJawaban;
 use App\Models\GcKeterampilan;
 use App\Models\GcKriteriaParameter;
 use App\Models\GcLapanganUsaha;
+use App\Models\GcPbiJawaban;
 use App\Models\GcPenyakitKronis;
 use App\Models\GcSasaran;
 use App\Models\GcVerifikasi;
+use App\Models\PbiApbd;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -19,12 +21,15 @@ use Illuminate\Validation\Rule;
 
 /**
  * Alur entry Ground Check 2026 (mengikuti Panduan Entry Data SOLID):
- *  daftar sasaran -> klik ikon keluarga -> daftar anggota KK -> klik pensil (Form Verifikasi Data)
+ *  daftar sasaran (SATU BARIS PER KK) -> klik Detail -> daftar anggota KK -> klik pensil (Form Verifikasi Data)
  *  -> pilih status -> bila Ditemukan: form tab A-G -> centang pernyataan -> Submit.
  *
  * Draft: setiap saat petugas bisa menekan "Simpan Draft". Validasi wajib TIDAK dijalankan,
  * semua jawaban yang sudah terisi disimpan, dan terisi otomatis saat form dibuka lagi.
  * Kewajiban semua field baru ditegakkan saat Submit.
+ *
+ * Jawaban yang sudah diisi warga di halaman masyarakat (tabel pbi_apbd_gc_jawabans)
+ * otomatis menjadi isian awal form petugas selama petugas belum menyimpan jawaban apa pun.
  *
  * CATATAN: flag "aktif" di Master GC hanya mengatur tampilan di halaman MASYARAKAT.
  * Form petugas ini selalu memuat SEMUA parameter & SEMUA opsi master.
@@ -33,7 +38,7 @@ class GroundCheckController extends Controller
 {
     private const TAHUN = 2026;
 
-    /** Langkah 3: daftar sasaran + ringkasan (dengan filter tahun & rentang tanggal). */
+    /** Langkah 3: daftar sasaran (1 baris = 1 KK) + ringkasan (dengan filter tahun & rentang tanggal). */
     public function index(Request $request)
     {
         $q = trim((string) $request->query('q'));
@@ -75,18 +80,35 @@ class GroundCheckController extends Controller
                     ->where('v.status_entry', 'submit');
             }, 'kk_selesai')
             ->with(['verifikasis' => fn ($v) => $v->where('tahun', $tahun)])
+            // SATU BARIS PER KK: wakil keluarga = anggota yang NIK-nya sama dengan kepala keluarga
+            // pada pengajuan masyarakat; kalau tidak ada, anggota dengan id terkecil.
+            ->whereRaw('gc_sasarans.id = (
+                select m2.id from gc_sasarans m2
+                left join pbi_apbds p2
+                    on TRIM(p2.no_kk) = m2.no_kk and TRIM(p2.nik_kepala_keluarga) = m2.nik
+                where m2.no_kk = gc_sasarans.no_kk
+                order by case when p2.id is null then 1 else 0 end, m2.id
+                limit 1
+            )')
             // Filter tahun & tanggal pengajuan: hanya sasaran yang No KK-nya punya pengajuan
             // masyarakat sesuai (tahun & rentang tanggal dicek pada satu pengajuan yang sama).
             ->when($adaFilterPengajuan, $filterPengajuan)
+            // Pencarian mencocokkan SEMUA anggota KK (mencari "Siti" tetap memunculkan keluarganya).
             ->when($q !== '', function ($s) use ($q) {
                 $like = "%{$q}%";
-                $s->where(fn ($w) => $w->where('nama', 'like', $like)->orWhere('nik', 'like', $like)->orWhere('no_kk', 'like', $like));
+                $s->where(function ($w) use ($like) {
+                    $w->where('gc_sasarans.no_kk', 'like', $like)
+                        ->orWhereIn('gc_sasarans.no_kk', function ($x) use ($like) {
+                            $x->from('gc_sasarans as a')->select('a.no_kk')
+                                ->where(fn ($y) => $y->where('a.nama', 'like', $like)->orWhere('a.nik', 'like', $like));
+                        });
+                });
             })
             ->orderBy('kelurahan')->orderBy('no_kk')->orderBy('nama')
             ->paginate($perPage)
             ->withQueryString();
 
-        // Kartu ringkasan mengikuti filter tahun/tanggal (tanpa pencarian nama).
+        // Kartu ringkasan mengikuti filter tahun/tanggal (tanpa pencarian nama), dihitung per orang.
         $basis = GcSasaran::query()->when($adaFilterPengajuan, $filterPengajuan);
         $total = (clone $basis)->count();
         $sudah = (clone $basis)
@@ -164,19 +186,26 @@ class GroundCheckController extends Controller
             ->with('success', $sasaran->nama . ' berhasil ditambahkan ke Daftar Sasaran. Klik ikon pensil untuk mulai mengisi data.');
     }
 
-    /** Langkah 5: anggota satu KK. */
+    /** Langkah 5: anggota satu KK (kepala keluarga ditampilkan paling atas). */
     public function keluarga(string $noKk)
     {
         $tahun = self::TAHUN;
 
+        // Kepala keluarga menurut pengajuan masyarakat (kalau ada).
+        $kepalaNik = trim((string) DB::table('pbi_apbds')
+            ->whereRaw('TRIM(no_kk) = ?', [$noKk])
+            ->orderByDesc('id')
+            ->value('nik_kepala_keluarga'));
+
         $anggota = GcSasaran::where('no_kk', $noKk)
             ->with(['verifikasis' => fn ($v) => $v->where('tahun', $tahun)])
-            ->orderBy('nama')
-            ->get();
+            ->get()
+            ->sortBy(fn ($a) => ($a->nik === $kepalaNik ? '0' : '1') . Str::lower((string) $a->nama))
+            ->values();
 
         abort_if($anggota->isEmpty(), 404);
 
-        return view('admin.ground-check.keluarga', compact('noKk', 'anggota'));
+        return view('admin.ground-check.keluarga', compact('noKk', 'anggota', 'kepalaNik'));
     }
 
     /** Langkah 6: simpan status (Form Verifikasi Data). */
@@ -248,7 +277,7 @@ class GroundCheckController extends Controller
             }
         }
 
-        // Prefill (identitas & data keluarga) hanya bila belum ada satu pun jawaban tersimpan.
+        // Prefill (identitas, jawaban warga, data keluarga) hanya bila belum ada satu pun jawaban tersimpan.
         $nilai = $tersimpan ?: $this->prefill($sasaran, $params);
 
         // Pertanyaan pemicu di tab Ketenagakerjaan + daftar field yang bergantung padanya.
@@ -259,7 +288,9 @@ class GroundCheckController extends Controller
                 ->where('id', '!=', $gate->id)->pluck('id')->values()->all(),
         ] : null;
 
-        $statusTab = $this->statusTab($tabs, $tersimpan, $kerja);
+        // Badge progres tab mengikuti isian yang tampil (termasuk hasil prefill).
+        $terisi = array_filter($nilai, fn ($x) => $x !== null && $x !== '');
+        $statusTab = $this->statusTab($tabs, $terisi, $kerja);
 
         $tabAwal = (int) session('tab', 0);
 
@@ -465,7 +496,7 @@ class GroundCheckController extends Controller
     }
 
     /**
-     * Progres tiap tab dari jawaban yang sudah tersimpan: kosong | draft | lengkap.
+     * Progres tiap tab dari jawaban yang terisi: kosong | draft | lengkap.
      * Field Ketenagakerjaan turunan tidak dihitung bila responden tidak bekerja.
      */
     private function statusTab(array $tabs, array $tersimpan, ?array $kerja): array
@@ -524,9 +555,19 @@ class GroundCheckController extends Controller
         };
     }
 
+    /** Pengajuan PBI APBD terbaru milik No KK sasaran ini (sumber jawaban warga). */
+    private function pbiSasaran(GcSasaran $sasaran): ?PbiApbd
+    {
+        return PbiApbd::whereRaw('TRIM(no_kk) = ?', [$sasaran->no_kk])->latest('id')->first();
+    }
+
     /**
-     * Isian awal: data identitas dari daftar sasaran, serta isian keluarga/aset
-     * dari anggota satu KK yang sudah disubmit (supaya tidak mengetik ulang).
+     * Isian awal form petugas, berurutan (yang belakangan menimpa yang depan):
+     *  1. data identitas dari daftar sasaran;
+     *  2. jawaban warga di halaman masyarakat (pbi_apbd_gc_jawabans):
+     *     - kepala keluarga -> semua jawaban (foto dilewati);
+     *     - anggota lain    -> hanya kelompok Keluarga & Aset (data milik satu KK);
+     *  3. isian Keluarga/Aset dari anggota satu KK yang sudah disubmit petugas.
      */
     private function prefill(GcSasaran $sasaran, $params): array
     {
@@ -545,6 +586,33 @@ class GroundCheckController extends Controller
             }
         }
 
+        $kelompokKeluarga = ['keluarga', 'aset_bergerak', 'aset_tidak_bergerak'];
+
+        // 2. Jawaban warga
+        $pbi = $this->pbiSasaran($sasaran);
+        if ($pbi) {
+            $kepala = trim((string) $pbi->nik_kepala_keluarga) === (string) $sasaran->nik;
+            $idBoleh = $params->where('tipe_input', '!=', 'foto')->pluck('id')->all();
+            $idKeluarga = $params->whereIn('kelompok', $kelompokKeluarga)->pluck('id')->all();
+
+            $jawabanWarga = GcPbiJawaban::where('pbi_apbd_id', $pbi->id)
+                ->whereNotNull('parameter_id')
+                ->whereNotNull('jawaban')
+                ->where('jawaban', '!=', '')
+                ->get();
+
+            foreach ($jawabanWarga as $j) {
+                if (! in_array($j->parameter_id, $idBoleh, true)) {
+                    continue;
+                }
+                if (! $kepala && ! in_array($j->parameter_id, $idKeluarga, true)) {
+                    continue;
+                }
+                $nilai[$j->parameter_id] = $j->jawaban;
+            }
+        }
+
+        // 3. Anggota KK lain yang sudah disubmit petugas
         $sumber = GcVerifikasi::where('tahun', self::TAHUN)
             ->where('status_entry', 'submit')
             ->where('status_temuan', 'ditemukan')
@@ -553,7 +621,7 @@ class GroundCheckController extends Controller
             ->first();
 
         if ($sumber) {
-            $idKeluarga = $params->whereIn('kelompok', ['keluarga', 'aset_bergerak', 'aset_tidak_bergerak'])->pluck('id')->all();
+            $idKeluarga = $params->whereIn('kelompok', $kelompokKeluarga)->pluck('id')->all();
             foreach ($sumber->jawabans()->whereIn('parameter_id', $idKeluarga)->get() as $j) {
                 if ($j->jawaban !== null) {
                     $nilai[$j->parameter_id] = $j->jawaban;

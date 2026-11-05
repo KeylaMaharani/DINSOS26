@@ -179,6 +179,65 @@ class PbiApbd extends Model
         return $this->data_diisi_at === null && $this->status === 'kelurahan';
     }
 
+    /**
+     * Masukkan anggota keluarga pengajuan ini ke Daftar Sasaran Ground Check.
+     * - No KK sudah ada di Ground Check -> ikut keluarga itu (wilayah/alamat/desil mengikuti).
+     * - No KK baru -> otomatis jadi keluarga baru.
+     * Notifikasi ke petugas Ground Check dikirim hanya bila ada sasaran baru.
+     * Mengembalikan jumlah sasaran baru.
+     */
+    public function sinkronGroundCheck(): int
+    {
+        $kk = preg_replace('/\D/', '', (string) $this->no_kk);
+        if (strlen($kk) !== 16) {
+            return 0;
+        }
+
+        $induk = GcSasaran::where('no_kk', $kk)->first();
+        $baru = 0;
+
+        foreach ($this->anggotaKeluarga()->get() as $a) {
+            $nik = preg_replace('/\D/', '', (string) $a->nik);
+            if (strlen($nik) !== 16) {
+                continue;
+            }
+
+            $s = GcSasaran::firstOrCreate(['nik' => $nik], [
+                'nama' => mb_strtoupper(trim((string) $a->nama)),
+                'no_kk' => $kk,
+                'tanggal_lahir' => $a->tanggal_lahir,
+                'kecamatan' => $induk->kecamatan ?? $this->kecamatan,
+                'kelurahan' => $induk->kelurahan ?? $this->desa_kelurahan,
+                'alamat' => $induk->alamat ?? $this->alamat,
+                'rt' => $induk->rt ?? $this->rt,
+                'rw' => $induk->rw ?? $this->rw,
+                'desil' => $induk->desil ?? null,
+            ]);
+
+            if ($s->wasRecentlyCreated) {
+                $baru++;
+            }
+        }
+
+        if ($baru > 0) {
+            $roleIds = Role::all()
+                ->filter(fn ($r) => ! $r->isSuperAdmin() && $r->hasModule('ground-check'))
+                ->pluck('id');
+
+            User::whereIn('role_id', $roleIds)->get()->each(
+                fn ($u) => Notifikasi::create([
+                    'user_id' => $u->id,
+                    'tipe' => 'ground_check_baru',
+                    'judul' => 'Sasaran Ground Check baru',
+                    'pesan' => "{$baru} anggota dari KK {$kk} masuk daftar sasaran.",
+                    'url' => route('ground-check.keluarga', $kk),
+                ])
+            );
+        }
+
+        return $baru;
+    }
+
     /** Urutan key tahap, dipakai untuk hitung next/back */
     public static function stageKeys(): array
     {

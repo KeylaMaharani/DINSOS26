@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Layanan;
 use App\Http\Controllers\Controller;
 use App\Models\KartuKksPermohonan;
 use App\Models\Role;
+use App\Support\GroundCheckSinkron;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -107,6 +108,15 @@ class KartuKksAjuanController extends Controller
 
             return $permohonan;
         });
+
+        GroundCheckSinkron::individu([
+            'nik' => $validated['nik'],
+            'nama' => $validated['nama'],
+            'no_kk' => $validated['no_kk'],
+            'tanggal_lahir' => $validated['tanggal_lahir'],
+            'alamat' => $validated['alamat'],
+            'kelurahan' => $validated['kelurahan'],
+        ]);
 
         return redirect()->route('layanan.kartu-kks.riwayat')
             ->with('success', 'Pengajuan Kartu KKS berhasil dikirim, nomor permohonan #' . $permohonan->id);

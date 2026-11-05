@@ -77,13 +77,5 @@
             <dt class="text-xs text-on-surface-variant mb-0.5">Divalidasi pada</dt>
             <dd class="font-semibold">{{ $data->divalidasi_kelurahan_at?->format('d M Y - H:i') ?? '-' }}</dd>
         </div>
-        <div>
-            <dt class="text-xs text-on-surface-variant mb-0.5">Scan Surat Pengantar</dt>
-            <dd class="font-semibold">
-                @if ($data->scan_surat_pengantar)
-                    <a class="text-primary underline" target="_blank" rel="noopener" href="{{ asset('storage/' . $data->scan_surat_pengantar) }}">Lihat</a>
-                @else - @endif
-            </dd>
-        </div>
     </dl>
 </div>

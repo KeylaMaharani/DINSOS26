@@ -80,10 +80,11 @@
                 </div>
             </div>
 
+            {{-- Suket: tampilan bersih --}}
             <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
                 <div class="px-5 py-4 border-b border-outline-variant/40">
                     <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">description</span> Surat Keterangan (Suket)</h3>
-                    <p class="text-xs text-on-surface-variant mt-1">Wajib ada sebelum diteruskan ke Kepala Bidang. PDF/JPG/PNG, maks. 4 MB.</p>
+                    <p class="text-xs text-on-surface-variant mt-1">Wajib ada sebelum diteruskan ke Kepala Bidang. PDF / Word (DOC/DOCX) / JPG / PNG, maks. 4 MB.</p>
                 </div>
                 <div class="p-5 space-y-3">
                     @if ($data->surat_keterangan)
@@ -91,11 +92,13 @@
                             <div class="w-24 shrink-0"><x-lampiran-preview :src="asset('storage/' . $data->surat_keterangan)" label="Surat Keterangan (Suket)" /></div>
                             <span class="flex items-center gap-1 text-xs text-success"><span class="material-symbols-outlined text-[15px]">check_circle</span> Sudah diunggah. Pilih file baru untuk mengganti.</span>
                         </div>
-                    @else
-                        <p class="text-xs text-on-warning-container bg-warning-container px-3 py-2 rounded-lg">Suket belum diunggah.</p>
                     @endif
-                    <input type="file" name="surat_keterangan" accept=".pdf,image/jpeg,image/png"
+
+                    <input type="file" name="surat_keterangan" accept=".pdf,.doc,.docx,image/jpeg,image/png"
+                           onchange="if (this.files[0] && this.files[0].size > 4*1024*1024) { alert('Ukuran file maksimal 4 MB.'); this.value=''; }"
                            class="block w-full text-xs border border-outline-variant/40 rounded-lg file:mr-3 file:py-2.5 file:px-3 file:border-0 file:bg-surface-container file:text-xs file:font-semibold">
+                    @error('surat_keterangan')<p class="text-error text-xs">{{ $message }}</p>@enderror
+
                     <button type="submit" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-on-primary text-sm font-medium">
                         <span class="material-symbols-outlined text-[18px]">save</span> Simpan Data & Suket
                     </button>
@@ -119,6 +122,20 @@
                     <div><dt class="text-xs text-on-surface-variant mb-0.5">{{ $label }}</dt><dd class="font-semibold">{{ $value ?: '-' }}</dd></div>
                 @endforeach
             </dl>
+        </div>
+
+        {{-- Suket tetap bisa dilihat saat tidak dalam mode edit --}}
+        <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
+            <div class="px-5 py-4 border-b border-outline-variant/40">
+                <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">description</span> Surat Keterangan (Suket)</h3>
+            </div>
+            <div class="p-5 pb-16">
+                @if ($data->surat_keterangan)
+                    <div class="w-28"><x-lampiran-preview :src="asset('storage/' . $data->surat_keterangan)" label="Surat Keterangan (Suket)" /></div>
+                @else
+                    <p class="text-sm text-on-surface-variant">Suket belum diunggah.</p>
+                @endif
+            </div>
         </div>
     @endif
 
@@ -155,12 +172,13 @@
         <div class="px-5 py-4 border-b border-outline-variant/40">
             <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">attach_file</span> Lampiran</h3>
         </div>
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-5">
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-5 pb-16">
             @foreach ([
                 'scan_ktp' => 'Scan KTP', 'scan_kk' => 'Scan Kartu Keluarga',
                 'foto_rumah' => 'Foto Rumah', 'foto_kamar_mandi' => 'Foto Kamar Mandi',
                 'foto_selfie_ktp' => 'Foto Selfie dengan KTP', 'surat_rawat_inap' => 'Surat Ket. Rawat Inap',
                 'screenshot_pembaharuan_desil' => 'Screenshot Pembaharuan Desil', 'screenshot_dtsen' => 'Screenshot DTSEN',
+                'scan_surat_pengantar' => 'Surat Pengantar Kelurahan',
                 'ttd_kelurahan' => 'Tanda Tangan Kelurahan',
             ] as $field => $label)
                 <x-lampiran-preview :src="$data->$field ? asset('storage/' . $data->$field) : null" :label="$label" />
@@ -246,8 +264,8 @@
                 @csrf
                 <input type="hidden" name="ids[]" value="{{ $data->id }}">
                 <div class="mb-5">
-                    <label class="block text-sm font-bold mb-2">Catatan <span class="text-xs font-normal text-on-surface-variant">(wajib untuk Back / Reject)</span></label>
-                    <textarea name="catatan" rows="3" class="w-full px-4 py-3 rounded-lg border border-outline-variant/60 text-sm">{{ old('catatan') }}</textarea>
+                    <label class="block text-sm font-bold mb-2">Catatan <span class="text-error">*</span></label>
+                    <textarea name="catatan" rows="3" required class="w-full px-4 py-3 rounded-lg border border-outline-variant/60 text-sm">{{ old('catatan') }}</textarea>
                 </div>
                 <div class="flex flex-col sm:flex-row flex-wrap items-center gap-3">
                     <button type="submit" name="aksi" value="back" class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-5 py-2.5 rounded-lg border border-outline-variant hover:bg-surface-container-highest text-sm font-bold">

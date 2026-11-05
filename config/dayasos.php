@@ -1,18 +1,25 @@
 <?php
 
 /**
- * Menu DAYASOS (kerangka menu saja, tampilan menyusul).
- * Dipakai oleh sidebar (layouts/admin.blade.php) dan routes/web.php.
+ * Menu DAYASOS (dipakai sidebar layouts/admin.blade.php dan routes/web.php).
  *   module = key di Role::MODULES. Anak menu otomatis mengikuti module induknya.
+ *   custom = true -> rute TIDAK dibuat oleh loop placeholder di web.php (sudah ada controller sendiri).
  *
- * Catatan penggabungan fitur (Ngopi Pagi):
- *   - Jadwal + Penjadwalan -> 'Jadwal Konseling' (satu fitur)
- *   - Masalah + Client     -> 'Klien' (daftar klien + masalah yang dihadapi)
+ * Ngopi Pagi: submenu mengikuti alur layanan LK3 (lihat NgopiPagiKonsultasi::TAHAP).
+ * Rute-nya ada di routes/ngopi-pagi-admin.php.
  */
 $leaf = fn (string $label, string $path) => [
     'label' => $label,
     'route' => 'dayasos.' . str_replace('/', '.', $path),
     'url'   => 'dayasos/' . $path,
+];
+
+// Submenu Ngopi Pagi. 'badge' = key di $notif sidebar (jumlah kasus yang sedang di tahap itu).
+$np = fn (string $label, string $tahap, ?string $badge = null) => [
+    'label'  => $label,
+    'route'  => 'ngopi-pagi.admin.tahap.' . $tahap,
+    'custom' => true,
+    'badge'  => $badge,
 ];
 
 return [
@@ -26,11 +33,18 @@ return [
         'label'    => 'Ngopi Pagi',
         'module'   => 'dayasos-ngopi-pagi',
         'children' => [
-            $leaf('Obrolan Langsung', 'ngopi-pagi/obrolan-langsung'),
-            $leaf('Konselor', 'ngopi-pagi/konselor'),
-            $leaf('Jadwal Konseling', 'ngopi-pagi/jadwal-konseling'),
-            $leaf('Klien', 'ngopi-pagi/klien'),
-            $leaf('Laporan', 'ngopi-pagi/laporan'),
+            $np('Chat Masuk', 'chat_masuk', 'ngopi_chat_masuk'),
+            $np('Screening', 'screening', 'ngopi_screening'),
+            $np('Konsultasi LK3', 'konsultasi', 'ngopi_konsultasi'),
+            $np('Tindak Lanjut', 'tindak_lanjut', 'ngopi_tindak_lanjut'),
+            $np('Monitoring', 'monitoring', 'ngopi_monitoring'),
+            $np('Konfirmasi & Penutupan', 'konfirmasi', 'ngopi_konfirmasi'),
+            [
+                'label'  => 'Rekapitulasi',
+                'route'  => 'ngopi-pagi.admin.rekap',
+                'match'  => ['ngopi-pagi.admin.kasus', 'ngopi-pagi.admin.rekap.*'],
+                'custom' => true,
+            ],
         ],
     ],
     [
