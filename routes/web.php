@@ -31,6 +31,8 @@ use App\Http\Controllers\Admin\GcKeterampilanController;
 use App\Http\Controllers\Admin\GcPenyakitKronisController;
 // --- Ngopi Pagi ---
 use App\Http\Controllers\Admin\NgopiPagiController as NgopiPagiAdminController;
+use App\Http\Controllers\Admin\NgopiPagiKonselorController;
+use App\Http\Controllers\Admin\NgopiPagiSpesialisasiController;
 use App\Http\Controllers\NgopiPagiPublikController;
 use App\Models\NgopiPagiKonsultasi;
 use Illuminate\Support\Facades\Route;
@@ -61,14 +63,16 @@ Route::get('/ppks-psks', [PageController::class, 'ppksPsks'])->name('ppks-psks')
 Route::get('/regulasi', [PageController::class, 'regulasi'])->name('regulasi');
 
 // ==========================================
-// NGOPI PAGI (publik, tanpa login) -- akses chat lewat token acak di URL
+// NGOPI PAGI (publik, tanpa login) -- pilih spesialisasi -> pilih konselor -> isi data -> chat
+//   Akses chat lewat token acak di URL.
 // ==========================================
 Route::prefix('ngopi-pagi')->name('ngopi-pagi.')->group(function () {
     $token = '[A-Za-z0-9]{40}';
 
-    Route::get('/', [NgopiPagiPublikController::class, 'index'])->name('index');
-    Route::get('/mulai', [NgopiPagiPublikController::class, 'mulai'])->name('mulai');
-    Route::post('/mulai', [NgopiPagiPublikController::class, 'store'])->name('store')->middleware('throttle:5,10');
+    Route::get('/', [NgopiPagiPublikController::class, 'index'])->name('index');                                              // pilih spesialisasi
+    Route::get('/spesialisasi/{spesialisasi:slug}', [NgopiPagiPublikController::class, 'spesialisasi'])->name('spesialisasi'); // daftar konselor
+    Route::get('/mulai/{konselor?}', [NgopiPagiPublikController::class, 'mulai'])->whereNumber('konselor')->name('mulai');     // form data awal
+    Route::post('/mulai/{konselor?}', [NgopiPagiPublikController::class, 'store'])->whereNumber('konselor')->name('store')->middleware('throttle:5,10');
 
     Route::get('/chat/{token}', [NgopiPagiPublikController::class, 'chat'])->where('token', $token)->name('chat');
     Route::get('/chat/{token}/pesan', [NgopiPagiPublikController::class, 'pesan'])->where('token', $token)->middleware('throttle:90,1')->name('chat.pesan');
@@ -395,12 +399,27 @@ Route::middleware(['auth', 'staff'])->group(function () {
 
     // ==========================================
     // NGOPI PAGI (admin) -- alur layanan LK3
-    //   Rute statis & /kasus HARUS sebelum rute tahap yang punya {konsultasi?}.
+    //   Rute statis (/konselor, /spesialisasi, /rekapitulasi, /kasus) HARUS sebelum
+    //   rute tahap yang punya {konsultasi?}.
     //   Harus didaftarkan SEBELUM loop DAYASOS di bawah.
     // ==========================================
     Route::prefix('dayasos/ngopi-pagi')->name('ngopi-pagi.admin.')->middleware('module:dayasos-ngopi-pagi')->group(function () {
         Route::get('/rekapitulasi', [NgopiPagiAdminController::class, 'rekap'])->name('rekap');
         Route::get('/rekapitulasi/export', [NgopiPagiAdminController::class, 'export'])->name('rekap.export');
+
+        // Data Konselor
+        Route::get('/konselor', [NgopiPagiKonselorController::class, 'index'])->name('konselor.index');
+        Route::get('/konselor/tambah', [NgopiPagiKonselorController::class, 'create'])->name('konselor.create');
+        Route::post('/konselor', [NgopiPagiKonselorController::class, 'store'])->name('konselor.store');
+        Route::get('/konselor/{konselor}/edit', [NgopiPagiKonselorController::class, 'edit'])->whereNumber('konselor')->name('konselor.edit');
+        Route::put('/konselor/{konselor}', [NgopiPagiKonselorController::class, 'update'])->whereNumber('konselor')->name('konselor.update');
+        Route::delete('/konselor/{konselor}', [NgopiPagiKonselorController::class, 'destroy'])->whereNumber('konselor')->name('konselor.destroy');
+
+        // Spesialisasi
+        Route::get('/spesialisasi', [NgopiPagiSpesialisasiController::class, 'index'])->name('spesialisasi.index');
+        Route::post('/spesialisasi', [NgopiPagiSpesialisasiController::class, 'store'])->name('spesialisasi.store');
+        Route::put('/spesialisasi/{spesialisasi}', [NgopiPagiSpesialisasiController::class, 'update'])->whereNumber('spesialisasi')->name('spesialisasi.update');
+        Route::delete('/spesialisasi/{spesialisasi}', [NgopiPagiSpesialisasiController::class, 'destroy'])->whereNumber('spesialisasi')->name('spesialisasi.destroy');
 
         Route::get('/kasus/{konsultasi}', [NgopiPagiAdminController::class, 'kasus'])->whereNumber('konsultasi')->name('kasus');
         Route::post('/kasus/{konsultasi}/aksi', [NgopiPagiAdminController::class, 'aksi'])->whereNumber('konsultasi')->name('kasus.aksi');

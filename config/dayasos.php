@@ -5,8 +5,9 @@
  *   module = key di Role::MODULES. Anak menu otomatis mengikuti module induknya.
  *   custom = true -> rute TIDAK dibuat oleh loop placeholder di web.php (sudah ada controller sendiri).
  *
- * Ngopi Pagi: submenu mengikuti alur layanan LK3 (lihat NgopiPagiKonsultasi::TAHAP).
- * Rute-nya ada di routes/ngopi-pagi-admin.php.
+ * Ngopi Pagi: submenu mengikuti alur layanan LK3 (lihat NgopiPagiKonsultasi::TAHAP),
+ * ditambah Data Konselor dan Spesialisasi.
+ * Rute-nya ada di routes/web.php (blok "NGOPI PAGI (admin)").
  */
 $leaf = fn (string $label, string $path) => [
     'label' => $label,
@@ -43,6 +44,18 @@ return [
                 'label'  => 'Rekapitulasi',
                 'route'  => 'ngopi-pagi.admin.rekap',
                 'match'  => ['ngopi-pagi.admin.kasus', 'ngopi-pagi.admin.rekap.*'],
+                'custom' => true,
+            ],
+            [
+                'label'  => 'Data Konselor',
+                'route'  => 'ngopi-pagi.admin.konselor.index',
+                'match'  => ['ngopi-pagi.admin.konselor.*'],
+                'custom' => true,
+            ],
+            [
+                'label'  => 'Spesialisasi',
+                'route'  => 'ngopi-pagi.admin.spesialisasi.index',
+                'match'  => ['ngopi-pagi.admin.spesialisasi.*'],
                 'custom' => true,
             ],
         ],

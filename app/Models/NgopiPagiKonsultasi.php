@@ -82,6 +82,7 @@ class NgopiPagiKonsultasi extends Model
         'terpenuhi' => 'Kebutuhan terpenuhi',
     ];
 
+    /** Kunci kecamatan HARUS sama dengan kunci di config/ngopi-wilayah.php. */
     public const KECAMATAN = ['Bogor Barat', 'Bogor Selatan', 'Bogor Tengah', 'Bogor Timur', 'Bogor Utara', 'Tanah Sareal'];
 
     // ---------- Relasi ----------
@@ -91,6 +92,7 @@ class NgopiPagiKonsultasi extends Model
     public function petugas(): BelongsTo { return $this->belongsTo(User::class, 'petugas_id'); }
     public function konselor(): BelongsTo { return $this->belongsTo(User::class, 'konselor_id'); }
     public function user(): BelongsTo { return $this->belongsTo(User::class); }
+    public function spesialisasi(): BelongsTo { return $this->belongsTo(NgopiPagiSpesialisasi::class, 'spesialisasi_id'); }
 
     // ---------- Scope ----------
     /** Urutan antrian: butuh segera, lalu Kategori C > B > A > belum diklasifikasi, lalu pesan terbaru. */

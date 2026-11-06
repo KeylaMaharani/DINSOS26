@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\NgopiPagiKonselor;
 use App\Models\NgopiPagiKonsultasi as K;
+use App\Models\NgopiPagiSpesialisasi;
 use App\Support\NgopiPagiNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -10,44 +12,75 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 /**
- * Sisi masyarakat (tanpa login). Akses percakapan lewat token acak di URL.
+ * Sisi masyarakat (tanpa login). Alur: pilih spesialisasi -> pilih konselor -> isi data -> chat (token di URL).
  */
 class NgopiPagiPublikController extends Controller
 {
     private const SAPAAN = "Selamat pagi, Bapak/Ibu. Terima kasih telah menghubungi layanan Ngopi Pagi – LK3 Dinas Sosial Kota Bogor.\n\n"
         . "Kami siap membantu memberikan informasi, konsultasi dan pendampingan awal terkait permasalahan kesejahteraan sosial dan keluarga. "
-        . "Informasi yang Anda sampaikan akan digunakan untuk kepentingan pelayanan dan ditangani secara profesional serta dijaga kerahasiaannya.\n\n"
-        . "Petugas kami akan segera menyapa Anda di ruang obrolan ini.\n"
-        . "Mari Ngopi Pagi, Ngobrol, Konsultasi, dan Cari Solusi Bersama.";
+        . "Informasi yang Anda sampaikan akan digunakan untuk kepentingan pelayanan dan ditangani secara profesional serta dijaga kerahasiaannya.\n\n";
 
+    private const PENUTUP = "Mari Ngopi Pagi, Ngobrol, Konsultasi, dan Cari Solusi Bersama.";
+
+    /** Langkah 1: pilih spesialisasi. */
     public function index(Request $request)
     {
         $lanjut = null;
         if ($token = $request->session()->get('ngopi_token')) {
             $lanjut = K::where('token', $token)->where('tahap', '!=', 'selesai')->first();
             if ($lanjut) {
-                // jumlah balasan petugas yang belum dibaca, ditampilkan sebagai notifikasi di tombol "Lanjutkan"
                 $lanjut->belum_baca = $lanjut->pesans()->where('pengirim', 'petugas')->whereNull('dibaca_at')->count();
             }
         }
 
+        $spesialisasis = NgopiPagiSpesialisasi::aktif()->urut()
+            ->withCount(['konselors' => fn ($q) => $q->aktif()])
+            ->get();
+
         return view('ngopi-pagi.index', [
             'lanjut' => $lanjut,
+            'buka' => $this->sedangBuka(),
+            'spesialisasis' => $spesialisasis,
+        ]);
+    }
+
+    /** Langkah 2: daftar konselor pada spesialisasi terpilih. */
+    public function spesialisasi(NgopiPagiSpesialisasi $spesialisasi)
+    {
+        abort_unless($spesialisasi->aktif, 404);
+
+        $konselors = $spesialisasi->konselors()->aktif()->urut()->with('spesialisasis')->get();
+
+        return view('ngopi-pagi.spesialisasi', [
+            'spesialisasi' => $spesialisasi,
+            'konselors' => $konselors,
             'buka' => $this->sedangBuka(),
         ]);
     }
 
-    public function mulai()
+    /** Langkah 3: form data awal. Tanpa {konselor} = ditangani admin Ngopi Pagi. */
+    public function mulai(Request $request, ?NgopiPagiKonselor $konselor = null)
     {
-        return view('ngopi-pagi.mulai', ['daftarKecamatan' => K::KECAMATAN]);
+        abort_if($konselor && ! $konselor->aktif, 404);
+
+        $spesialisasi = $request->filled('s')
+            ? NgopiPagiSpesialisasi::aktif()->where('slug', $request->query('s'))->first()
+            : null;
+
+        return view('ngopi-pagi.mulai', [
+            'konselor' => $konselor?->load('spesialisasis'),
+            'spesialisasi' => $spesialisasi,
+            'daftarKecamatan' => K::KECAMATAN,
+        ]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request, ?NgopiPagiKonselor $konselor = null)
     {
         // Honeypot: bot biasanya mengisi field ini. Pura-pura sukses.
         if ($request->filled('website')) {
             return redirect()->route('ngopi-pagi.index');
         }
+        abort_if($konselor && ! $konselor->aktif, 404);
 
         $d = $request->validate([
             'nama' => ['required', 'string', 'max:100'],
@@ -57,25 +90,37 @@ class NgopiPagiPublikController extends Controller
             'kebutuhan' => ['required', 'string', 'min:10', 'max:2000'],
             'butuh_segera' => ['required', Rule::in(['0', '1'])],
             'persetujuan' => ['accepted'],
+            'spesialisasi_id' => ['nullable', 'integer', Rule::exists('ngopi_pagi_spesialisasis', 'id')],
         ], [
             'nama.required' => 'Nama atau inisial wajib diisi.',
             'kontak.required' => 'Nomor yang dapat dihubungi wajib diisi.',
             'kontak.regex' => 'Format nomor tidak valid.',
             'kecamatan.required' => 'Pilih kecamatan.',
             'kecamatan.in' => 'Pilih kecamatan dari daftar.',
-            'kelurahan.required' => 'Kelurahan wajib diisi.',
+            'kelurahan.required' => 'Pilih kelurahan.',
             'kebutuhan.required' => 'Ceritakan singkat permasalahan Anda.',
             'kebutuhan.min' => 'Ceritakan sedikit lebih lengkap (minimal 10 karakter).',
             'persetujuan.accepted' => 'Centang persetujuan penggunaan data agar kami dapat melanjutkan.',
         ]);
 
+        // Kelurahan harus ada di kecamatan yang dipilih (daftar di config/ngopi-wilayah.php).
+        $daftarKel = config('ngopi-wilayah.' . $d['kecamatan'], []);
+        if ($daftarKel && ! in_array($d['kelurahan'], $daftarKel, true)) {
+            return back()->withInput()->withErrors(['kelurahan' => 'Pilih kelurahan sesuai kecamatan.']);
+        }
+
+        $spesialisasi = ! empty($d['spesialisasi_id']) ? NgopiPagiSpesialisasi::find($d['spesialisasi_id']) : null;
         $user = Auth::user();
         $segera = $d['butuh_segera'] === '1';
+        $prioritas = $segera || ($spesialisasi?->kategori_awal === 'C');
 
         $k = K::create([
             'no_konsultasi' => K::buatNomor(),
             'token' => Str::random(40),
             'user_id' => ($user && ($user->role->slug ?? null) === 'masyarakat') ? $user->id : null,
+            'spesialisasi_id' => $spesialisasi?->id,
+            'konselor_id' => $konselor?->user_id,          // konselor pilihan warga = pendamping sejak awal
+            'kategori' => $spesialisasi?->kategori_awal,   // pra-klasifikasi, dikonfirmasi admin saat Screening
             'nama' => $d['nama'],
             'kontak' => $d['kontak'],
             'kecamatan' => $d['kecamatan'],
@@ -87,14 +132,20 @@ class NgopiPagiPublikController extends Controller
         ]);
 
         $k->pesans()->create(['pengirim' => 'masyarakat', 'isi' => $d['kebutuhan']]);
-        $k->kirimSistem(self::SAPAAN);
-        $k->catat('masuk', null, 'chat_masuk', $segera ? 'Pengguna menandai butuh penanganan segera.' : null);
+        $k->kirimSistem($this->sapaan($konselor, $spesialisasi));
+        $k->catat('masuk', null, 'chat_masuk', trim(
+            ($spesialisasi ? 'Spesialisasi: ' . $spesialisasi->nama . '. ' : '')
+            . ($konselor ? 'Konselor pilihan: ' . $konselor->nama_tampilan . '. ' : '')
+            . ($segera ? 'Pengguna menandai butuh penanganan segera.' : '')
+        ) ?: null);
 
         NgopiPagiNotifier::kePetugas(
-            $segera ? 'Konsultasi baru – BUTUH SEGERA' : 'Konsultasi baru Ngopi Pagi',
-            "{$k->nama} ({$k->kelurahan}, {$k->kecamatan}) memulai konsultasi.",
+            $prioritas ? 'Konsultasi baru – PRIORITAS' : 'Konsultasi baru Ngopi Pagi',
+            "{$k->nama} ({$k->kelurahan}, {$k->kecamatan}) memulai konsultasi"
+                . ($spesialisasi ? " – {$spesialisasi->nama}" : '') . ($konselor ? " dengan {$konselor->nama_tampilan}." : '.'),
             $k->urlAdmin(),
-            ['konsultasi_id' => $k->id, 'segera' => $segera],
+            ['konsultasi_id' => $k->id, 'segera' => $prioritas],
+            $konselor?->user_id,
         );
 
         $request->session()->put('ngopi_token', $k->token);
@@ -136,7 +187,6 @@ class NgopiPagiPublikController extends Controller
 
         $d = $request->validate(['isi' => ['required', 'string', 'max:2000']]);
 
-        // Notifikasi hanya untuk pesan pertama yang belum dibaca (agar lonceng tidak dibanjiri).
         $adaBelumDibaca = $k->pesans()->where('pengirim', 'masyarakat')->whereNull('dibaca_at')->exists();
 
         $p = $k->pesans()->create(['pengirim' => 'masyarakat', 'isi' => trim($d['isi'])]);
@@ -180,6 +230,16 @@ class NgopiPagiPublikController extends Controller
     }
 
     // ---------- util ----------
+    private function sapaan(?NgopiPagiKonselor $konselor, ?NgopiPagiSpesialisasi $sp): string
+    {
+        $tengah = $konselor
+            ? "Anda memilih {$konselor->nama_tampilan} ({$konselor->headline})" . ($sp ? " untuk topik {$sp->nama}" : '')
+                . ". Admin akan menyapa dan memastikan data Anda tepat, lalu percakapan dilanjutkan bersama konselor.\n"
+            : "Petugas kami akan segera menyapa Anda di ruang obrolan ini.\n";
+
+        return self::SAPAAN . $tengah . self::PENUTUP;
+    }
+
     private function cari(string $token): K
     {
         return K::where('token', $token)->firstOrFail();
