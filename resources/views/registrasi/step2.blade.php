@@ -1402,8 +1402,8 @@
                                         </button>
                                     </div>
                                     <p class="auth-hint-text">
-                                        (* Password minimal 8 karakter, memuat 1 Huruf Kapital, 1
-                                        Huruf Kecil, dan 1 angka)
+                                        (* Password minimal 8 karakter, memuat 1 Huruf Kapital, 1 Huruf Kecil, 1 angka,
+                                        dan 1 karakter khusus, contoh: @ # $ ! %)
                                     </p>
                                 </div>
 

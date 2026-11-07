@@ -159,6 +159,28 @@
             </div>
         @endif
     </form>
+
+    {{-- ===== Pop-up konfirmasi sebelum data dikirim ===== --}}
+    @if ($bisaEdit)
+        <div id="modal-konfirmasi" class="fixed inset-0 z-[90] hidden items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="konfirmasi-judul">
+            <div class="absolute inset-0 bg-black/50" data-konfirmasi-batal></div>
+            <div class="relative w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl">
+                <div class="w-12 h-12 rounded-2xl bg-brand-soft text-brand flex items-center justify-center mb-3">
+                    <span class="material-symbols-outlined text-[26px]">fact_check</span>
+                </div>
+                <h2 id="konfirmasi-judul" class="text-base font-extrabold text-on-surface">Apakah data sudah sesuai?</h2>
+                <p class="mt-1.5 text-sm text-on-surface-variant">
+                    Pastikan semua jawaban sudah benar dan sesuai keadaan sebenarnya. Data akan dikirim ke petugas kelurahan untuk diverifikasi.
+                </p>
+                <div class="mt-5 flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
+                    <button type="button" data-konfirmasi-batal
+                            class="px-5 py-3 rounded-full border border-outline-variant text-sm font-semibold text-on-surface">Periksa lagi</button>
+                    <button type="button" id="btn-konfirmasi-ya"
+                            class="px-5 py-3 rounded-full bg-primary text-white text-sm font-semibold">Ya, sudah sesuai</button>
+                </div>
+            </div>
+        </div>
+    @endif
 @endsection
 
 @push('scripts')
@@ -380,6 +402,54 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Saat menekan "Simpan Data", batalkan draft yang tertunda
     form.addEventListener('submit', function () { clearTimeout(timer); timer = null; });
+});
+</script>
+
+{{-- Konfirmasi sebelum data dikirim --}}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var form = document.getElementById('form-lengkapi');
+    var modal = document.getElementById('modal-konfirmasi');
+    var btnSubmit = document.getElementById('btn-submit');
+    if (!form || !modal || !btnSubmit) { return; }
+
+    var sudahKonfirmasi = false;
+
+    function buka() {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.documentElement.style.overflow = 'hidden';
+        document.getElementById('btn-konfirmasi-ya').focus();
+    }
+
+    function tutup() {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        document.documentElement.style.overflow = '';
+    }
+
+    // Listener ini berjalan SETELAH validasi "wajib diisi" di _gc_field (fase capture di document).
+    // Jadi pop-up hanya muncul kalau semua pertanyaan wajib sudah terisi.
+    form.addEventListener('submit', function (e) {
+        if (e.defaultPrevented || sudahKonfirmasi) { return; }
+        e.preventDefault();
+        buka();
+    });
+
+    modal.addEventListener('click', function (e) {
+        if (e.target.closest('[data-konfirmasi-batal]')) { tutup(); }
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !modal.classList.contains('hidden')) { tutup(); }
+    });
+
+    document.getElementById('btn-konfirmasi-ya').addEventListener('click', function () {
+        sudahKonfirmasi = true;
+        tutup();
+        form.requestSubmit(btnSubmit);   // submit ulang, kali ini lolos
+        btnSubmit.disabled = true;       // cegah klik ganda
+    });
 });
 </script>
 @endpush

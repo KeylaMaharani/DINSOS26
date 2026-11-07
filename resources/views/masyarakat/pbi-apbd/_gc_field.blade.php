@@ -111,11 +111,32 @@
         </div>
 
     @elseif ($p->tipe_input === 'angka')
-        @php $lb = PbiGcForm::lintangBujur($p); @endphp
-        <input type="number" step="any" inputmode="decimal" @unless ($lb) min="0" @endunless id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]"
-               value="{{ $val }}" @disabled(! $bisaEdit) class="{{ $in }}"
-               @if (\Illuminate\Support\Str::contains(\Illuminate\Support\Str::lower($p->nama), 'lintang')) data-gc-lat @endif
-               @if (\Illuminate\Support\Str::contains(\Illuminate\Support\Str::lower($p->nama), 'bujur')) data-gc-lng @endif>
+        @php
+            $lb = PbiGcForm::lintangBujur($p);
+            // Perahu & ternak babi: Bogor tidak punya perairan / tidak ada peternakan babi -> dikunci 0
+            $namaAngka = \Illuminate\Support\Str::lower($p->nama);
+            $isNol = \Illuminate\Support\Str::contains($namaAngka, ['perahu', 'babi']);
+            if ($isNol) { $val = 0; }
+            $valAngka = is_numeric($val) ? (int) $val : null;
+        @endphp
+        @if ($lb)
+            <input type="number" step="any" inputmode="decimal" id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]"
+                   value="{{ $val }}" @disabled(! $bisaEdit) class="{{ $in }}"
+                   @if (\Illuminate\Support\Str::contains($namaAngka, 'lintang')) data-gc-lat @endif
+                   @if (\Illuminate\Support\Str::contains($namaAngka, 'bujur')) data-gc-lng @endif>
+        @elseif ($isNol)
+            <input type="number" id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]" value="0"
+                   readonly data-gc-nol @disabled(! $bisaEdit) class="{{ $in }}">
+        @else
+            {{-- Angka 0-50 sebagai dropdown (bisa dicari lewat lembar pilihan) --}}
+            <select id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]" @disabled(! $bisaEdit) class="{{ $in }}"
+                    data-gc-cari data-judul="{{ $p->nama }}">
+                <option value="">- Pilih -</option>
+                @for ($n = 0; $n <= 50; $n++)
+                    <option value="{{ $n }}" @selected($valAngka === $n)>{{ $n }}</option>
+                @endfor
+            </select>
+        @endif
 
     @elseif ($p->tipe_input === 'tanggal')
         <input type="date" id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]" value="{{ $val }}" @disabled(! $bisaEdit) class="{{ $in }}">

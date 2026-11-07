@@ -819,21 +819,97 @@ class MasyarakatController extends Controller
         };
     }
 
-    /** Isian awal: jawaban tersimpan, atau data identitas dari pengajuan bila belum pernah diisi. */
-    private function nilaiAwal(PbiApbd $pbi, $parameters): array
+    /**
+     * Isian awal: jawaban tersimpan, atau (bila belum pernah diisi) data yang sudah diinput warga saat registrasi,
+     * supaya warga tidak mengisi data yang sama dua kali. Pencocokan lewat nama pertanyaan di Master Kriteria GC.
+     * Pertanyaan berjenis pilihan hanya diisi bila nilainya ada di daftar opsi ($opsiLabels).
+     */
+    private function nilaiAwal(PbiApbd $pbi, $parameters, array $opsiLabels = []): array
     {
         $nilai = GcPbiJawaban::where('pbi_apbd_id', $pbi->id)->whereNotNull('jawaban')->pluck('jawaban', 'parameter_id')->all();
 
-        $identitas = [
+        // Anggota keluarga yang merupakan pemohon (kepala keluarga/pendaftar) = data pribadi dari registrasi
+        $pemohon = $pbi->anggotaKeluarga()->where('nik', $pbi->nik_kepala_keluarga)->first();
+
+        $jk = strtoupper((string) ($pemohon->jenis_kelamin ?? ''));
+        $tgl = ($pemohon && $pemohon->tanggal_lahir) ? Carbon::parse($pemohon->tanggal_lahir)->format('Y-m-d') : null;
+        $jumlahArt = $pbi->anggotaKeluarga()->count();
+
+        // nama pertanyaan (huruf kecil) => nilai dari registrasi
+        $registrasi = [
             'nama' => $pbi->nama_kepala_keluarga,
+            'nama lengkap' => $pbi->nama_kepala_keluarga,
+            'nama kepala keluarga' => $pbi->nama_kepala_keluarga,
+            'nama responden' => $pbi->nama_kepala_keluarga,
             'no kk' => $pbi->no_kk,
+            'nomor kk' => $pbi->no_kk,
+            'no. kk' => $pbi->no_kk,
+            'nik' => $pbi->nik_kepala_keluarga,
+            'no nik' => $pbi->nik_kepala_keluarga,
+            'nomor nik' => $pbi->nik_kepala_keluarga,
             'alamat' => $pbi->alamat,
+            'alamat lengkap' => $pbi->alamat,
+            'rt' => $pbi->rt,
+            'rw' => $pbi->rw,
+            'rt/rw' => ($pbi->rt || $pbi->rw) ? trim($pbi->rt . '/' . $pbi->rw, '/') : null,
+            'provinsi' => $pbi->provinsi,
+            'kabupaten/kota' => $pbi->kabupaten_kota,
+            'kab/kota' => $pbi->kabupaten_kota,
+            'kota' => $pbi->kabupaten_kota,
+            'kecamatan' => $pbi->kecamatan,
+            'kelurahan' => $pbi->desa_kelurahan,
+            'desa/kelurahan' => $pbi->desa_kelurahan,
+            'no telp' => $pbi->no_telp,
+            'no. telp' => $pbi->no_telp,
+            'no telepon' => $pbi->no_telp,
+            'no hp' => $pbi->no_telp,
+            'nomor hp' => $pbi->no_telp,
+            'email' => $pbi->email,
+            'tempat lahir' => $pemohon->tempat_lahir ?? null,
+            'tanggal lahir' => $tgl,
+            'tgl lahir' => $tgl,
+            'jenis kelamin' => $jk === 'L' ? 'Laki-laki' : ($jk === 'P' ? 'Perempuan' : null),
+            'agama' => $pemohon->agama ?? null,
+            'jumlah anggota keluarga' => $jumlahArt,
+            'jumlah art' => $jumlahArt,
+            'jumlah anggota rumah tangga' => $jumlahArt,
         ];
 
+        // Cocokkan nilai dengan opsi tanpa peduli besar-kecil huruf ("islam" -> "Islam", "Laki-laki" -> "Laki-Laki")
+        $cocokkan = function ($nilaiReg, array $labels) {
+            $t = Str::lower(trim((string) $nilaiReg));
+            foreach ($labels as $l) {
+                if (Str::lower(trim((string) $l)) === $t) {
+                    return $l;
+                }
+            }
+
+            return null;
+        };
+
         foreach ($parameters as $p) {
+            if (isset($nilai[$p->id]) || in_array($p->tipe_input, ['foto', 'pilihan_ganda', 'koordinat'], true)) {
+                continue;
+            }
+
             $nama = Str::lower(trim($p->nama));
-            if (! isset($nilai[$p->id]) && ! empty($identitas[$nama])) {
-                $nilai[$p->id] = $identitas[$nama];
+            $isi = $registrasi[$nama] ?? null;
+
+            if ($isi === null || $isi === '') {
+                continue;
+            }
+
+            if ($p->tipe_input === 'pilihan') {
+                $isi = $cocokkan($isi, $opsiLabels[$p->id] ?? []);
+            } elseif ($p->tipe_input === 'angka') {
+                // Angka hanya dari pertanyaan jumlah anggota (dropdown 0-50)
+                $isi = (is_numeric($isi) && $isi >= 0 && $isi <= 50 && str_starts_with($nama, 'jumlah')) ? (string) (int) $isi : null;
+            } elseif ($p->tipe_input === 'tanggal') {
+                $isi = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $isi) ? $isi : null;
+            }
+
+            if ($isi !== null && $isi !== '') {
+                $nilai[$p->id] = (string) $isi;
             }
         }
 
@@ -902,7 +978,7 @@ class MasyarakatController extends Controller
         $parameters = $this->parameterUntukWarga();
         $master = $this->masterGc();
         $opsiLabels = $parameters->mapWithKeys(fn ($p) => [$p->id => $this->labelOpsi($p, $master)])->all();
-        $nilai = $this->nilaiAwal($pbiApbd, $parameters);
+        $nilai = $this->nilaiAwal($pbiApbd, $parameters, $opsiLabels);
         $perKelompok = $parameters->groupBy('kelompok');
 
         $gate = PbiGcForm::gate($parameters);
@@ -972,6 +1048,12 @@ class MasyarakatController extends Controller
                 continue;
             }
 
+            // Kepemilikan perahu: Bogor tidak punya perairan, nilainya dipaksa 0 (lihat di bawah).
+            if ($this->isNolParam($p)) {
+                $rules[$key] = ['nullable'];
+                continue;
+            }
+
             $req = PbiGcForm::opsional($p) ? 'nullable' : 'required';
             $labels = $this->labelOpsi($p, $master);
 
@@ -1011,7 +1093,7 @@ class MasyarakatController extends Controller
                     break;
 
                 case 'angka':
-                    $rules[$key] = PbiGcForm::lintangBujur($p) ? [$req, 'numeric'] : [$req, 'numeric', 'min:0'];
+                    $rules[$key] = PbiGcForm::lintangBujur($p) ? [$req, 'numeric'] : [$req, 'integer', 'between:0,50'];
                     break;
 
                 case 'tanggal':
@@ -1062,6 +1144,8 @@ class MasyarakatController extends Controller
             'in' => 'Pilihan pada :attribute tidak valid.',
             'numeric' => ':attribute harus berupa angka.',
             'min.numeric' => ':attribute tidak boleh negatif.',
+            'integer' => ':attribute harus berupa angka bulat.',
+            'between.numeric' => ':attribute harus antara 0 sampai 50.',
             'image' => ':attribute harus berupa gambar.',
             'max.file' => ':attribute maksimal 5 MB.',
             'date' => ':attribute bukan tanggal yang valid.',
@@ -1099,6 +1183,11 @@ class MasyarakatController extends Controller
                 // Responden tidak bekerja -> jawaban field turunan dikosongkan.
                 $kosongkan = in_array($p->id, $dependen, true) && ! $bekerja;
                 $input = $kosongkan ? null : $request->input("jawaban.{$p->id}");
+
+                // Kepemilikan perahu selalu 0, tidak peduli apa yang dikirim browser.
+                if ($this->isNolParam($p)) {
+                    $input = 0;
+                }
                 $jawaban = null;
                 $skor = null;
 
@@ -1426,6 +1515,12 @@ class MasyarakatController extends Controller
         $n = Str::lower((string) $p->nama);
 
         return Str::lower((string) $p->kelompok) === 'pendidikan' && str_contains($n, 'jenjang') && str_contains($n, 'pendidikan');
+    }
+
+    /** Parameter angka yang selalu 0 di Kota Bogor: kepemilikan perahu & ternak babi. */
+    private function isNolParam($p): bool
+    {
+        return $p->tipe_input === 'angka' && Str::contains(Str::lower((string) $p->nama), ['perahu', 'babi']);
     }
 
     private function isKelasParam($p): bool
