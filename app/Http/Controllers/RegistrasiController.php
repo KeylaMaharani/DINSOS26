@@ -78,7 +78,7 @@ class RegistrasiController extends Controller
             'nik' => ['required', 'digits:16', Rule::unique('pbi_apbds', 'nik_kepala_keluarga')],
             'password' => [
                 'required', 'string', 'min:8', 'confirmed',
-                'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/',
+                'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/',
             ],
             'alamat' => ['required', 'string'],
             'rt' => ['nullable', 'string', 'max:5'],
@@ -100,7 +100,7 @@ class RegistrasiController extends Controller
             'anggota.*.nik' => ['required_with:anggota', 'digits:16'],
             'anggota.*.status' => ['required_with:anggota', 'string'],
         ], [
-            'password.regex' => 'Password minimal 8 karakter, memuat 1 huruf kapital, 1 huruf kecil, dan 1 angka.',
+            'password.regex' => 'Password minimal 8 karakter, memuat 1 huruf kapital, 1 huruf kecil, 1 angka, dan 1 karakter khusus (contoh: @ # $ ! %).',
             'nik.unique' => 'NIK ini sudah pernah mengajukan PBI APBD.',
             'email.unique' => 'Email ini sudah terdaftar, silakan login.',
         ]);
