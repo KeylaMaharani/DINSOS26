@@ -273,16 +273,8 @@
                         <input type="date" name="tanggal_lahir" value="{{ old('tanggal_lahir') }}" max="{{ now()->format('Y-m-d') }}" class="{{ $in }}" />
                     </div>
 
-                    <div>
-                        <label class="block text-xs font-semibold mb-1">Kecamatan</label>
-                        <input type="text" name="kecamatan" value="{{ old('kecamatan') }}" list="gc-kecamatan" class="{{ $in }}" />
-                        <datalist id="gc-kecamatan">@foreach ($kecamatanList as $k)<option value="{{ $k }}">@endforeach</datalist>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold mb-1">Kelurahan</label>
-                        <input type="text" name="kelurahan" value="{{ old('kelurahan') }}" list="gc-kelurahan" class="{{ $in }}" />
-                        <datalist id="gc-kelurahan">@foreach ($kelurahanList as $k)<option value="{{ $k }}">@endforeach</datalist>
-                    </div>
+                    {{-- Kecamatan -> Desa/Kelurahan berantai (config/wilayah.php); boleh dikosongkan --}}
+                    <x-wilayah-select :required="false" :cls="$in" />
 
                     <div class="sm:col-span-2">
                         <label class="block text-xs font-semibold mb-1">Alamat</label>

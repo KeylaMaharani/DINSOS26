@@ -427,6 +427,25 @@
             padding: 0 0.3rem;
         }
 
+        .auth-field .auth-note {
+            margin-top: 0.4rem;
+            padding: 0 0.3rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.3rem;
+            font-size: 11px;
+            font-weight: 600;
+            color: #72777f;
+            line-height: 1.5;
+        }
+
+        .auth-field .auth-note .material-symbols-outlined {
+            font-size: 14px;
+            color: #136299;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
         .reg-grid {
             display: grid;
             grid-template-columns: minmax(0, 1fr);
@@ -819,8 +838,8 @@
         }
 
         /* ==========================================================
-                 FORM WIZARD (Mode Wizard aktif)
-                 ========================================================== */
+                         FORM WIZARD (Mode Wizard aktif)
+                         ========================================================== */
         html.wz-active,
         html.wz-active body {
             overflow: hidden;
@@ -1115,8 +1134,8 @@
         }
 
         /* ==========================================================
-                 OPTIMASI MOBILE FRIENDLY (MAX-WIDTH: 700px)
-                 ========================================================== */
+                         OPTIMASI MOBILE FRIENDLY (MAX-WIDTH: 700px)
+                         ========================================================== */
         @media (max-width: 700px) {
             .wz-active .auth-page {
                 padding: 0;
@@ -1241,6 +1260,162 @@
                 padding-top: 0.9rem;
                 padding-bottom: 0.8rem;
             }
+        }
+
+        /* ==========================================================
+                   PEKERJAAN: kolom ketik + daftar dari master
+                   ========================================================== */
+        .pk-wrap {
+            position: relative;
+        }
+
+        .pk-wrap>input[type="text"] {
+            padding-right: 2.6rem;
+        }
+
+        .pk-clear {
+            position: absolute;
+            right: 0.9rem;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            border: none;
+            background: none;
+            color: #72777f;
+            cursor: pointer;
+            padding: 0.2rem;
+            border-radius: 9999px;
+            transition: color 0.15s ease, background 0.15s ease;
+        }
+
+        .pk-clear:hover {
+            color: #ba1a1a;
+            background: #fdecec;
+        }
+
+        .pk-clear[hidden] {
+            display: none !important;
+        }
+
+        .pk-panel {
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: calc(100% + 0.35rem);
+            z-index: 40;
+            max-height: 18rem;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            background: #ffffff;
+            border: 1.5px solid #d5dae1;
+            border-radius: 1rem;
+            box-shadow: 0 14px 32px rgba(0, 40, 69, 0.18);
+            padding: 0.35rem;
+            animation: pk-in 0.14s ease-out;
+        }
+
+        .pk-panel[hidden] {
+            display: none !important;
+        }
+
+        @@keyframes pk-in {
+            from {
+                opacity: 0;
+                transform: translateY(-4px);
+            }
+
+            to {
+                opacity: 1;
+                transform: none;
+            }
+        }
+
+        .pk-tip {
+            margin: 0.15rem 0.25rem 0.4rem;
+            padding: 0.55rem 0.7rem;
+            border-radius: 0.75rem;
+            background: #fff8e6;
+            border: 1px solid #f3c76a;
+            color: #7a5c00;
+            font-size: 11.5px;
+            line-height: 1.45;
+        }
+
+        .pk-gh {
+            display: flex;
+            flex-direction: column;
+            gap: 0.1rem;
+            padding: 0.55rem 0.65rem 0.3rem;
+            position: sticky;
+            top: -0.35rem;
+            background: #ffffff;
+            z-index: 1;
+        }
+
+        .pk-gh strong {
+            font-size: 12px;
+            color: #136299;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .pk-gp {
+            font-size: 11px;
+            color: #72777f;
+            line-height: 1.4;
+        }
+
+        .pk-gc {
+            font-size: 11px;
+            color: #42474e;
+            line-height: 1.4;
+            background: #eef4fb;
+            border-radius: 0.5rem;
+            padding: 0.3rem 0.5rem;
+            margin-top: 0.2rem;
+        }
+
+        .pk-opt {
+            display: block;
+            width: 100%;
+            text-align: left;
+            border: none;
+            background: none;
+            padding: 0.55rem 0.75rem;
+            border-radius: 0.65rem;
+            font-family: inherit;
+            font-size: 13.5px;
+            color: #121d26;
+            cursor: pointer;
+            transition: background 0.12s ease;
+        }
+
+        .pk-opt:hover,
+        .pk-opt.is-aktif {
+            background: #e8f4fd;
+        }
+
+        .pk-empty {
+            margin: 0;
+            padding: 1rem;
+            text-align: center;
+            font-size: 12.5px;
+            color: #72777f;
+        }
+
+        .pk-info {
+            margin: 0.4rem 0.3rem 0;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.75rem;
+            background: #eef4fb;
+            border: 1px solid #d9e3f1;
+            color: #42474e;
+            font-size: 11.5px;
+            line-height: 1.45;
+        }
+
+        .pk-info[hidden] {
+            display: none !important;
         }
     </style>
 @endpush
@@ -1419,6 +1594,10 @@
                                             style="top: 1.1rem; transform: none">home</span>
                                         <textarea id="alamat" name="alamat" placeholder="Masukan Alamat Anda" required>{{ old('alamat') }}</textarea>
                                     </div>
+                                    <p class="auth-note">
+                                        <span class="material-symbols-outlined">info</span>
+                                        Isi alamat sesuai dengan yang tertera di KK/KTP.
+                                    </p>
                                     @error('alamat')
                                         <p class="auth-hint-text">{{ $message }}</p>
                                     @enderror
@@ -1464,20 +1643,17 @@
                                     </div>
                                 </div>
 
+                                {{-- Kecamatan -> Desa/Kelurahan berantai (data dari config/wilayah.php) --}}
                                 <div class="auth-field">
                                     <label for="kecamatan">Kecamatan</label>
                                     <div class="auth-field-icon-wrap">
                                         <span class="auth-input-icon material-symbols-outlined text-[17px]">signpost</span>
                                         <select id="kecamatan" name="kecamatan" required>
                                             <option value="">-Pilih-</option>
-                                            <option value="Bogor Selatan" @selected(old('kecamatan') == 'Bogor Selatan')>Bogor Selatan
-                                            </option>
-                                            <option value="Bogor Timur" @selected(old('kecamatan') == 'Bogor Timur')>Bogor Timur</option>
-                                            <option value="Bogor Utara" @selected(old('kecamatan') == 'Bogor Utara')>Bogor Utara</option>
-                                            <option value="Bogor Tengah" @selected(old('kecamatan') == 'Bogor Tengah')>Bogor Tengah</option>
-                                            <option value="Bogor Barat" @selected(old('kecamatan') == 'Bogor Barat')>Bogor Barat</option>
-                                            <option value="Tanah Sareal" @selected(old('kecamatan') == 'Tanah Sareal')>Tanah Sareal
-                                            </option>
+                                            @foreach (array_keys($wilayah) as $k)
+                                                <option value="{{ $k }}" @selected(strtoupper((string) old('kecamatan')) === $k)>
+                                                    {{ $k }}</option>
+                                            @endforeach
                                         </select>
                                     </div>
                                     @error('kecamatan')
@@ -1490,9 +1666,9 @@
                                     <div class="auth-field-icon-wrap">
                                         <span
                                             class="auth-input-icon material-symbols-outlined text-[17px]">holiday_village</span>
-                                        <input id="desa-kelurahan" name="desa_kelurahan" type="text"
-                                            placeholder="Masukan Desa/Kelurahan Anda" value="{{ old('desa_kelurahan') }}"
-                                            required />
+                                        <select id="desa-kelurahan" name="desa_kelurahan" required>
+                                            <option value="">-Pilih kecamatan dahulu-</option>
+                                        </select>
                                     </div>
                                     @error('desa_kelurahan')
                                         <p class="auth-hint-text">{{ $message }}</p>
@@ -1562,14 +1738,25 @@
                                     @enderror
                                 </div>
 
-                                <div class="auth-field">
-                                    <label for="pekerjaan">Pekerjaan</label>
-                                    <div class="auth-field-icon-wrap">
+                                {{-- Pekerjaan: dipilih dari master (ketik untuk mencari). Nilai asli ada di input tersembunyi
+                                     #pekerjaan (name="pekerjaan"); kolom ketik #pekerjaan-cari hanya untuk mencari. --}}
+                                <div class="auth-field" id="pekerjaan-field">
+                                    <input id="pekerjaan" name="pekerjaan" type="hidden"
+                                        value="{{ old('pekerjaan') }}" />
+                                    <label for="pekerjaan-cari">Pekerjaan</label>
+                                    <div class="auth-field-icon-wrap pk-wrap">
                                         <span class="auth-input-icon material-symbols-outlined text-[17px]">work</span>
-                                        <input id="pekerjaan" name="pekerjaan" type="text"
-                                            placeholder="Masukan Pekerjaan Anda Sesuai KTP"
-                                            value="{{ old('pekerjaan') }}" required />
+                                        <input id="pekerjaan-cari" type="text" autocomplete="off" role="combobox"
+                                            aria-autocomplete="list" aria-expanded="false" aria-controls="pk-list"
+                                            placeholder="Ketik &amp; pilih pekerjaan (mis. wiraswasta, buruh, guru)"
+                                            required />
+                                        <button type="button" class="pk-clear" id="pk-clear" hidden
+                                            aria-label="Hapus pilihan">
+                                            <span class="material-symbols-outlined text-[17px]">close</span>
+                                        </button>
+                                        <div class="pk-panel" id="pk-list" role="listbox" hidden></div>
                                     </div>
+                                    <p class="pk-info" id="pk-info" hidden></p>
                                     @error('pekerjaan')
                                         <p class="auth-hint-text">{{ $message }}</p>
                                     @enderror
@@ -1681,8 +1868,8 @@
     </div>
 
     <!-- ============================================================
-             MODAL — Tambah / Edit Anggota Keluarga
-             ============================================================ -->
+                     MODAL — Tambah / Edit Anggota Keluarga
+                     ============================================================ -->
     <div class="reg-modal-backdrop" id="modal-tambah-anggota">
         <div class="reg-modal">
             <h3 id="modal-title">
@@ -1723,6 +1910,36 @@
                 </button>
                 <button type="button" class="reg-modal-btn-save" id="modal-simpan">
                     Simpan
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+                     MODAL — Konfirmasi sebelum pengajuan dikirim
+                     ============================================================ -->
+    <div class="reg-modal-backdrop" id="modal-konfirmasi-registrasi" role="dialog" aria-modal="true"
+        aria-labelledby="konfirmasi-reg-judul">
+        <div class="reg-modal">
+            <h3 id="konfirmasi-reg-judul">
+                <span class="material-symbols-outlined">fact_check</span>
+                Apakah data sudah sesuai?
+            </h3>
+            <p style="font-size: 12.5px; color: #42474e; line-height: 1.5; margin: 0 0 0.9rem">
+                Periksa kembali data Anda. Setelah Anda menekan <strong>Ya, sudah sesuai</strong>,
+                akun dan permohonan PBI APBD akan dibuat.
+            </p>
+            <dl id="konfirmasi-reg-ringkas"
+                style="margin: 0 0 1.1rem; padding: 0.75rem 0.9rem; border-radius: 0.75rem; background: #f7f9ff;
+                       border: 1px solid #e4e9f0; font-size: 12.5px; display: grid; grid-template-columns: auto 1fr;
+                       gap: 0.35rem 0.8rem;">
+            </dl>
+            <div class="reg-modal-actions">
+                <button type="button" class="reg-modal-btn-cancel" id="btn-reg-konfirmasi-batal">
+                    Periksa lagi
+                </button>
+                <button type="button" class="reg-modal-btn-save" id="btn-reg-konfirmasi-ya">
+                    Ya, sudah sesuai
                 </button>
             </div>
         </div>
@@ -1891,6 +2108,336 @@
                     closeModal();
                 });
             }
+        })();
+    </script>
+
+    {{-- Kecamatan -> Desa/Kelurahan berantai (harus dijalankan SEBELUM skrip pemulihan isian di bawah) --}}
+    <script>
+        (function() {
+            var wilayah = @json($wilayah);
+            var kec = document.getElementById('kecamatan');
+            var kel = document.getElementById('desa-kelurahan');
+            if (!kec || !kel) return;
+
+            // Isi ulang pilihan Desa/Kelurahan sesuai kecamatan yang sedang dipilih
+            window.regIsiKelurahan = function(pilih) {
+                var daftar = wilayah[kec.value] || [];
+                pilih = (pilih || '').toString().toUpperCase();
+
+                kel.innerHTML = '';
+                kel.add(new Option(kec.value ? '-Pilih-' : '-Pilih kecamatan dahulu-', ''));
+                daftar.forEach(function(n) {
+                    kel.add(new Option(n, n));
+                });
+                kel.value = daftar.indexOf(pilih) >= 0 ? pilih : '';
+            };
+
+            // Ganti kecamatan -> kelurahan dikosongkan & dimuat ulang
+            kec.addEventListener('change', function() {
+                window.regIsiKelurahan('');
+            });
+
+            // Muat awal (mis. setelah gagal validasi: kembalikan pilihan lama)
+            window.regIsiKelurahan(@json(strtoupper((string) old('desa_kelurahan'))));
+        })();
+    </script>
+
+    {{-- Pekerjaan: ketik untuk mencari dari master; "wiraswasta"/"buruh" langsung diarahkan ke lapangan usaha.
+         HARUS dipasang SEBELUM skrip Wizard & skrip pemulihan isian (window.regSyncPekerjaan dipakai di sana). --}}
+    <script>
+        (function() {
+            var data = @json($lapangan);
+            var input = document.getElementById('pekerjaan-cari');
+            var hid = document.getElementById('pekerjaan');
+            var panel = document.getElementById('pk-list');
+            var info = document.getElementById('pk-info');
+            var clearBtn = document.getElementById('pk-clear');
+            if (!input || !hid || !panel) return;
+
+            var bebas = !data.length; // master kosong -> teks bebas
+            var aktif = -1;
+
+            var ISTILAH = [{
+                    mode: 'sendiri',
+                    judul: 'berusaha sendiri / wiraswasta',
+                    kata: ['wiraswasta', 'wirausaha', 'pengusaha', 'usaha sendiri', 'berusaha sendiri', 'dagang',
+                        'jualan',
+                        'buka usaha', 'swasta mandiri'
+                    ]
+                },
+                {
+                    mode: 'buruh',
+                    judul: 'buruh / karyawan',
+                    kata: ['buruh', 'karyawan', 'pegawai', 'kuli', 'pekerja', 'swasta', 'honorer']
+                }
+            ];
+
+            function norm(t) {
+                return String(t || '').toLowerCase().replace(/\s+/g, ' ').trim();
+            }
+
+            function el(tag, cls, teks) {
+                var e = document.createElement(tag);
+                if (cls) e.className = cls;
+                if (teks) e.textContent = teks;
+                return e;
+            }
+
+            function kirimInput() {
+                hid.dispatchEvent(new Event('input', {
+                    bubbles: true
+                }));
+            }
+
+            function valid() {
+                input.setCustomValidity(bebas || hid.value ? '' : 'Pilih pekerjaan dari daftar yang tersedia.');
+            }
+
+            function tampilInfo(g) {
+                info.innerHTML = '';
+                if (!g) {
+                    info.hidden = true;
+                    return;
+                }
+                info.hidden = false;
+                info.appendChild(document.createTextNode('Lapangan usaha: '));
+                info.appendChild(el('strong', '', g.nama));
+                if (g.penjelasan) info.appendChild(document.createTextNode(' — ' + g.penjelasan));
+            }
+
+            function ambilMode(q) {
+                if (!q) return null;
+                for (var i = 0; i < ISTILAH.length; i++) {
+                    var ada = ISTILAH[i].kata.some(function(k) {
+                        return q.indexOf(k) >= 0 || (q.length >= 5 && k.indexOf(q) === 0);
+                    });
+                    if (ada) return ISTILAH[i];
+                }
+                return null;
+            }
+
+            function semuaKata(teks, kata) {
+                var t = norm(teks);
+                return kata.every(function(w) {
+                    return t.indexOf(w) >= 0;
+                });
+            }
+
+            function susun(q) {
+                var kata = q ? q.split(' ') : [];
+                var mode = ambilMode(q);
+                var hasil = [];
+
+                data.forEach(function(g) {
+                    var semua = g.pekerjaan || [];
+                    var anak = semua;
+                    var contoh = false;
+
+                    if (q && !mode) {
+                        anak = semua.filter(function(n) {
+                            return semuaKata(n, kata);
+                        });
+                        if (!anak.length && semuaKata([g.nama, g.penjelasan, g.sendiri, g.buruh].join(' '),
+                                kata)) {
+                            anak = semua;
+                            contoh = true;
+                        }
+                    } else if (mode) {
+                        contoh = true;
+                    }
+
+                    if (anak.length) hasil.push({
+                        g: g,
+                        anak: anak,
+                        contoh: contoh
+                    });
+                });
+
+                return {
+                    mode: mode,
+                    hasil: hasil
+                };
+            }
+
+            function pilih(nama, g) {
+                input.value = nama;
+                hid.value = nama;
+                tutup();
+                tampilInfo(g);
+                valid();
+                clearBtn.hidden = false;
+                kirimInput();
+            }
+
+            function render() {
+                var terpilih = hid.value && norm(input.value) === norm(hid.value);
+                var q = terpilih ? '' : norm(input.value);
+                var s = susun(q);
+
+                panel.innerHTML = '';
+                aktif = -1;
+
+                if (s.mode) {
+                    panel.appendChild(el('p', 'pk-tip',
+                        '“' + input.value.trim() + '” adalah istilah umum (' + s.mode.judul +
+                        '). Pilih pekerjaan yang paling sesuai dengan bidang usaha Anda di bawah ini.'));
+                }
+
+                s.hasil.forEach(function(r) {
+                    var h = el('div', 'pk-gh');
+                    h.appendChild(el('strong', '', r.g.nama));
+                    if (r.g.penjelasan) h.appendChild(el('span', 'pk-gp', r.g.penjelasan));
+
+                    if (r.contoh) {
+                        var teks = [];
+                        if (!s.mode || s.mode.mode === 'sendiri') {
+                            if (r.g.sendiri) teks.push('Contoh berusaha sendiri: ' + r.g.sendiri);
+                        }
+                        if (!s.mode || s.mode.mode === 'buruh') {
+                            if (r.g.buruh) teks.push('Contoh buruh/karyawan: ' + r.g.buruh);
+                        }
+                        if (teks.length) h.appendChild(el('span', 'pk-gc', teks.join(' • ')));
+                    }
+                    panel.appendChild(h);
+
+                    r.anak.forEach(function(n) {
+                        var b = el('button', 'pk-opt', n);
+                        b.type = 'button';
+                        b.setAttribute('role', 'option');
+                        b.addEventListener('mousedown', function(e) {
+                            e.preventDefault(); // pertahankan fokus di kolom ketik
+                        });
+                        b.addEventListener('click', function() {
+                            pilih(n, r.g);
+                        });
+                        panel.appendChild(b);
+                    });
+                });
+
+                if (!s.hasil.length) {
+                    panel.appendChild(el('p', 'pk-empty',
+                        'Pekerjaan tidak ditemukan. Coba kata lain atau ketik bidang usahanya, mis. “pertanian”, “perdagangan”, “jasa”.'
+                    ));
+                }
+            }
+
+            function buka() {
+                if (bebas) return;
+                render();
+                panel.hidden = false;
+                input.setAttribute('aria-expanded', 'true');
+            }
+
+            function tutup() {
+                panel.hidden = true;
+                input.setAttribute('aria-expanded', 'false');
+                aktif = -1;
+            }
+
+            input.addEventListener('focus', buka);
+            input.addEventListener('click', buka);
+
+            input.addEventListener('input', function() {
+                if (bebas) {
+                    hid.value = input.value.trim();
+                    valid();
+                    kirimInput();
+                    return;
+                }
+                // Mengetik lagi setelah memilih = pilihan dibatalkan
+                if (hid.value && norm(input.value) !== norm(hid.value)) {
+                    hid.value = '';
+                    tampilInfo(null);
+                    kirimInput();
+                }
+                valid();
+                clearBtn.hidden = !input.value;
+                buka();
+            });
+
+            input.addEventListener('keydown', function(e) {
+                var terbuka = !panel.hidden;
+
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (!terbuka) buka();
+                    var opts = panel.querySelectorAll('.pk-opt');
+                    if (!opts.length) return;
+                    aktif = e.key === 'ArrowDown' ? Math.min(opts.length - 1, aktif + 1) : Math.max(0, aktif -
+                        1);
+                    opts.forEach(function(o, i) {
+                        o.classList.toggle('is-aktif', i === aktif);
+                    });
+                    opts[aktif].scrollIntoView({
+                        block: 'nearest'
+                    });
+                } else if (e.key === 'Enter' && terbuka) {
+                    // Jangan sampai Enter ikut memicu "Lanjut" milik wizard
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var daftar = panel.querySelectorAll('.pk-opt');
+                    if (aktif >= 0 && daftar[aktif]) daftar[aktif].click();
+                    else if (daftar.length === 1) daftar[0].click();
+                } else if (e.key === 'Escape' && terbuka) {
+                    e.stopPropagation();
+                    tutup();
+                } else if (e.key === 'Tab') {
+                    tutup();
+                }
+            });
+
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest || !e.target.closest('.pk-wrap')) tutup();
+            });
+
+            clearBtn.addEventListener('click', function() {
+                input.value = '';
+                hid.value = '';
+                tampilInfo(null);
+                valid();
+                clearBtn.hidden = true;
+                kirimInput();
+                input.focus();
+            });
+
+            // Dipanggil setelah nilai hidden diisi dari luar (old() Laravel / pemulihan sessionStorage)
+            window.regSyncPekerjaan = function() {
+                var v = norm(hid.value);
+                var ketemu = null;
+
+                if (v) {
+                    data.some(function(g) {
+                        return (g.pekerjaan || []).some(function(n) {
+                            if (norm(n) === v) {
+                                ketemu = {
+                                    n: n,
+                                    g: g
+                                };
+                                return true;
+                            }
+                            return false;
+                        });
+                    });
+                }
+
+                if (ketemu) {
+                    input.value = ketemu.n;
+                    hid.value = ketemu.n;
+                    tampilInfo(ketemu.g);
+                } else if (bebas) {
+                    input.value = hid.value;
+                    tampilInfo(null);
+                } else {
+                    input.value = '';
+                    hid.value = '';
+                    tampilInfo(null);
+                }
+
+                clearBtn.hidden = !input.value;
+                valid();
+            };
+
+            window.regSyncPekerjaan();
         })();
     </script>
 
@@ -2121,6 +2668,117 @@
         })();
     </script>
 
+    {{-- Konfirmasi sebelum pengajuan dikirim.
+         HARUS dipasang SEBELUM skrip "Simpan isian sementara" di bawah, supaya isian tidak terhapus
+         saat warga menekan "Periksa lagi". --}}
+    <script>
+        (function() {
+            var form = document.getElementById('register-step2-form');
+            var modal = document.getElementById('modal-konfirmasi-registrasi');
+            if (!form || !modal) return;
+
+            var ringkas = document.getElementById('konfirmasi-reg-ringkas');
+            var btnYa = document.getElementById('btn-reg-konfirmasi-ya');
+            var btnBatal = document.getElementById('btn-reg-konfirmasi-batal');
+            var sudahKonfirmasi = false;
+
+            function nilai(id) {
+                var el = document.getElementById(id);
+                return el ? String(el.value || '').trim() : '';
+            }
+
+            function teksPilihan(id) {
+                var el = document.getElementById(id);
+                if (!el || el.selectedIndex < 0 || !el.value) return '';
+                return el.options[el.selectedIndex].text.trim();
+            }
+
+            function baris(label, isi) {
+                var dt = document.createElement('dt');
+                dt.textContent = label;
+                dt.style.color = '#72777f';
+                var dd = document.createElement('dd');
+                dd.textContent = isi || '-';
+                dd.style.margin = '0';
+                dd.style.fontWeight = '600';
+                dd.style.color = '#121d26';
+                dd.style.wordBreak = 'break-word';
+                ringkas.appendChild(dt);
+                ringkas.appendChild(dd);
+            }
+
+            function isiRingkasan() {
+                ringkas.innerHTML = '';
+                var rtrw = [nilai('rt'), nilai('rw')].filter(Boolean).join(' / ');
+                var wilayah = [teksPilihan('desa-kelurahan'), teksPilihan('kecamatan'), nilai('kab-kota')]
+                    .filter(Boolean).join(', ');
+                var jumlahAnggota = document.querySelectorAll('#family-table-body tr[id^="family-row-"]').length;
+
+                baris('Nama', nilai('nama-lengkap'));
+                baris('NIK', nilai('nik'));
+                baris('Pekerjaan', nilai('pekerjaan'));
+                baris('Alamat', nilai('alamat'));
+                baris('RT / RW', rtrw);
+                baris('Wilayah', wilayah);
+                baris('Anggota keluarga', jumlahAnggota + ' orang ditambahkan');
+            }
+
+            function buka() {
+                isiRingkasan();
+                btnYa.disabled = false;
+                modal.classList.add('is-open');
+                btnYa.focus();
+            }
+
+            function tutup() {
+                modal.classList.remove('is-open');
+            }
+
+            // Pencegat submit. Form memakai novalidate, jadi isian wajib di langkah terakhir dicek di sini.
+            form.addEventListener('submit', function(e) {
+                if (sudahKonfirmasi) return; // submit kedua (setelah "Ya") dibiarkan lolos
+                e.preventDefault();
+
+                var tampil = Array.prototype.filter.call(
+                    form.querySelectorAll('input[required], select[required], textarea[required]'),
+                    function(el) {
+                        return el.offsetParent !== null && !el.checkValidity();
+                    }
+                );
+                if (tampil.length) {
+                    tampil[0].reportValidity();
+                    return;
+                }
+
+                buka();
+            });
+
+            btnBatal.addEventListener('click', tutup);
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) tutup();
+            });
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && modal.classList.contains('is-open')) tutup();
+            });
+
+            btnYa.addEventListener('click', function() {
+                sudahKonfirmasi = true;
+                btnYa.disabled = true; // cegah klik ganda
+                tutup();
+
+                if (form.requestSubmit) {
+                    form.requestSubmit(); // memicu submit lagi; kali ini lolos
+                } else {
+                    // Peramban lama: submit() tidak memicu event, hapus simpanan sementara manual
+                    try {
+                        sessionStorage.removeItem('reg_step2:' + @json($noKk));
+                    } catch (err) {}
+                    form.submit();
+                }
+            });
+        })();
+    </script>
+
     {{-- Simpan isian sementara supaya tidak hilang saat refresh --}}
     <script>
         (function() {
@@ -2176,8 +2834,16 @@
                         var data = JSON.parse(raw);
                         Object.keys(data.fields || {}).forEach(function(name) {
                             var el = form.elements[name];
-                            if (el && !el.readOnly) el.value = data.fields[name];
+                            // Desa/Kelurahan diisi terpisah di bawah (opsinya baru ada setelah kecamatan dipilih)
+                            if (el && !el.readOnly && name !== 'desa_kelurahan') el.value = data.fields[name];
                         });
+                        if (window.regIsiKelurahan) {
+                            window.regIsiKelurahan((data.fields || {}).desa_kelurahan || '');
+                        }
+                        // Pekerjaan: nilai hidden sudah terisi, tampilkan ulang di kolom ketik
+                        if (window.regSyncPekerjaan) {
+                            window.regSyncPekerjaan();
+                        }
                         (data.anggota || []).forEach(tambahAnggota);
                     } catch (e) {}
                 }
@@ -2194,10 +2860,12 @@
             );
 
             // Saat dikirim, hapus simpanan (kalau gagal validasi, Laravel yang mengisi ulang)
-            form.addEventListener('submit', function() {
+            form.addEventListener('submit', function(e) {
+                // Submit yang dibatalkan (menunggu konfirmasi) tidak boleh menghapus isian
+                if (e.defaultPrevented) return;
                 try {
                     sessionStorage.removeItem(KEY);
-                } catch (e) {}
+                } catch (err) {}
             });
         })();
     </script>

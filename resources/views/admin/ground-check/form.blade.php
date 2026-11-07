@@ -423,4 +423,30 @@ document.addEventListener('DOMContentLoaded', function () {
     terapkan();
 });
 </script>
+
+{{-- Kepemilikan perahu & ternak babi: Kota Bogor selalu 0 -> dikunci di 0.
+     (Server tetap memaksa 0 saat disimpan, apa pun kiriman browser.) --}}
+<script>
+window.gcNol = @json($nolIds ?? []);
+
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('gc-form');
+    if (!form || !window.gcNol.length) return;
+
+    window.gcNol.forEach((id) => {
+        form.querySelectorAll(`[name="jawaban[${id}]"]`).forEach((el) => {
+            if (el.tagName === 'SELECT') {
+                if (![...el.options].some((o) => o.value === '0')) el.add(new Option('0', '0'));
+                el.value = '0';
+                el.style.pointerEvents = 'none';
+                el.tabIndex = -1;
+            } else {
+                el.value = '0';
+                el.readOnly = true;
+            }
+            el.classList.add('bg-surface-container', 'opacity-70');
+        });
+    });
+});
+</script>
 @endpush

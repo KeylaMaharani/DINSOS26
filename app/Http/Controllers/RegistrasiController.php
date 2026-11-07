@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\DtsenPermohonan;
+use App\Models\GcLapanganUsaha;
 use App\Models\PbiApbd;
 use App\Models\PbiApbdLog;
 use App\Models\Role;
@@ -60,7 +61,25 @@ class RegistrasiController extends Controller
                 ->with('error', 'Silakan masukan No KK terlebih dahulu.');
         }
 
-        return view('registrasi.step2', ['noKk' => $noKk]);
+        // Master lapangan usaha + pekerjaan (beserta penjelasan/contoh) untuk pilihan Pekerjaan
+        $lapangan = $this->lapanganAktif()
+            ->map(fn ($l) => [
+                'nama' => $l->nama,
+                'penjelasan' => $l->penjelasan,
+                'sendiri' => $l->contoh_berusaha_sendiri,
+                'buruh' => $l->contoh_buruh,
+                'pekerjaan' => $l->pekerjaansAktif->pluck('nama')->values()->all(),
+            ])
+            ->filter(fn ($l) => count($l['pekerjaan']) > 0)
+            ->values()
+            ->all();
+
+        return view('registrasi.step2', [
+            'noKk' => $noKk,
+            // Peta kecamatan => daftar kelurahan (config/wilayah.php) untuk dropdown berantai
+            'wilayah' => config('wilayah.kecamatan', []),
+            'lapangan' => $lapangan,
+        ]);
     }
 
     /** POST /registrasi/step-2 */
@@ -72,6 +91,15 @@ class RegistrasiController extends Controller
             return redirect()->route('registrasi.step1')
                 ->with('error', 'Sesi pendaftaran sudah habis, silakan mulai ulang dari Step 1.');
         }
+
+        // Samakan penulisan dengan config/wilayah.php (huruf besar) sebelum divalidasi
+        $request->merge([
+            'kecamatan' => strtoupper(trim((string) $request->input('kecamatan'))),
+            'desa_kelurahan' => strtoupper(trim((string) $request->input('desa_kelurahan'))),
+        ]);
+
+        $wilayah = config('wilayah.kecamatan', []);
+        $daftarPekerjaan = $this->daftarPekerjaan();
 
         $validated = $request->validate([
             'status_hubungan' => ['required', Rule::in(['kepala_keluarga', 'suami', 'istri', 'anak', 'lainnya'])],
@@ -85,13 +113,22 @@ class RegistrasiController extends Controller
             'rw' => ['nullable', 'string', 'max:5'],
             'provinsi' => ['required', 'string'],
             'kab_kota' => ['required', 'string'],
-            'kecamatan' => ['required', 'string'],
-            'desa_kelurahan' => ['required', 'string'],
+            'kecamatan' => ['required', 'string', Rule::in(array_keys($wilayah))],
+            'desa_kelurahan' => ['required', 'string', function ($attr, $value, $fail) use ($request, $wilayah) {
+                if (! in_array($value, $wilayah[$request->input('kecamatan')] ?? [], true)) {
+                    $fail('Desa/Kelurahan tidak sesuai dengan kecamatan yang dipilih.');
+                }
+            }],
             'nama_lengkap' => ['required', 'string', 'max:150'],
             'email' => ['required', 'email', Rule::unique('users', 'email')],
             'telp' => ['required', 'string', 'max:20'],
             'agama' => ['required', 'string'],
-            'pekerjaan' => ['required', 'string'],
+            // Pekerjaan harus salah satu pekerjaan aktif di master (kalau master masih kosong, teks bebas diterima)
+            'pekerjaan' => ['required', 'string', 'max:100', function ($attr, $value, $fail) use ($daftarPekerjaan) {
+                if ($daftarPekerjaan->isNotEmpty() && ! $this->cariPekerjaan($daftarPekerjaan, (string) $value)) {
+                    $fail('Pilih pekerjaan dari daftar yang tersedia.');
+                }
+            }],
             'tempat_lahir' => ['required', 'string'],
             'tgl_lahir' => ['required', 'date'],
             'jenis_kelamin' => ['required', Rule::in(['L', 'P'])],
@@ -103,7 +140,12 @@ class RegistrasiController extends Controller
             'password.regex' => 'Password minimal 8 karakter, memuat 1 huruf kapital, 1 huruf kecil, 1 angka, dan 1 karakter khusus (contoh: @ # $ ! %).',
             'nik.unique' => 'NIK ini sudah pernah mengajukan PBI APBD.',
             'email.unique' => 'Email ini sudah terdaftar, silakan login.',
+            'kecamatan.in' => 'Kecamatan tidak valid.',
+            'pekerjaan.required' => 'Pekerjaan wajib dipilih.',
         ]);
+
+        // Simpan dengan penulisan persis seperti di master, supaya cocok saat dikunci di form Lengkapi Data
+        $validated['pekerjaan'] = $this->cariPekerjaan($daftarPekerjaan, $validated['pekerjaan']) ?? $validated['pekerjaan'];
 
         $noRegistrasi = 'PBI-APBD-' . now()->year . '-'
             . Str::padLeft((string) (PbiApbd::whereYear('created_at', now()->year)->count() + 1), 4, '0');
@@ -188,5 +230,31 @@ class RegistrasiController extends Controller
             'no_registrasi' => $pbiApbd->no_registrasi,
             'nama' => $pbiApbd->nama_kepala_keluarga,
         ]);
+    }
+
+    // ==========================================================
+    // Master pekerjaan
+    // ==========================================================
+
+    private function lapanganAktif()
+    {
+        return GcLapanganUsaha::aktif()->with('pekerjaansAktif')->get();
+    }
+
+    /** Semua nama pekerjaan aktif di master (unik). */
+    private function daftarPekerjaan()
+    {
+        return $this->lapanganAktif()
+            ->flatMap(fn ($l) => $l->pekerjaansAktif->pluck('nama'))
+            ->unique()
+            ->values();
+    }
+
+    /** Cari nama pekerjaan di master tanpa peduli besar-kecil huruf; kembalikan penulisan master. */
+    private function cariPekerjaan($daftar, string $nama): ?string
+    {
+        $t = Str::lower(trim($nama));
+
+        return $t === '' ? null : $daftar->first(fn ($n) => Str::lower(trim($n)) === $t);
     }
 }

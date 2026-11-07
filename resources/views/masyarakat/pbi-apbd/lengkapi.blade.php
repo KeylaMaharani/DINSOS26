@@ -294,7 +294,96 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 
-{{-- Ketenagakerjaan: bila "Apakah responden bekerja ...?" dijawab Tidak, field lainnya dinonaktifkan & dikosongkan. --}}
+{{-- Alamat domisili: terisi dari KK & terkunci bila "Apakah wilayah sama?" = Ya (atau belum dijawab); dijawab "Tidak" -> input manual,
+     Kecamatan -> Desa/Kelurahan berantai. Server tetap memaksa nilai KK saat terkunci.
+     ("Alamat sesuai KK" dirender terkunci langsung oleh server, tidak lewat skrip ini.) --}}
+<script>
+window.gcAlamat = @json(['ada' => ! empty($petaAlamat), 'kk' => $kk, 'wilayah' => $wilayah]);
+
+document.addEventListener('DOMContentLoaded', function () {
+    var cfg = window.gcAlamat;
+    var form = document.getElementById('form-lengkapi');
+    if (!cfg || !cfg.ada || !form) { return; }
+
+    var bisaEdit = !!document.getElementById('btn-submit');
+    var f = {};
+    form.querySelectorAll('[data-gc-alamat]').forEach(function (el) { f[el.dataset.gcAlamat] = el; });
+    var sesuai = form.querySelector('[data-gc-sesuai]');
+
+    function isiKel(kec, pilih) {
+        var el = f.kelurahan;
+        if (!el) { return; }
+        var daftar = cfg.wilayah[kec] || [];
+        el.innerHTML = '';
+        el.add(new Option(kec ? '- Pilih -' : '- Pilih kecamatan dahulu -', ''));
+        daftar.forEach(function (n) { el.add(new Option(n, n)); });
+        el.value = daftar.indexOf(pilih) >= 0 ? pilih : '';
+    }
+
+    function kunci(el, ya) {
+        if (el.tagName === 'SELECT') { el.style.pointerEvents = ya ? 'none' : ''; el.tabIndex = ya ? -1 : 0; }
+        else { el.readOnly = ya; }
+        el.classList.toggle('bg-surface-container', ya);
+        el.classList.toggle('opacity-70', ya);
+    }
+
+    function terapkan(awal) {
+        var ya = !sesuai || sesuai.value !== 'Tidak';
+
+        if (ya) {
+            Object.keys(f).forEach(function (k) { if (k !== 'kelurahan') { f[k].value = cfg.kk[k] || ''; } });
+            isiKel(f.kecamatan ? f.kecamatan.value : cfg.kk.kecamatan, cfg.kk.kelurahan);
+        } else if (awal) {
+            // Dibuka kembali dengan jawaban "Tidak": pertahankan isian tersimpan
+            isiKel(f.kecamatan ? f.kecamatan.value : '', f.kelurahan ? f.kelurahan.dataset.nilai : '');
+        } else {
+            Object.keys(f).forEach(function (k) { if (k !== 'kelurahan') { f[k].value = ''; } });
+            isiKel(f.kecamatan ? f.kecamatan.value : '', '');
+        }
+
+        Object.keys(f).forEach(function (k) { kunci(f[k], ya && bisaEdit); });
+    }
+
+    form.addEventListener('change', function (e) {
+        if (sesuai && e.target === sesuai) { terapkan(false); }
+        if (f.kecamatan && e.target === f.kecamatan) { isiKel(f.kecamatan.value, ''); }
+    });
+
+    terapkan(true);
+});
+</script>
+
+{{-- "Apakah No KK sama?" dijawab Ya -> "Apakah nama sama?" otomatis Ya (wilayah tidak ikut berubah). Tetap bisa diubah warga. --}}
+<script>
+window.gcSama = @json($sama ?? null);
+
+document.addEventListener('DOMContentLoaded', function () {
+    var cfg = window.gcSama;
+    var form = document.getElementById('form-lengkapi');
+    if (!cfg || !form) { return; }
+
+    function ambil(id) { return form.querySelector('[name="jawaban[' + id + ']"]'); }
+
+    form.addEventListener('change', function (e) {
+        var src = ambil(cfg.sumber);
+        if (!src || e.target !== src) { return; }
+
+        var tgt = ambil(cfg.target);
+        if (!tgt || tgt.disabled) { return; }
+
+        if (src.value !== (src.dataset.ya || 'Ya')) { return; }
+
+        var ya = tgt.dataset.ya || 'Ya';
+        if (tgt.value === ya) { return; }
+
+        tgt.value = ya;
+        tgt.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+});
+</script>
+
+{{-- Ketenagakerjaan: bila "Apakah responden bekerja ...?" dijawab Tidak, field lainnya dinonaktifkan & dikosongkan.
+     Field yang terkunci dari registrasi (lapangan usaha & pekerjaan) dipulihkan lagi saat dijawab Ya. --}}
 <script>
 window.gcKerja = @json($kerja);
 
@@ -312,6 +401,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function terapkan() {
         var gate = kontrol(cfg.gate)[0];
         var ya = gate && gate.value === 'Ya';
+        var pulih = [];
 
         cfg.dependen.forEach(function (id) {
             kontrol(id).forEach(function (el) {
@@ -319,10 +409,21 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (!ya) {
                     if (el.type === 'checkbox' || el.type === 'radio') { el.checked = false; el.dispatchEvent(new Event('change', { bubbles: true })); }
                     else if (el.type !== 'file') { el.value = ''; el.dispatchEvent(new Event('change', { bubbles: true })); }
+                } else if (el.hasAttribute('data-gc-kunci') && el.dataset.kunciNilai && el.value !== el.dataset.kunciNilai) {
+                    pulih.push(el);
                 }
                 var baris = el.closest('.min-w-0');
                 if (baris) { baris.classList.toggle('opacity-50', !ya); }
             });
+        });
+
+        // Lapangan usaha dulu, baru pekerjaan (opsi pekerjaan dibangun dari lapangan usaha)
+        pulih.sort(function (a, b) {
+            return (b.hasAttribute('data-gc-lapangan') ? 1 : 0) - (a.hasAttribute('data-gc-lapangan') ? 1 : 0);
+        });
+        pulih.forEach(function (el) {
+            el.value = el.dataset.kunciNilai;
+            el.dispatchEvent(new Event('change', { bubbles: true }));
         });
     }
 

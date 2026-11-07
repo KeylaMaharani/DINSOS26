@@ -127,13 +127,10 @@ class GroundCheckController extends Controller
             ->merge(range((int) now()->year, 2024))
             ->unique()->sortDesc()->values();
 
-        // Saran isian untuk form Tambah (diambil dari wilayah yang sudah ada di daftar sasaran).
-        $kecamatanList = GcSasaran::whereNotNull('kecamatan')->distinct()->orderBy('kecamatan')->pluck('kecamatan');
-        $kelurahanList = GcSasaran::whereNotNull('kelurahan')->distinct()->orderBy('kelurahan')->pluck('kelurahan');
-
+        // Kecamatan/Kelurahan di form Tambah kini memakai dropdown berantai (config/wilayah.php),
+        // jadi daftar saran dari data sasaran tidak diperlukan lagi.
         return view('admin.ground-check.index', compact(
-            'sasarans', 'total', 'sudah', 'belum', 'progres', 'q', 'perPage',
-            'kecamatanList', 'kelurahanList', 'tahunList', 'tahun'
+            'sasarans', 'total', 'sudah', 'belum', 'progres', 'q', 'perPage', 'tahunList', 'tahun'
         ));
     }
 
@@ -144,13 +141,25 @@ class GroundCheckController extends Controller
      */
     public function store(Request $request)
     {
+        // Samakan penulisan dengan config/wilayah.php (huruf besar) sebelum divalidasi
+        $request->merge([
+            'kecamatan' => strtoupper(trim((string) $request->input('kecamatan'))) ?: null,
+            'kelurahan' => strtoupper(trim((string) $request->input('kelurahan'))) ?: null,
+        ]);
+
+        $wilayah = config('wilayah.kecamatan', []);
+
         $data = $request->validateWithBag('tambah', [
             'nik' => ['required', 'digits:16', 'unique:gc_sasarans,nik'],
             'nama' => ['required', 'string', 'max:255'],
             'no_kk' => ['required', 'digits:16'],
             'tanggal_lahir' => ['nullable', 'date', 'before_or_equal:today'],
-            'kecamatan' => ['nullable', 'string', 'max:255'],
-            'kelurahan' => ['nullable', 'string', 'max:255'],
+            'kecamatan' => ['nullable', 'string', Rule::in(array_keys($wilayah))],
+            'kelurahan' => ['nullable', 'string', function ($attr, $value, $fail) use ($request, $wilayah) {
+                if (! in_array($value, $wilayah[$request->input('kecamatan')] ?? [], true)) {
+                    $fail('Desa/Kelurahan tidak sesuai dengan kecamatan yang dipilih.');
+                }
+            }],
             'alamat' => ['nullable', 'string', 'max:1000'],
             'rt' => ['nullable', 'string', 'max:5'],
             'rw' => ['nullable', 'string', 'max:5'],
@@ -164,6 +173,7 @@ class GroundCheckController extends Controller
             'no_kk.digits' => 'No KK harus 16 digit angka.',
             'tanggal_lahir.date' => 'Tanggal lahir tidak valid.',
             'tanggal_lahir.before_or_equal' => 'Tanggal lahir tidak boleh melebihi hari ini.',
+            'kecamatan.in' => 'Kecamatan tidak valid.',
             'desil.integer' => 'Desil harus berupa angka.',
             'desil.between' => 'Desil harus antara 1 sampai 10.',
         ]);
@@ -280,6 +290,12 @@ class GroundCheckController extends Controller
         // Prefill (identitas, jawaban warga, data keluarga) hanya bila belum ada satu pun jawaban tersimpan.
         $nilai = $tersimpan ?: $this->prefill($sasaran, $params);
 
+        // Perahu & ternak babi: di Kota Bogor selalu 0 (menimpa draf lama yang mungkin sudah berisi angka lain).
+        $nolIds = $params->filter(fn ($p) => $this->isNolParam($p))->pluck('id')->values()->all();
+        foreach ($nolIds as $id) {
+            $nilai[$id] = 0;
+        }
+
         // Pertanyaan pemicu di tab Ketenagakerjaan + daftar field yang bergantung padanya.
         $gate = $this->gateKerja($params);
         $kerja = $gate ? [
@@ -295,7 +311,7 @@ class GroundCheckController extends Controller
         $tabAwal = (int) session('tab', 0);
 
         return view('admin.ground-check.form', compact(
-            'sasaran', 'v', 'tabs', 'nilai', 'tabAwal', 'master', 'kerja', 'statusTab'
+            'sasaran', 'v', 'tabs', 'nilai', 'tabAwal', 'master', 'kerja', 'statusTab', 'nolIds'
         ));
     }
 
@@ -327,6 +343,12 @@ class GroundCheckController extends Controller
 
             // Responden tidak bekerja -> field turunan tidak diwajibkan & akan dikosongkan.
             if (in_array($p->id, $dependenIds, true) && ! $bekerja) {
+                $rules[$key] = ['nullable'];
+                continue;
+            }
+
+            // Perahu & ternak babi: nilainya dipaksa 0 saat disimpan (lihat di bawah), apa pun kiriman browser.
+            if ($this->isNolParam($p)) {
                 $rules[$key] = ['nullable'];
                 continue;
             }
@@ -422,6 +444,12 @@ class GroundCheckController extends Controller
                 // Responden tidak bekerja -> jawaban field turunan dikosongkan.
                 $kosongkan = in_array($p->id, $dependenIds, true) && ! $bekerja;
                 $input = $kosongkan ? null : $request->input("jawaban.{$p->id}");
+
+                // Kepemilikan perahu & ternak babi selalu 0, tidak peduli apa yang dikirim browser.
+                if ($this->isNolParam($p)) {
+                    $input = 0;
+                }
+
                 $jawaban = null;
                 $skor = null;
 
@@ -486,6 +514,12 @@ class GroundCheckController extends Controller
     private function koordinatAngka(GcKriteriaParameter $p): bool
     {
         return Str::contains(Str::lower($p->nama), ['lintang', 'bujur']);
+    }
+
+    /** Parameter angka yang selalu 0 di Kota Bogor: kepemilikan perahu & ternak babi. */
+    private function isNolParam(GcKriteriaParameter $p): bool
+    {
+        return $p->tipe_input === 'angka' && Str::contains(Str::lower((string) $p->nama), ['perahu', 'babi']);
     }
 
     /** Pertanyaan pemicu di tab Ketenagakerjaan ("Apakah responden bekerja ... seminggu yang lalu?"). */
@@ -563,7 +597,7 @@ class GroundCheckController extends Controller
 
     /**
      * Isian awal form petugas, berurutan (yang belakangan menimpa yang depan):
-     *  1. data identitas dari daftar sasaran;
+     *  1. data identitas & alamat dari daftar sasaran;
      *  2. jawaban warga di halaman masyarakat (pbi_apbd_gc_jawabans):
      *     - kepala keluarga -> semua jawaban (foto dilewati);
      *     - anggota lain    -> hanya kelompok Keluarga & Aset (data milik satu KK);
@@ -573,15 +607,23 @@ class GroundCheckController extends Controller
     {
         $nilai = [];
 
+        $kecamatan = filled($sasaran->kecamatan) ? strtoupper(trim((string) $sasaran->kecamatan)) : null;
+        $kelurahan = filled($sasaran->kelurahan) ? strtoupper(trim((string) $sasaran->kelurahan)) : null;
+
         $identitas = [
             'nama' => $sasaran->nama,
             'no kk' => $sasaran->no_kk,
             'alamat' => $sasaran->alamat,
+            'rt' => $sasaran->rt,
+            'rw' => $sasaran->rw,
+            'kecamatan' => $kecamatan,
+            'kelurahan' => $kelurahan,
+            'desa/kelurahan' => $kelurahan,
             'tanggal lahir' => optional($sasaran->tanggal_lahir)->format('Y-m-d'),
         ];
         foreach ($params as $p) {
             $nama = Str::lower(trim($p->nama));
-            if (array_key_exists($nama, $identitas) && $identitas[$nama] !== null) {
+            if (array_key_exists($nama, $identitas) && $identitas[$nama] !== null && $identitas[$nama] !== '') {
                 $nilai[$p->id] = $identitas[$nama];
             }
         }

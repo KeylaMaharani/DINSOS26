@@ -4,7 +4,9 @@
      - Pilihan panjang (> 6 opsi, lapangan usaha, pekerjaan)  -> tombol yang membuka lembar pilihan + kolom cari
      - Pilihan hanya Ya / Tidak                                 -> kotak centang besar
      - Pilihan ganda panjang (> 8 opsi)                         -> kolom cari di dalam daftar centang
-     - Pilihan pendek lainnya                                   -> dropdown bawaan browser --}}
+     - Pilihan pendek lainnya                                   -> dropdown bawaan browser
+     - Terkunci dari registrasi ($terkunci)                     -> tampil terkunci (status hubungan, lapangan usaha, pekerjaan)
+     - Alamat sesuai KK ($petaKk)                               -> selalu terkunci, isinya alamat registrasi --}}
 @php
     use App\Support\PbiGcForm;
 
@@ -32,6 +34,16 @@
     $isKelas = $p->kelompok === 'pendidikan' && str_contains($namaLower, 'kelas tertinggi');
 
     $iconCek = '<svg viewBox="0 0 24 24" fill="none" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
+
+    // Field alamat (kecamatan/kelurahan/alamat/rt/rw) & pertanyaan "wilayah sama?" -- dipetakan oleh MasyarakatController
+    $petaAlamat ??= [];
+    $wilayah ??= [];
+    $petaKk ??= [];       // id parameter "Alamat sesuai KK" => true (selalu terkunci, dari registrasi)
+    $terkunci ??= [];     // id parameter yang dikunci dari data registrasi => true
+    $peranAlamat = $petaAlamat[$p->id] ?? null;
+    $isSesuai = isset($sesuai) && $sesuai && $sesuai->id === $p->id;
+    $isKk = isset($petaKk[$p->id]);
+    $isKunci = isset($terkunci[$p->id]);
 @endphp
 
 <div class="min-w-0" @if ($wajib) data-gc-wajib @endif>
@@ -42,10 +54,34 @@
         </span>
     </label>
 
-    @if ($isYaTidak)
+    @if ($isKk)
+        {{-- ===== Alamat sesuai KK: selalu terkunci, isinya alamat dari registrasi ===== --}}
+        <input type="text" id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]" value="{{ $val }}" maxlength="500"
+               readonly data-gc-kk @disabled(! $bisaEdit) class="{{ $in }} bg-surface-container opacity-70">
+
+
+    @elseif ($peranAlamat === 'kecamatan' || $peranAlamat === 'kelurahan')
+        {{-- ===== Kecamatan -> Desa/Kelurahan berantai (opsi kelurahan diisi skrip dari window.gcAlamat) ===== --}}
+        <select id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]" @disabled(! $bisaEdit) class="{{ $in }}"
+                data-gc-alamat="{{ $peranAlamat }}" data-nilai="{{ $val }}">
+            <option value="">- Pilih -</option>
+            @if ($peranAlamat === 'kecamatan')
+                @foreach (array_keys($wilayah) as $k)
+                    <option value="{{ $k }}" @selected((string) $val === (string) $k)>{{ $k }}</option>
+                @endforeach
+            @endif
+        </select>
+
+    @elseif ($peranAlamat)
+        {{-- ===== Alamat / RT / RW: terisi dari KK & terkunci bila "wilayah sama" = Ya ===== --}}
+        <input type="text" id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]" value="{{ $val }}" maxlength="500"
+               data-gc-alamat="{{ $peranAlamat }}" @disabled(! $bisaEdit) class="{{ $in }}">
+
+    @elseif ($isYaTidak)
         {{-- ===== Ya / Tidak: dua pilihan berdampingan (pilih salah satu). Nilai asli disimpan di input tersembunyi ===== --}}
         <input type="hidden" id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]" value="{{ $val }}"
-               data-gc-yn data-ya="{{ $yaLabel }}" data-tidak="{{ $tidakLabel }}" @disabled(! $bisaEdit)>
+               data-gc-yn data-ya="{{ $yaLabel }}" data-tidak="{{ $tidakLabel }}"
+               @if ($isSesuai) data-gc-sesuai @endif @disabled(! $bisaEdit)>
         <div class="gc-yn" role="radiogroup" aria-label="{{ $p->nama }}">
             @foreach ([$yaLabel, $tidakLabel] as $opsi)
                 <button type="button" role="radio" class="gc-yn-opt" data-gc-yn-opt="{{ $opsi }}"
@@ -66,9 +102,10 @@
             }
         @endphp
         {{-- Untuk pilihan yang bisa dicari: <select> asli tetap ada (dipakai form & skrip lain) tapi disembunyikan oleh skrip,
-             lalu diganti tombol yang membuka lembar pilihan. --}}
+             lalu diganti tombol yang membuka lembar pilihan. Bila terkunci, tombolnya nonaktif & bergambar gembok. --}}
         <select id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]" @disabled(! $bisaEdit) class="{{ $in }}"
                 {!! $atribut !!}
+                @if ($isKunci) data-gc-kunci data-kunci-nilai="{{ $val }}" @endif
                 @if ($isJenjang) data-gc-jenjang @endif
                 @if ($isKelas) data-gc-kelas @endif
                 @if ($cari) data-gc-cari data-judul="{{ $p->nama }}" @endif
@@ -80,6 +117,7 @@
                 <option value="{{ $label }}" @selected((string) $val === (string) $label)>{{ $label }}</option>
             @endforeach
         </select>
+
 
     @elseif ($p->tipe_input === 'pilihan_ganda' && $labels)
         @php
@@ -186,8 +224,13 @@
             .gc-trigger .material-symbols-outlined { color: #136299; flex: none; }
             .gc-trigger.gc-placeholder .gc-trigger-text { color: #6b7280; }
             .gc-trigger:disabled { background: #e4effd; color: #42474e; cursor: not-allowed; }
+            .gc-trigger:disabled .material-symbols-outlined { color: #72777f; }
             .gc-trigger:focus-visible { outline: 2px solid #0a5ca8; outline-offset: 1px; }
             .gc-trigger-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+            /* Catatan kecil di bawah isian yang terkunci dari registrasi */
+            .gc-kunci-note { display: flex; align-items: center; gap: .3rem; margin: .375rem 0 0; font-size: .6875rem; color: #6b7280; }
+            .gc-kunci-note .material-symbols-outlined { font-size: 14px; color: #72777f; }
 
             /* Kotak centang besar (Ya/Tidak & pilihan ganda) */
             .gc-opt { display: flex; align-items: center; gap: .75rem; min-height: 48px; padding: .625rem .875rem;
@@ -529,17 +572,19 @@
             }
 
             function initSelect(sel) {
+                // Terkunci dari data registrasi: tombol nonaktif, bergambar gembok
+                var kunci = sel.hasAttribute('data-gc-kunci');
                 var trg = document.createElement('button');
                 trg.type = 'button';
                 trg.className = 'gc-trigger';
-                trg.innerHTML = '<span class="gc-trigger-text"></span><span class="material-symbols-outlined">expand_more</span>';
+                trg.innerHTML = '<span class="gc-trigger-text"></span><span class="material-symbols-outlined">' + (kunci ? 'lock' : 'expand_more') + '</span>';
                 var txt = trg.firstChild;
 
                 function sync() {
                     var o = sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex] : null;
                     txt.textContent = o ? o.text : '- Pilih -';
                     trg.classList.toggle('gc-placeholder', !o || o.value === '');
-                    trg.disabled = sel.disabled;
+                    trg.disabled = sel.disabled || kunci;
                 }
 
                 sel.parentNode.insertBefore(trg, sel);
@@ -549,6 +594,14 @@
                 new MutationObserver(sync).observe(sel, { childList: true, attributes: true, attributeFilter: ['disabled'] });
                 trg.addEventListener('click', function () { openSheet(sel, trg); });
                 sync();
+            }
+
+            /* ---------- Dropdown biasa yang terkunci dari registrasi (mis. status hubungan) ---------- */
+            function kunciBiasa(sel) {
+                sel.style.pointerEvents = 'none';
+                sel.tabIndex = -1;
+                sel.setAttribute('aria-readonly', 'true');
+                sel.classList.add('bg-surface-container', 'opacity-70');
             }
 
             /* ---------- Pendidikan: "kelas tertinggi" mengikuti jenjang ----------
@@ -623,6 +676,7 @@
 
             function init() {
                 document.querySelectorAll('select[data-gc-cari]').forEach(initSelect);
+                document.querySelectorAll('select[data-gc-kunci]:not([data-gc-cari])').forEach(kunciBiasa);
                 document.querySelectorAll('[data-gc-yn]').forEach(function (h) {
                     ynRefresh(h);
                     new MutationObserver(function () { ynRefresh(h); }).observe(h, { attributes: true, attributeFilter: ['disabled'] });

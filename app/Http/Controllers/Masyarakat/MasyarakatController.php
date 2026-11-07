@@ -59,6 +59,15 @@ class MasyarakatController extends Controller
 
     private const AGAMA = ['Islam', 'Kristen', 'Katolik', 'Hindu', 'Buddha', 'Konghucu'];
 
+    /** Padanan label "status hubungan" di Master GC untuk pilihan registrasi (kunci = nilai tersimpan dari registrasi). */
+    private const ALIAS_HUBUNGAN = [
+        'kepala_keluarga' => ['Kepala Keluarga', 'Kepala Rumah Tangga', 'KRT'],
+        'suami' => ['Suami'],
+        'istri' => ['Istri'],
+        'anak' => ['Anak', 'Anak Kandung'],
+        'lainnya' => ['Lainnya', 'Famili Lain'],
+    ];
+
     /** GET /akun-saya — dashboard: ringkasan pengajuan milik user yang login (per layanan) */
     public function dashboard(Request $request)
     {
@@ -984,8 +993,38 @@ class MasyarakatController extends Controller
         $gate = PbiGcForm::gate($parameters);
         $kerja = $gate ? ['gate' => $gate->id, 'dependen' => PbiGcForm::dependenIds($parameters)] : null;
 
+        // ---- Alamat domisili: terisi dari KK, terkunci bila "Apakah wilayah sama?" = Ya (atau belum dijawab) ----
+        $petaAlamat = $this->petaAlamat($parameters);
+        $sesuai = $parameters->first(fn ($p) => $this->isSesuaiKkParam($p));
+        $kk = $this->nilaiKk($pbiApbd);
+        $wilayah = $this->wilayahOpsi($pbiApbd);
+
+        // Pertama kali dibuka: langsung terisi dari alamat KK
+        foreach ($petaAlamat as $id => $peran) {
+            if (blank($nilai[$id] ?? null) && filled($kk[$peran] ?? null)) {
+                $nilai[$id] = $kk[$peran];
+            }
+        }
+
+        // ---- "Alamat sesuai KK": SELALU dari alamat registrasi & terkunci ----
+        $petaKk = $this->petaAlamatKk($parameters);
+        foreach ($petaKk as $id => $_) {
+            $nilai[$id] = $kk['alamat'];
+        }
+
+        // ---- Terkunci dari registrasi: status hubungan, lapangan usaha, pekerjaan ----
+        $kunciReg = $this->nilaiTerkunciRegistrasi($pbiApbd, $parameters, $opsiLabels, $master);
+        foreach ($kunciReg as $id => $v) {
+            $nilai[$id] = $v;
+        }
+        $terkunci = array_fill_keys(array_keys($kunciReg), true);
+
+        // ---- "Apakah No KK sama?" Ya -> "Apakah nama sama?" ikut Ya ----
+        $sama = $this->pasanganSama($parameters);
+
         return view('masyarakat.pbi-apbd.lengkapi', compact(
-            'pbiApbd', 'parameters', 'perKelompok', 'opsiLabels', 'nilai', 'master', 'kerja', 'bisaEdit', 'bisaDraft'
+            'pbiApbd', 'parameters', 'perKelompok', 'opsiLabels', 'nilai', 'master', 'kerja', 'bisaEdit', 'bisaDraft',
+            'petaAlamat', 'sesuai', 'kk', 'wilayah', 'petaKk', 'terkunci', 'sama'
         ));
     }
 
@@ -1035,6 +1074,20 @@ class MasyarakatController extends Controller
         $dependen = PbiGcForm::dependenIds($parameters);
         $lapParam = $parameters->firstWhere('sumber', 'lapangan_usaha');
 
+        // ---- Alamat domisili ----
+        $petaAlamat = $this->petaAlamat($parameters);
+        $sesuaiParam = $parameters->first(fn ($p) => $this->isSesuaiKkParam($p));
+        $kk = $this->nilaiKk($pbiApbd);
+        $wilayah = $this->wilayahOpsi($pbiApbd);
+        // Terkunci (dipaksa dari KK) kecuali warga menjawab "Tidak"
+        $kunciAlamat = ! $sesuaiParam || $request->input("jawaban.{$sesuaiParam->id}") !== 'Tidak';
+        $kecParamId = array_search('kecamatan', $petaAlamat, true) ?: null;
+
+        // Alamat sesuai KK + data terkunci dari registrasi: nilainya dipaksa dari server
+        $petaKk = $this->petaAlamatKk($parameters);
+        $opsiLabelsKunci = $parameters->mapWithKeys(fn ($x) => [$x->id => $this->labelOpsi($x, $master)])->all();
+        $terkunci = $this->nilaiTerkunciRegistrasi($pbiApbd, $parameters, $opsiLabelsKunci, $master);
+
         foreach ($parameters as $p) {
             $key = "jawaban.{$p->id}";
             $attributes[$key] = $p->nama;
@@ -1052,6 +1105,41 @@ class MasyarakatController extends Controller
             if ($this->isNolParam($p)) {
                 $rules[$key] = ['nullable'];
                 continue;
+            }
+
+            // Alamat sesuai KK & isian terkunci dari registrasi: tidak divalidasi dari kiriman browser
+            if (isset($petaKk[$p->id]) || isset($terkunci[$p->id])) {
+                $rules[$key] = ['nullable'];
+                continue;
+            }
+
+            // Field alamat: sesuai KK -> nilai dipaksa dari KK; "Tidak" -> input manual dengan wilayah berantai.
+            if (isset($petaAlamat[$p->id])) {
+                if ($kunciAlamat) {
+                    $rules[$key] = ['nullable'];
+                    continue;
+                }
+
+                $reqAlamat = PbiGcForm::opsional($p) ? 'nullable' : 'required';
+
+                if ($petaAlamat[$p->id] === 'kecamatan') {
+                    $rules[$key] = [$reqAlamat, 'string', Rule::in(array_keys($wilayah))];
+                    continue;
+                }
+
+                if ($petaAlamat[$p->id] === 'kelurahan') {
+                    $rules[$key] = [$reqAlamat, 'string', function ($attr, $value, $fail) use ($request, $kecParamId, $wilayah) {
+                        if ($value === null || $value === '') {
+                            return;
+                        }
+                        $kec = $kecParamId ? (string) $request->input("jawaban.{$kecParamId}") : '';
+                        if (! in_array($value, $wilayah[$kec] ?? [], true)) {
+                            $fail('Desa/Kelurahan tidak sesuai dengan kecamatan yang dipilih.');
+                        }
+                    }];
+                    continue;
+                }
+                // alamat / rt / rw: lanjut memakai aturan teks bawaan di bawah
             }
 
             $req = PbiGcForm::opsional($p) ? 'nullable' : 'required';
@@ -1173,7 +1261,7 @@ class MasyarakatController extends Controller
             }
         }
 
-        DB::transaction(function () use ($pbiApbd, $parameters, $validated, $request, $ajukanUlang, $dependen, $bekerja, $draft) {
+        DB::transaction(function () use ($pbiApbd, $parameters, $validated, $request, $ajukanUlang, $dependen, $bekerja, $draft, $petaAlamat, $kunciAlamat, $kk, $petaKk, $terkunci) {
             $lama = GcPbiJawaban::where('pbi_apbd_id', $pbiApbd->id)->get()->keyBy('parameter_id');
             $final = [];
 
@@ -1188,6 +1276,21 @@ class MasyarakatController extends Controller
                 if ($this->isNolParam($p)) {
                     $input = 0;
                 }
+
+                // "Alamat sesuai KK" selalu dari registrasi; status hubungan/lapangan usaha/pekerjaan
+                // dipaksa dari data registrasi (kecuali responden tidak bekerja -> dikosongkan di atas).
+                if (isset($petaKk[$p->id])) {
+                    $input = $kk['alamat'] ?? null;
+                }
+                if (! $kosongkan && isset($terkunci[$p->id])) {
+                    $input = $terkunci[$p->id];
+                }
+
+                // Alamat sesuai KK: nilai dipaksa dari data registrasi, abaikan kiriman browser.
+                if ($kunciAlamat && isset($petaAlamat[$p->id])) {
+                    $input = $kk[$petaAlamat[$p->id]] ?? null;
+                }
+
                 $jawaban = null;
                 $skor = null;
 
@@ -1521,6 +1624,227 @@ class MasyarakatController extends Controller
     private function isNolParam($p): bool
     {
         return $p->tipe_input === 'angka' && Str::contains(Str::lower((string) $p->nama), ['perahu', 'babi']);
+    }
+
+    // ---- Alamat domisili: sesuai KK / input manual (wilayah berantai) ----
+
+    /**
+     * Peran field alamat pada sebuah parameter GC: alamat | rt | rw | kecamatan | kelurahan,
+     * atau null bila bukan field alamat. Dikenali lewat nama parameter di Master Kriteria GC.
+     */
+    private function peranAlamat($p): ?string
+    {
+        if (! in_array($p->tipe_input, ['teks', 'pilihan'], true)) {
+            return null;
+        }
+
+        $n = Str::lower(trim((string) $p->nama));
+
+        // Pertanyaan Ya/Tidak ("Apakah alamat ... sesuai KK?") bukan isian alamat
+        if (Str::contains($n, ['apakah', 'sesuai'])) {
+            return null;
+        }
+
+        $adaRt = (bool) preg_match('/\brt\b/', $n);
+        $adaRw = (bool) preg_match('/\brw\b/', $n);
+
+        return match (true) {
+            Str::contains($n, 'kecamatan') => 'kecamatan',
+            Str::contains($n, ['kelurahan', 'desa']) => 'kelurahan',
+            $adaRt && ! $adaRw => 'rt',
+            $adaRw && ! $adaRt => 'rw',
+            Str::contains($n, 'alamat') => 'alamat',
+            default => null,
+        };
+    }
+
+    /** Pertanyaan Ya/Tidak pemicu alamat domisili: "Apakah wilayah sama?" (atau "...sesuai KK?"). */
+    private function isSesuaiKkParam($p): bool
+    {
+        if ($p->tipe_input !== 'pilihan') {
+            return false;
+        }
+
+        $n = Str::lower((string) $p->nama);
+
+        return (Str::contains($n, 'wilayah') && Str::contains($n, 'sama'))
+            || (Str::contains($n, 'sesuai') && Str::contains($n, ['kk', 'kartu keluarga']));
+    }
+
+    /**
+     * [id parameter => peran] untuk grup field alamat yang dikunci/diisi dari KK.
+     * Bila ada parameter berkata "domisili", hanya itu yang dipakai; kalau tidak, semua field alamat yang dikenali.
+     */
+    private function petaAlamat($parameters): array
+    {
+        $semua = $domisili = [];
+
+        foreach ($parameters as $p) {
+            $peran = $this->peranAlamat($p);
+            if (! $peran) {
+                continue;
+            }
+
+            $semua[$p->id] = $peran;
+
+            if (Str::contains(Str::lower((string) $p->nama), 'domisili')) {
+                $domisili[$p->id] = $peran;
+            }
+        }
+
+        return $domisili ?: $semua;
+    }
+
+    /** Alamat KK dari data registrasi (sumber isian otomatis). */
+    private function nilaiKk(PbiApbd $pbi): array
+    {
+        return [
+            'alamat' => $pbi->alamat,
+            'rt' => $pbi->rt,
+            'rw' => $pbi->rw,
+            'kecamatan' => strtoupper(trim((string) $pbi->kecamatan)),
+            'kelurahan' => strtoupper(trim((string) $pbi->desa_kelurahan)),
+        ];
+    }
+
+    /**
+     * [id parameter => true] untuk "Alamat sesuai KK" (teks, selalu terkunci dari alamat registrasi).
+     * Pertanyaan Ya/Tidak ("Apakah ...") tidak ikut.
+     */
+    private function petaAlamatKk($parameters): array
+    {
+        $peta = [];
+
+        foreach ($parameters as $p) {
+            if (! in_array($p->tipe_input, ['teks', 'pilihan'], true)) {
+                continue;
+            }
+
+            $n = Str::lower(trim((string) $p->nama));
+
+            if (Str::contains($n, 'apakah')) {
+                continue;
+            }
+
+            if (Str::contains($n, 'alamat') && Str::contains($n, ['kk', 'kartu keluarga'])) {
+                $peta[$p->id] = true;
+            }
+        }
+
+        return $peta;
+    }
+
+    /**
+     * Pasangan "Apakah No KK sama?" (sumber) -> "Apakah nama sama?" (target): sumber dijawab Ya, target otomatis Ya.
+     * Mengembalikan ['sumber' => id, 'target' => id] atau null bila salah satunya tidak ada di master.
+     */
+    private function pasanganSama($parameters): ?array
+    {
+        $sumber = $parameters->first(function ($p) {
+            $n = Str::lower((string) $p->nama);
+
+            return $p->tipe_input === 'pilihan'
+                && Str::contains($n, 'sama')
+                && preg_match('/\b(no|nomor)\.?\s*kk\b/', $n);
+        });
+
+        $target = $parameters->first(function ($p) {
+            $n = Str::lower((string) $p->nama);
+
+            return $p->tipe_input === 'pilihan'
+                && Str::contains($n, 'sama')
+                && Str::contains($n, 'nama')
+                && ! preg_match('/\bkk\b/', $n);
+        });
+
+        return ($sumber && $target) ? ['sumber' => $sumber->id, 'target' => $target->id] : null;
+    }
+
+    /**
+     * Isian yang dikunci dari data registrasi: [id parameter => nilai].
+     * - Status hubungan dengan kepala keluarga  <- status hubungan di Step 2
+     * - Lapangan usaha & Pekerjaan              <- pekerjaan di Step 2 (dicari di master; lapangan usaha diturunkan darinya)
+     * Hanya yang nilainya BENAR-BENAR cocok dengan opsi/master yang dikunci; yang tidak cocok tetap bisa diisi warga.
+     */
+    private function nilaiTerkunciRegistrasi(PbiApbd $pbi, $parameters, array $opsiLabels, array $master): array
+    {
+        $pemohon = $pbi->anggotaKeluarga()->where('nik', $pbi->nik_kepala_keluarga)->first();
+
+        if (! $pemohon) {
+            return [];
+        }
+
+        $hasil = [];
+
+        // ---- Status hubungan ----
+        $paramHub = $parameters->first(function ($p) {
+            $n = Str::lower((string) $p->nama);
+
+            return $p->tipe_input === 'pilihan'
+                && Str::contains($n, 'hubungan')
+                && Str::contains($n, 'kepala keluarga');
+        });
+
+        if ($paramHub) {
+            $kunciHub = strtolower(str_replace([' ', '-'], '_', trim((string) $pemohon->hubungan_keluarga)));
+            $kandidat = self::ALIAS_HUBUNGAN[$kunciHub] ?? array_filter([self::HUBUNGAN[$kunciHub] ?? null]);
+            $cocok = $this->cocokOpsi($kandidat, $opsiLabels[$paramHub->id] ?? []);
+
+            if ($cocok !== null) {
+                $hasil[$paramHub->id] = $cocok;
+            }
+        }
+
+        // ---- Lapangan usaha & pekerjaan ----
+        $pLap = $parameters->firstWhere('sumber', 'lapangan_usaha');
+        $pPek = $parameters->firstWhere('sumber', 'pekerjaan');
+
+        if ($pLap && $pPek) {
+            $pk = $this->temukanPekerjaan((string) $pemohon->pekerjaan, $master['lapangan']);
+
+            if ($pk) {
+                $hasil[$pLap->id] = $pk['lapangan'];
+                $hasil[$pPek->id] = $pk['pekerjaan'];
+            }
+        }
+
+        return $hasil;
+    }
+
+    /** Cocokkan salah satu kandidat dengan daftar opsi (abaikan besar-kecil huruf & tanda baca). */
+    private function cocokOpsi(array $kandidat, array $labels): ?string
+    {
+        $n = fn ($t) => preg_replace('/[^a-z0-9]/', '', Str::lower((string) $t));
+
+        foreach ($kandidat as $k) {
+            foreach ($labels as $l) {
+                if ($n($k) !== '' && $n($k) === $n($l)) {
+                    return $l;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /** Cari pekerjaan (nama) di master lapangan usaha; kembalikan nama lapangan & pekerjaan persis seperti di master. */
+    private function temukanPekerjaan(string $nama, $lapangan): ?array
+    {
+        $t = Str::lower(trim($nama));
+
+        if ($t === '') {
+            return null;
+        }
+
+        foreach ($lapangan as $l) {
+            foreach ($l->pekerjaansAktif as $pk) {
+                if (Str::lower(trim($pk->nama)) === $t) {
+                    return ['lapangan' => $l->nama, 'pekerjaan' => $pk->nama];
+                }
+            }
+        }
+
+        return null;
     }
 
     private function isKelasParam($p): bool

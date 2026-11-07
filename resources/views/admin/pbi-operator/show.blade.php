@@ -56,6 +56,9 @@
                         </div>
                     @endforeach
 
+                    {{-- Kecamatan -> Desa/Kelurahan berantai (config/wilayah.php). Wajib: controller memvalidasi keduanya. --}}
+                    <x-wilayah-select :kec="$data->kecamatan" :kel="$data->desa_kelurahan" />
+
                     <div>
                         <label class="block text-xs text-on-surface-variant mb-1">Nama Faskes</label>
                         <select name="nama_faskes" class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm">

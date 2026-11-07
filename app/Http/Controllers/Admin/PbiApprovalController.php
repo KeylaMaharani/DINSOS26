@@ -185,6 +185,24 @@ class PbiApprovalController extends Controller
 
         abort_unless($cfg['edit'] && $pbiApbd->status === $cfg['status'], 403);
 
+        // Samakan penulisan dengan config/wilayah.php (huruf besar) sebelum divalidasi
+        $request->merge([
+            'kecamatan' => strtoupper(trim((string) $request->input('kecamatan'))),
+            'desa_kelurahan' => strtoupper(trim((string) $request->input('desa_kelurahan'))),
+        ]);
+
+        $wilayah = config('wilayah.kecamatan', []);
+
+        // Data lama yang tidak ada di config tetap boleh dipertahankan (kecamatan/kelurahan tersimpan)
+        $kecLama = strtoupper(trim((string) $pbiApbd->kecamatan));
+        $kelLama = strtoupper(trim((string) $pbiApbd->desa_kelurahan));
+        if ($kecLama !== '') {
+            $wilayah[$kecLama] = $wilayah[$kecLama] ?? [];
+            if ($kelLama !== '' && ! in_array($kelLama, $wilayah[$kecLama], true)) {
+                $wilayah[$kecLama][] = $kelLama;
+            }
+        }
+
         $data = $request->validate([
             'nama_kepala_keluarga' => ['required', 'string', 'max:255'],
             'no_kk' => ['required', 'string', 'max:20'],
@@ -192,6 +210,12 @@ class PbiApprovalController extends Controller
             'alamat' => ['required', 'string', 'max:500'],
             'rt' => ['nullable', 'string', 'max:5'],
             'rw' => ['nullable', 'string', 'max:5'],
+            'kecamatan' => ['required', 'string', Rule::in(array_keys($wilayah))],
+            'desa_kelurahan' => ['required', 'string', function ($attr, $value, $fail) use ($request, $wilayah) {
+                if (! in_array($value, $wilayah[$request->input('kecamatan')] ?? [], true)) {
+                    $fail('Desa/Kelurahan tidak sesuai dengan kecamatan yang dipilih.');
+                }
+            }],
             'no_telp' => ['nullable', 'string', 'max:20'],
             'email' => ['nullable', 'email', 'max:255'],
             'desil_nasional' => ['nullable', 'string', 'max:50'],
@@ -201,6 +225,7 @@ class PbiApprovalController extends Controller
             // Suket boleh PDF, Word (DOC/DOCX), atau gambar
             'surat_keterangan' => ['nullable', 'file', 'mimes:pdf,doc,docx,jpg,jpeg,png', 'max:4096'],
         ], [
+            'kecamatan.in' => 'Kecamatan tidak valid.',
             'surat_keterangan.max' => 'Ukuran suket maksimal 4 MB.',
             'surat_keterangan.mimes' => 'Suket harus berformat PDF, Word (DOC/DOCX), JPG, atau PNG.',
         ]);
