@@ -12,7 +12,8 @@
 @section('page_title', 'PBI APBD — Operator Dinsos')
 
 @section('content')
-<div class="space-y-5 max-w-5xl">
+{{-- panel = lampiran KK yang sedang dibuka di samping Data Pemohon (null = tertutup) --}}
+<div class="space-y-5 max-w-7xl" x-data="{ panel: null }" @lampiran-panel.window="panel = $event.detail">
 
     <a href="{{ route('pbi-approval.operator.index') }}" class="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary">
         <span class="material-symbols-outlined text-[18px]">arrow_back</span> Kembali ke daftar
@@ -34,113 +35,109 @@
         <span class="inline-flex px-4 py-1.5 rounded-full text-sm font-semibold {{ $statusColor }}">{{ $data->statusLabel() }}</span>
     </div>
 
-    {{-- Data pemohon + suket --}}
-    @if ($canEdit)
-        <form method="POST" action="{{ route('pbi-approval.operator.update', $data) }}" enctype="multipart/form-data" class="space-y-5">
+    {{-- Lampiran (di atas Data Pemohon). Scan KK dibuka di panel samping; lampiran lain di tab baru. --}}
+    <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
+        <div class="px-5 py-4 border-b border-outline-variant/40">
+            <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">attach_file</span> Lampiran</h3>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 p-5 pb-16">
+            @foreach ([
+                'scan_ktp' => 'Scan KTP', 'scan_kk' => 'Scan Kartu Keluarga',
+                'foto_rumah' => 'Foto Rumah', 'foto_kamar_mandi' => 'Foto Kamar Mandi',
+                'foto_selfie_ktp' => 'Foto Selfie dengan KTP', 'surat_rawat_inap' => 'Surat Ket. Rawat Inap',
+                'screenshot_pembaharuan_desil' => 'Screenshot Pembaharuan Desil', 'screenshot_dtsen' => 'Screenshot DTSEN',
+                'scan_surat_pengantar' => 'Surat Pengantar Kelurahan',
+                'ttd_kelurahan' => 'Tanda Tangan Lurah',
+            ] as $field => $label)
+                <x-lampiran-preview :src="$data->$field ? asset('storage/' . $data->$field) : null" :label="$label" :panel="$field === 'scan_kk'" />
+            @endforeach
+        </div>
+    </div>
+
+    {{-- Data Pemohon (kiri) + Scan KK (kanan, muncul saat "Lihat" pada Scan Kartu Keluarga diklik) --}}
+    <div class="grid grid-cols-1 gap-5 items-start" :class="panel ? 'lg:grid-cols-2' : ''">
+
+        <form method="POST" action="{{ route('pbi-approval.operator.update', $data) }}" class="min-w-0">
             @csrf @method('PUT')
 
             <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
                 <div class="px-5 py-4 border-b border-outline-variant/40">
-                    <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">edit_note</span> Data Pemohon (dapat diubah Operator)</h3>
+                    <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">assignment</span> Data Pemohon</h3>
+                    <p class="text-xs text-on-surface-variant mt-1">Data diisi masyarakat/kelurahan. Operator hanya menambahkan Desil Nasional.</p>
                 </div>
+
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 p-5 text-sm">
                     @foreach ([
                         'nama_kepala_keluarga' => 'Nama Kepala Keluarga', 'nik_kepala_keluarga' => 'NIK Kepala Keluarga',
-                        'no_kk' => 'No KK', 'desil_nasional' => 'Desil Nasional',
-                        'alamat' => 'Alamat', 'no_telp' => 'No Telp',
-                        'rt' => 'RT', 'rw' => 'RW', 'email' => 'Email',
+                        'no_kk' => 'No KK', 'no_telp' => 'No Telp',
+                        'alamat' => 'Alamat', 'rt' => 'RT', 'rw' => 'RW',
+                        'kecamatan' => 'Kecamatan', 'desa_kelurahan' => 'Desa/Kelurahan',
+                        'email' => 'Email', 'nama_faskes' => 'Nama Faskes',
                     ] as $f => $label)
                         <div class="{{ $f === 'alamat' ? 'sm:col-span-2' : '' }}">
                             <label class="block text-xs text-on-surface-variant mb-1">{{ $label }}</label>
-                            <input type="text" name="{{ $f }}" value="{{ old($f, $data->$f) }}" class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm">
+                            <input type="text" value="{{ $data->$f }}" disabled
+                                   class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm bg-surface-container text-on-surface-variant cursor-not-allowed">
                         </div>
                     @endforeach
 
-                    {{-- Kecamatan -> Desa/Kelurahan berantai (config/wilayah.php). Wajib: controller memvalidasi keduanya. --}}
-                    <x-wilayah-select :kec="$data->kecamatan" :kel="$data->desa_kelurahan" />
-
-                    <div>
-                        <label class="block text-xs text-on-surface-variant mb-1">Nama Faskes</label>
-                        <select name="nama_faskes" class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm">
-                            <option value="">- Pilih Faskes -</option>
-                            @foreach ($faskesOptions as $opt)
-                                <option value="{{ $opt }}" @selected(old('nama_faskes', $data->nama_faskes) === $opt)>{{ $opt }}</option>
-                            @endforeach
-                            @if ($data->nama_faskes && ! in_array($data->nama_faskes, $faskesOptions))
-                                <option value="{{ $data->nama_faskes }}" selected>{{ $data->nama_faskes }} (tersimpan)</option>
-                            @endif
-                        </select>
+                    {{-- Satu-satunya isian yang bisa diubah Operator --}}
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs font-semibold mb-1">Desil Nasional</label>
+                        <input type="text" name="desil_nasional" value="{{ old('desil_nasional', $data->desil_nasional) }}" maxlength="50"
+                               @disabled(! $canEdit)
+                               class="w-full rounded-lg border border-primary/60 px-3 py-2 text-sm bg-white disabled:bg-surface-container disabled:text-on-surface-variant disabled:cursor-not-allowed">
                     </div>
 
                     <div class="sm:col-span-2">
                         <label class="block text-xs text-on-surface-variant mb-1">Kelengkapan/Kekurangan Berkas</label>
-                        <textarea name="kelengkapan_kekurangan_berkas" rows="2" class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm">{{ old('kelengkapan_kekurangan_berkas', $data->kelengkapan_kekurangan_berkas) }}</textarea>
+                        <textarea rows="2" disabled class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm bg-surface-container text-on-surface-variant cursor-not-allowed">{{ $data->kelengkapan_kekurangan_berkas }}</textarea>
                     </div>
                     <div class="sm:col-span-2">
                         <label class="block text-xs text-on-surface-variant mb-1">Catatan Berkas</label>
-                        <textarea name="catatan_berkas" rows="2" class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm">{{ old('catatan_berkas', $data->catatan_berkas) }}</textarea>
+                        <textarea rows="2" disabled class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm bg-surface-container text-on-surface-variant cursor-not-allowed">{{ $data->catatan_berkas }}</textarea>
                     </div>
-                </div>
-            </div>
 
-            {{-- Suket: tampilan bersih --}}
-            <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
-                <div class="px-5 py-4 border-b border-outline-variant/40">
-                    <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">description</span> Surat Keterangan (Suket)</h3>
-                    <p class="text-xs text-on-surface-variant mt-1">Wajib ada sebelum diteruskan ke Kepala Bidang. PDF / Word (DOC/DOCX) / JPG / PNG, maks. 4 MB.</p>
-                </div>
-                <div class="p-5 space-y-3">
-                    @if ($data->surat_keterangan)
-                        <div class="flex items-center gap-3">
-                            <div class="w-24 shrink-0"><x-lampiran-preview :src="asset('storage/' . $data->surat_keterangan)" label="Surat Keterangan (Suket)" /></div>
-                            <span class="flex items-center gap-1 text-xs text-success"><span class="material-symbols-outlined text-[15px]">check_circle</span> Sudah diunggah. Pilih file baru untuk mengganti.</span>
+                    @if ($canEdit)
+                        <div class="sm:col-span-2">
+                            <button type="submit" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-on-primary text-sm font-medium">
+                                <span class="material-symbols-outlined text-[18px]">save</span> Simpan Desil Nasional
+                            </button>
                         </div>
                     @endif
-
-                    <input type="file" name="surat_keterangan" accept=".pdf,.doc,.docx,image/jpeg,image/png"
-                           onchange="if (this.files[0] && this.files[0].size > 4*1024*1024) { alert('Ukuran file maksimal 4 MB.'); this.value=''; }"
-                           class="block w-full text-xs border border-outline-variant/40 rounded-lg file:mr-3 file:py-2.5 file:px-3 file:border-0 file:bg-surface-container file:text-xs file:font-semibold">
-                    @error('surat_keterangan')<p class="text-error text-xs">{{ $message }}</p>@enderror
-
-                    <button type="submit" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-on-primary text-sm font-medium">
-                        <span class="material-symbols-outlined text-[18px]">save</span> Simpan Data & Suket
-                    </button>
                 </div>
             </div>
         </form>
-    @else
-        <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
-            <div class="px-5 py-4 border-b border-outline-variant/40">
-                <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">assignment</span> Data Pemohon</h3>
-            </div>
-            <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 p-5 text-sm">
-                @foreach ([
-                    'Nama Layanan' => $data->nama_layanan, 'No KK' => $data->no_kk,
-                    'Nama Kepala Keluarga' => $data->nama_kepala_keluarga, 'NIK Kepala Keluarga' => $data->nik_kepala_keluarga,
-                    'Alamat' => $data->alamat, 'RT/RW' => ($data->rt ?: '-') . ' / ' . ($data->rw ?: '-'),
-                    'Kecamatan' => $data->kecamatan, 'Desa/Kelurahan' => $data->desa_kelurahan,
-                    'No Telp' => $data->no_telp, 'Email' => $data->email,
-                    'Desil Nasional' => $data->desil_nasional, 'Nama Faskes' => $data->nama_faskes,
-                ] as $label => $value)
-                    <div><dt class="text-xs text-on-surface-variant mb-0.5">{{ $label }}</dt><dd class="font-semibold">{{ $value ?: '-' }}</dd></div>
-                @endforeach
-            </dl>
-        </div>
 
-        {{-- Suket tetap bisa dilihat saat tidak dalam mode edit --}}
-        <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
-            <div class="px-5 py-4 border-b border-outline-variant/40">
-                <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">description</span> Surat Keterangan (Suket)</h3>
+        {{-- Card Scan KK: tersendiri, bisa ditutup --}}
+        <div x-show="panel" x-cloak x-transition
+             class="min-w-0 bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm lg:sticky lg:top-4">
+            <div class="px-5 py-3 border-b border-outline-variant/40 flex items-center justify-between gap-3">
+                <h3 class="text-sm font-bold flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[20px] text-secondary">family_restroom</span>
+                    <span x-text="panel ? panel.label : ''"></span>
+                </h3>
+                <div class="flex items-center gap-1">
+                    <a :href="panel ? panel.view : '#'" target="_blank" rel="noopener" title="Buka di tab baru"
+                       class="p-1.5 rounded-full hover:bg-surface-container text-on-surface-variant">
+                        <span class="material-symbols-outlined text-[18px]">open_in_new</span>
+                    </a>
+                    <button type="button" @click="panel = null" title="Tutup" aria-label="Tutup"
+                            class="p-1.5 rounded-full hover:bg-surface-container text-on-surface-variant">
+                        <span class="material-symbols-outlined text-[18px]">close</span>
+                    </button>
+                </div>
             </div>
-            <div class="p-5 pb-16">
-                @if ($data->surat_keterangan)
-                    <div class="w-28"><x-lampiran-preview :src="asset('storage/' . $data->surat_keterangan)" label="Surat Keterangan (Suket)" /></div>
-                @else
-                    <p class="text-sm text-on-surface-variant">Suket belum diunggah.</p>
-                @endif
+            <div class="bg-surface-container/40 p-2">
+                <template x-if="panel && panel.img">
+                    <img :src="panel.src" :alt="panel.label" class="w-full max-h-[75vh] object-contain rounded-lg bg-white">
+                </template>
+                <template x-if="panel && !panel.img">
+                    <iframe :src="panel.view" class="w-full h-[75vh] rounded-lg bg-white" title="Scan Kartu Keluarga"></iframe>
+                </template>
             </div>
         </div>
-    @endif
+    </div>
 
     {{-- Anggota keluarga --}}
     <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
@@ -170,58 +167,7 @@
         </div>
     </div>
 
-    {{-- Lampiran --}}
-    <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
-        <div class="px-5 py-4 border-b border-outline-variant/40">
-            <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">attach_file</span> Lampiran</h3>
-        </div>
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-5 pb-16">
-            @foreach ([
-                'scan_ktp' => 'Scan KTP', 'scan_kk' => 'Scan Kartu Keluarga',
-                'foto_rumah' => 'Foto Rumah', 'foto_kamar_mandi' => 'Foto Kamar Mandi',
-                'foto_selfie_ktp' => 'Foto Selfie dengan KTP', 'surat_rawat_inap' => 'Surat Ket. Rawat Inap',
-                'screenshot_pembaharuan_desil' => 'Screenshot Pembaharuan Desil', 'screenshot_dtsen' => 'Screenshot DTSEN',
-                'scan_surat_pengantar' => 'Surat Pengantar Kelurahan',
-                'ttd_kelurahan' => 'Tanda Tangan Kelurahan',
-            ] as $field => $label)
-                <x-lampiran-preview :src="$data->$field ? asset('storage/' . $data->$field) : null" :label="$label" />
-            @endforeach
-        </div>
-    </div>
-
     @include('admin.pbi-apbd.partials.hasil-verifikasi')
-
-    {{-- Diagnosa --}}
-    <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
-        <div class="px-5 py-4 border-b border-outline-variant/40">
-            <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">medical_information</span> Diagnosa</h3>
-        </div>
-        <div class="p-5 space-y-3">
-            <div class="space-y-2 max-h-64 overflow-y-auto">
-                @forelse ($data->diagnosaLogs as $log)
-                    <div class="p-3 bg-surface-container/30 rounded-lg border border-outline-variant/30">
-                        <div class="flex justify-between gap-2 flex-wrap mb-1">
-                            <span class="text-xs font-semibold">{{ $log->username }} <span class="font-normal text-on-surface-variant">({{ $log->role_name }})</span></span>
-                            <span class="text-[11px] text-on-surface-variant">{{ $log->created_at->format('d M Y - H:i') }}</span>
-                        </div>
-                        <p class="text-sm">{{ $log->diagnosa }}</p>
-                    </div>
-                @empty
-                    <p class="text-sm text-on-surface-variant italic">Belum ada diagnosa yang tercatat.</p>
-                @endforelse
-            </div>
-
-            @if ($canDiagnosa)
-                <form method="POST" action="{{ route('pbi-approval.operator.diagnosa', $data) }}" class="pt-3 border-t border-outline-variant/30">
-                    @csrf
-                    <textarea name="diagnosa" rows="3" placeholder="Tulis diagnosa baru..." class="w-full px-4 py-3 rounded-lg border border-outline-variant/60 text-sm">{{ old('diagnosa') }}</textarea>
-                    <button type="submit" class="mt-3 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-on-primary text-sm font-medium">
-                        <span class="material-symbols-outlined text-[18px]">add</span> Tambah Diagnosa
-                    </button>
-                </form>
-            @endif
-        </div>
-    </div>
 
     {{-- Log --}}
     <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
@@ -250,16 +196,10 @@
         </div>
     </div>
 
-    @if ($canAct && blank($data->surat_keterangan))
-        <div class="px-4 py-3 rounded-lg bg-warning-container text-on-warning-container text-sm">
-            Suket belum diunggah. Unggah dulu sebelum meneruskan ke Kepala Bidang.
-        </div>
-    @endif
-
-    {{-- Aksi --}}
+    {{-- Aksi: Operator hanya memverifikasi & meneruskan ke Kepala Bidang (tanpa kembalikan / tolak) --}}
     <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm mb-10">
         <div class="px-5 py-4 border-b border-outline-variant/40 bg-surface-container/20">
-            <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">alt_route</span> Proses Permohonan</h3>
+            <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">alt_route</span> Verifikasi Permohonan</h3>
         </div>
 
         @if ($canAct)
@@ -268,18 +208,12 @@
                 <input type="hidden" name="ids[]" value="{{ $data->id }}">
                 <div class="mb-5">
                     <label class="block text-sm font-bold mb-2">Catatan <span class="text-error">*</span></label>
-                    <textarea name="catatan" rows="3" required class="w-full px-4 py-3 rounded-lg border border-outline-variant/60 text-sm">{{ old('catatan') }}</textarea>
+                    <x-catatan-template tahap="operator" :aksi="['next']" />
+                    <textarea id="catatan" name="catatan" rows="3" required class="w-full px-4 py-3 rounded-lg border border-outline-variant/60 text-sm">{{ old('catatan') }}</textarea>
                 </div>
-                <div class="flex flex-col sm:flex-row flex-wrap items-center gap-3">
-                    <button type="submit" name="aksi" value="back" class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-5 py-2.5 rounded-lg border border-outline-variant hover:bg-surface-container-highest text-sm font-bold">
-                        <span class="material-symbols-outlined text-[18px]">undo</span> Kembalikan ke Kelurahan
-                    </button>
-                    <button type="submit" name="aksi" value="next" class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-on-primary hover:bg-secondary text-sm font-bold shadow-md sm:ml-auto">
-                        <span class="material-symbols-outlined text-[18px]">redo</span> Teruskan ke Kepala Bidang
-                    </button>
-                    <button type="submit" name="aksi" value="reject" onclick="return confirm('Yakin menolak permohonan ini?');"
-                        class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-5 py-2.5 rounded-lg border border-error text-error hover:bg-error hover:text-on-error text-sm font-bold">
-                        <span class="material-symbols-outlined text-[18px]">cancel</span> Reject
+                <div class="flex justify-end">
+                    <button type="submit" name="aksi" value="next" class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-on-primary hover:bg-secondary text-sm font-bold shadow-md">
+                        <span class="material-symbols-outlined text-[18px]">redo</span> Verifikasi & Teruskan ke Kepala Bidang
                     </button>
                 </div>
             </form>

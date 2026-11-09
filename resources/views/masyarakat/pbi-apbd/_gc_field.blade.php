@@ -232,8 +232,10 @@
             .gc-kunci-note { display: flex; align-items: center; gap: .3rem; margin: .375rem 0 0; font-size: .6875rem; color: #6b7280; }
             .gc-kunci-note .material-symbols-outlined { font-size: 14px; color: #72777f; }
 
-            /* Kotak centang besar (Ya/Tidak & pilihan ganda) */
-            .gc-opt { display: flex; align-items: center; gap: .75rem; min-height: 48px; padding: .625rem .875rem;
+            /* Kotak centang besar (Ya/Tidak & pilihan ganda).
+               position: relative -> input checkbox (sr-only = absolute) tetap berada di dalam baris ini,
+               sehingga klik tidak membuat halaman melompat dan daftar centang tidak "hilang" di desktop. */
+            .gc-opt { position: relative; display: flex; align-items: center; gap: .75rem; min-height: 48px; padding: .625rem .875rem;
                 border: 1.5px solid #d5dae1; border-radius: .75rem; background: #fff; cursor: pointer;
                 transition: background-color .15s, border-color .15s; }
             .gc-opt[hidden] { display: none !important; }

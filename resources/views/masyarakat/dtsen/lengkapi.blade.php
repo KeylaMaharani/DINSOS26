@@ -22,13 +22,13 @@
         'alamat' => ['label' => 'Alamat', 'type' => 'textarea'],
     ];
 
+    // Lampiran diambil dari halaman Dokumen (tidak diunggah ulang di sini). jenis = jenis dokumen di halaman Dokumen.
     $lampiranFields = [
-        'scan_ktp' => ['label' => 'Scan KTP', 'required' => false],
-        'screenshot_dtsen' => ['label' => 'Screenshot DTSEN', 'required' => true],
+        'scan_ktp' => ['label' => 'Scan KTP', 'required' => false, 'jenis' => 'ktp'],
+        'screenshot_dtsen' => ['label' => 'Screenshot DTSEN', 'required' => true, 'jenis' => 'screenshot_dtsen'],
     ];
 
     $inputClass = 'w-full rounded-xl border border-outline-variant/60 px-3.5 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand disabled:bg-surface-container disabled:text-on-surface-variant';
-    $fileClass = 'mt-2 block w-full text-xs text-on-surface-variant file:mr-3 file:rounded-full file:border-0 file:bg-primary/10 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-primary disabled:opacity-50';
 @endphp
 
 @section('content')
@@ -84,7 +84,7 @@
         </div>
     @endif
 
-    <form method="POST" action="{{ route('masyarakat.dtsen.lengkapi.store', $dtsen) }}" enctype="multipart/form-data"
+    <form method="POST" action="{{ route('masyarakat.dtsen.lengkapi.store', $dtsen) }}"
           class="space-y-4 sm:space-y-6 pb-44 sm:pb-0" id="form-lengkapi-dtsen">
         @csrf
 
@@ -125,15 +125,17 @@
             </div>
         </div>
 
-        {{-- ===== LAMPIRAN ===== --}}
+        {{-- ===== LAMPIRAN (diambil dari menu Dokumen) ===== --}}
         <div class="bg-white ring-1 ring-outline-variant/40 shadow-sm rounded-3xl p-5">
             <h2 class="font-extrabold text-sm text-brand mb-1 flex items-center gap-2">
                 <span class="w-8 h-8 rounded-lg bg-brand-soft text-brand flex items-center justify-center"><span class="material-symbols-outlined text-[18px]">attach_file</span></span>
                 Lampiran
             </h2>
             <p class="text-xs text-on-surface-variant mb-4">
-                Format JPG, PNG, atau PDF, maksimal 2 MB per file.
-                @if ($bisaEdit) Pilih file baru hanya jika ingin mengunggah atau mengganti. @endif
+                Lampiran diambil otomatis dari menu
+                <a href="{{ route('masyarakat.dokumen') }}" class="text-primary font-semibold underline">Dokumen</a>
+                saat Anda menyimpan data, jadi tidak perlu mengunggah ulang.
+                Untuk mengganti berkas, ubah di menu Dokumen lalu pilih "Pakai di pengajuan".
             </p>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-x-5">
@@ -141,12 +143,13 @@
                     @php
                         $file = $lampiran->$field ?? null;
                         $isPdf = $file && strtolower(pathinfo($file, PATHINFO_EXTENSION)) === 'pdf';
+                        $adaDokumen = auth()->user()->dokumens()->where('jenis', $config['jenis'])->exists();
                     @endphp
                     <div class="min-w-0">
-                        <label for="{{ $field }}" class="block text-xs font-semibold mb-2">
+                        <p class="block text-xs font-semibold mb-2">
                             {{ $config['label'] }}
                             @if ($config['required']) <span class="text-error">*</span> @endif
-                        </label>
+                        </p>
 
                         <div class="flex items-center gap-3">
                             <div class="w-20 h-20 shrink-0 rounded-lg border border-outline-variant/40 bg-surface-container overflow-hidden flex items-center justify-center">
@@ -161,21 +164,19 @@
                             <div class="min-w-0 text-xs">
                                 @if ($file)
                                     <p class="text-success font-semibold flex items-center gap-1">
-                                        <span class="material-symbols-outlined text-[14px]">check_circle</span> Sudah diunggah
+                                        <span class="material-symbols-outlined text-[14px]">check_circle</span> Terpasang di pengajuan
                                     </p>
                                     <a href="{{ asset('storage/' . $file) }}" target="_blank" class="text-primary underline">Lihat berkas</a>
+                                @elseif ($adaDokumen)
+                                    <p class="text-on-surface-variant">Akan diambil otomatis dari Dokumen saat disimpan.</p>
                                 @else
-                                    <p class="text-on-surface-variant">Belum ada berkas</p>
+                                    <p class="{{ $config['required'] ? 'text-error font-semibold' : 'text-on-surface-variant' }}">
+                                        Belum ada dokumen.
+                                    </p>
+                                    <a href="{{ route('masyarakat.dokumen') }}" class="text-primary underline">Unggah di menu Dokumen</a>
                                 @endif
                             </div>
                         </div>
-
-                        @if ($bisaEdit)
-                            <input id="{{ $field }}" type="file" name="{{ $field }}" accept=".jpg,.jpeg,.png,.pdf"
-                                   data-max-mb="2" @required($config['required'] && ! $file)
-                                   class="{{ $fileClass }}" />
-                            <p class="text-error text-xs mt-1 hidden" data-file-error="{{ $field }}"></p>
-                        @endif
 
                         @error($field)<p class="text-error text-xs mt-1">{{ $message }}</p>@enderror
                     </div>
@@ -197,35 +198,3 @@
         @endif
     </form>
 @endsection
-
-@push('scripts')
-<script>
-(function () {
-    var inputs = document.querySelectorAll('input[type="file"][data-max-mb]');
-    var btnSubmit = document.getElementById('btn-submit');
-    if (!inputs.length) { return; }
-
-    function refresh() {
-        var ada = document.querySelector('[data-file-error]:not(.hidden)');
-        if (btnSubmit) { btnSubmit.disabled = !!ada; }
-    }
-
-    inputs.forEach(function (input) {
-        input.addEventListener('change', function () {
-            var err = document.querySelector('[data-file-error="' + input.name + '"]');
-            var file = input.files && input.files[0];
-            var max = parseFloat(input.dataset.maxMb) * 1024 * 1024;
-
-            if (file && file.size > max) {
-                err.textContent = 'Ukuran file melebihi ' + input.dataset.maxMb + ' MB. Pilih file yang lebih kecil.';
-                err.classList.remove('hidden');
-                input.value = '';
-            } else {
-                err.classList.add('hidden');
-            }
-            refresh();
-        });
-    });
-})();
-</script>
-@endpush
