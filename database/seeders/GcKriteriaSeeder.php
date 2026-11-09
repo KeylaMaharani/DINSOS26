@@ -25,7 +25,12 @@ use Illuminate\Support\Facades\DB;
  *  5. Variabel bersumber master terpisah  -> kolom 'sumber' diisi, TANPA opsi di gc_kriteria_opsis
  *                                            (mis. keluhan kronis -> Master Penyakit Kronis).
  *
+ * Format baris data:
+ *  [kelompok, nama, bobot, tipe_input, nama parameter PBI (atau null), opsi sementara (atau []),
+ *   aktif (opsional, default true), wajib (opsional, default true)]
+ *
  * Seeder hanya berjalan jika master GC masih kosong, jadi tidak menimpa hasil edit Super Admin.
+ * Untuk database yang sudah terisi, tambahkan field baru lewat GcKriteriaTambahanSeeder.
  *
  * Perbaikan anti-dobel:
  *  - Opsi "yatim" (parameter_id tidak lagi ada di tabel parameter) dibersihkan di awal,
@@ -36,11 +41,12 @@ use Illuminate\Support\Facades\DB;
  *
  * Perubahan tab D Kesehatan: pertanyaan "Apakah penderita stunting?" DIHAPUS dari seeder, dan
  * "Apakah memiliki keluhan kesehatan kronis/menahun?" kini dropdown dari Master Penyakit Kronis.
+ * Ditambahkan: Diagnosa, Faskes, dan Surat Keterangan Rawat Inap (opsional, tidak wajib).
  *
  * Perubahan tab E Keluarga: "Jenis kloset" dan "Tempat pembuangan akhir tinja" DIHAPUS;
  * "Kepemilikan fasilitas BAB" memakai 6 opsi sesuai SOLID (nilai diisi Super Admin di menu master).
  * Perubahan tab F2: "Jumlah ternak kuda yang dimiliki" AKTIF.
- * Perubahan tab G: foto tabung gas, kamar mandi, dan individu DIHAPUS.
+ * Perubahan tab G: foto tabung gas, kamar mandi, dan individu DIHAPUS; ditambahkan Foto KTP.
  */
 class GcKriteriaSeeder extends Seeder
 {
@@ -69,7 +75,7 @@ class GcKriteriaSeeder extends Seeder
 
         $yaTidak = ['Ya', 'Tidak'];
 
-        // [kelompok, nama, bobot, tipe_input, nama parameter PBI (atau null), opsi sementara (atau [])]
+        // [kelompok, nama, bobot, tipe_input, nama parameter PBI (atau null), opsi sementara (atau []), aktif?, wajib?]
         $data = [
             // ================= A. KEPENDUDUKAN =================
             ['kependudukan', 'Nama', 0.5, 'teks', null, []],
@@ -112,6 +118,11 @@ class GcKriteriaSeeder extends Seeder
                 ['Tidak ada', 'Tuna netra', 'Tuna rungu', 'Tuna wicara', 'Tuna daksa', 'Tuna grahita', 'Disabilitas mental', 'Disabilitas ganda']],
             // Pilihan berasal dari Master Penyakit Kronis (lihat SUMBER_MASTER), bukan dari gc_kriteria_opsis.
             ['kesehatan', 'Apakah memiliki keluhan kesehatan kronis/menahun?', 3, 'pilihan', null, []],
+            // Tambahan: bobot 0 karena belum ada di dokumen 39 variabel. Ubah di menu master bila perlu.
+            ['kesehatan', 'Diagnosa', 0, 'teks', null, []],
+            ['kesehatan', 'Faskes (fasilitas kesehatan)', 0, 'teks', null, []],
+            // OPSIONAL: kolom ke-8 (wajib) = false.
+            ['kesehatan', 'Surat Keterangan Rawat Inap', 0, 'foto', null, [], true, false],
 
             // ================= E. KELUARGA =================
             ['keluarga', 'Jumlah keluarga yang tinggal dalam satu rumah', 2, 'angka', 'Jumlah tanggungan keluarga', []],
@@ -167,12 +178,14 @@ class GcKriteriaSeeder extends Seeder
             ['dokumentasi', 'Foto tampak depan', 2, 'foto', null, []],
             ['dokumentasi', 'Foto tampak dalam', 1, 'foto', null, []],
             ['dokumentasi', 'Foto kartu keluarga', 2, 'foto', null, []],
+            ['dokumentasi', 'Foto KTP', 2, 'foto', null, []],
         ];
 
         DB::transaction(function () use ($data) {
             foreach ($data as $i => $row) {
                 [$kelompok, $nama, $bobot, $tipe, $pbiNama, $opsiSementara] = $row;
                 $aktif = $row[6] ?? true;
+                $wajib = $row[7] ?? true;
                 $sumber = self::SUMBER_MASTER[mb_strtolower(trim($nama))] ?? null;
 
                 $pbi = null;
@@ -193,6 +206,7 @@ class GcKriteriaSeeder extends Seeder
                     'pbi_parameter_id' => $pbi?->id,
                     'keterangan' => $this->keterangan($tipe, $pbi, $opsiSementara, $aktif, $sumber),
                     'aktif' => $aktif,
+                    'wajib' => $wajib,
                 ]);
 
                 // Opsi hanya untuk tipe pilihan / pilihan_ganda yang TIDAK bersumber master.
