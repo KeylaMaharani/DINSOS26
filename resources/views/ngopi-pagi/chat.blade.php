@@ -1,4 +1,4 @@
-@extends('ngopi-pagi.layout')
+@extends('ngopi-pagi.layout-chat')
 
 @section('title', 'Obrolan ' . $k->no_konsultasi . ' - Ngopi Pagi')
 
