@@ -223,9 +223,15 @@
             : 0;
 
         // Badge Ngopi Pagi: jumlah kasus di tiap tahap.
-        $punyaNgopi = $currentRole && ($currentRole->isSuperAdmin() || $currentRole->hasModule('dayasos-ngopi-pagi'));
+        // DIBATASI per user lewat NgopiPagiKonsultasi::untukUser():
+        //   - Admin Ngopi Pagi / Super Admin : semua kasus
+        //   - Konselor (modul dayasos-ngopi-konselor) : hanya kasus miliknya
+        $punyaNgopi = $currentRole && ($currentRole->isSuperAdmin()
+            || $currentRole->hasModule('dayasos-ngopi-pagi')
+            || $currentRole->hasModule('dayasos-ngopi-konselor'));
         $ngopiHitung = $punyaNgopi
-            ? \App\Models\NgopiPagiKonsultasi::selectRaw('tahap, count(*) as total')
+            ? \App\Models\NgopiPagiKonsultasi::untukUser(auth()->user())
+                ->selectRaw('tahap, count(*) as total')
                 ->groupBy('tahap')
                 ->pluck('total', 'tahap')
             : collect();
@@ -778,7 +784,7 @@
                 @resize.window="check()">
 
                 <nav x-ref="nav" @scroll.passive="check()"
-                    class="sidebar-scroll h-full px-3 pt-2 pb-12 space-y-1.5 overflow-y-auto overflow-x-hidden">
+                    class="sidebar-scroll h-full px-3 pt-2 pb-16 space-y-1.5 overflow-y-auto overflow-x-hidden">
                     @foreach ($menuItems as $top)
                         @if (isset($top['separator']))
                             {{-- Pemisah grup menu --}}

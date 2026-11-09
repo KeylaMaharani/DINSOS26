@@ -36,7 +36,10 @@ class Role extends Model
         'pbi-bpjs' => 'PFM - Approval PBI APBD: BPJS Kesehatan',
 
         // --- Dayasos ---
-        'dayasos-ngopi-pagi' => 'Dayasos - Ngopi Pagi',
+        // Admin Ngopi Pagi: melihat SEMUA kasus + Rekapitulasi, Data Konselor, Spesialisasi.
+        'dayasos-ngopi-pagi' => 'Dayasos - Ngopi Pagi (Admin: semua kasus, rekap, konselor, spesialisasi)',
+        // Konselor: HANYA halaman kerja kasus miliknya. Jangan dicentang bersamaan dengan modul admin di atas.
+        'dayasos-ngopi-konselor' => 'Dayasos - Ngopi Pagi (Konselor: hanya kasus miliknya)',
         'dayasos-kesan' => 'Dayasos - Kesan',
 
         // --- Perlinsos ---

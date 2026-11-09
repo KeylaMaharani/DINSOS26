@@ -8,6 +8,7 @@ use App\Models\NgopiPagiSpesialisasi;
 use App\Support\NgopiPagiNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -80,6 +81,8 @@ class NgopiPagiPublikController extends Controller
         if ($request->filled('website')) {
             return redirect()->route('ngopi-pagi.index');
         }
+
+        // Route model binding sudah memuat model; cukup pastikan konselor aktif.
         abort_if($konselor && ! $konselor->aktif, 404);
 
         $d = $request->validate([
@@ -90,7 +93,10 @@ class NgopiPagiPublikController extends Controller
             'kebutuhan' => ['required', 'string', 'min:10', 'max:2000'],
             'butuh_segera' => ['required', Rule::in(['0', '1'])],
             'persetujuan' => ['accepted'],
-            'spesialisasi_id' => ['nullable', 'integer', Rule::exists('ngopi_pagi_spesialisasis', 'id')],
+            'spesialisasi_id' => [
+                'nullable', 'integer',
+                Rule::exists('ngopi_pagi_spesialisasis', 'id')->where('aktif', true),
+            ],
         ], [
             'nama.required' => 'Nama atau inisial wajib diisi.',
             'kontak.required' => 'Nomor yang dapat dihubungi wajib diisi.',
@@ -101,6 +107,7 @@ class NgopiPagiPublikController extends Controller
             'kebutuhan.required' => 'Ceritakan singkat permasalahan Anda.',
             'kebutuhan.min' => 'Ceritakan sedikit lebih lengkap (minimal 10 karakter).',
             'persetujuan.accepted' => 'Centang persetujuan penggunaan data agar kami dapat melanjutkan.',
+            'spesialisasi_id.exists' => 'Spesialisasi tidak valid.',
         ]);
 
         // Kelurahan harus ada di kecamatan yang dipilih (daftar di config/ngopi-wilayah.php).
@@ -114,35 +121,42 @@ class NgopiPagiPublikController extends Controller
         $segera = $d['butuh_segera'] === '1';
         $prioritas = $segera || ($spesialisasi?->kategori_awal === 'C');
 
-        $k = K::create([
-            'no_konsultasi' => K::buatNomor(),
-            'token' => Str::random(40),
-            'user_id' => ($user && ($user->role->slug ?? null) === 'masyarakat') ? $user->id : null,
-            'spesialisasi_id' => $spesialisasi?->id,
-            'konselor_id' => $konselor?->user_id,          // konselor pilihan warga = pendamping sejak awal
-            'kategori' => $spesialisasi?->kategori_awal,   // pra-klasifikasi, dikonfirmasi admin saat Screening
-            'nama' => $d['nama'],
-            'kontak' => $d['kontak'],
-            'kecamatan' => $d['kecamatan'],
-            'kelurahan' => $d['kelurahan'],
-            'kebutuhan' => $d['kebutuhan'],
-            'butuh_segera' => $segera,
-            'tahap' => 'chat_masuk',
-            'terakhir_pesan_at' => now(),
-        ]);
+        // Satu transaksi: konsultasi, pesan awal, sapaan, dan log harus utuh atau tidak sama sekali.
+        $k = DB::transaction(function () use ($d, $user, $spesialisasi, $konselor, $segera) {
+            $k = K::create([
+                'no_konsultasi' => K::buatNomor(),
+                'token' => Str::random(40),
+                'user_id' => ($user && ($user->role->slug ?? null) === 'masyarakat') ? $user->id : null,
+                'spesialisasi_id' => $spesialisasi?->id,
+                'konselor_id' => $konselor?->user_id,          // users.id, BUKAN ngopi_pagi_konselors.id
+                'kategori' => $spesialisasi?->kategori_awal,   // pra-klasifikasi, dikonfirmasi admin saat Screening
+                'nama' => $d['nama'],
+                'kontak' => $d['kontak'],
+                'kecamatan' => $d['kecamatan'],
+                'kelurahan' => $d['kelurahan'],
+                'kebutuhan' => $d['kebutuhan'],
+                'butuh_segera' => $segera,
+                'tahap' => 'chat_masuk',
+                'terakhir_pesan_at' => now(),
+            ]);
 
-        $k->pesans()->create(['pengirim' => 'masyarakat', 'isi' => $d['kebutuhan']]);
-        $k->kirimSistem($this->sapaan($konselor, $spesialisasi));
-        $k->catat('masuk', null, 'chat_masuk', trim(
-            ($spesialisasi ? 'Spesialisasi: ' . $spesialisasi->nama . '. ' : '')
-            . ($konselor ? 'Konselor pilihan: ' . $konselor->nama_tampilan . '. ' : '')
-            . ($segera ? 'Pengguna menandai butuh penanganan segera.' : '')
-        ) ?: null);
+            $k->pesans()->create(['pengirim' => 'masyarakat', 'isi' => $d['kebutuhan']]);
+            $k->kirimSistem($this->sapaan($konselor, $spesialisasi));
+            $k->catat('masuk', null, 'chat_masuk', trim(
+                ($spesialisasi ? 'Spesialisasi: ' . $spesialisasi->nama . '. ' : '')
+                . ($konselor ? 'Konselor pilihan: ' . $konselor->nama_tampilan . '. ' : '')
+                . ($segera ? 'Pengguna menandai butuh penanganan segera.' : '')
+            ) ?: null);
 
+            return $k;
+        });
+
+        // Notifikasi di luar transaksi agar kegagalan notifier tidak membatalkan konsultasi.
         NgopiPagiNotifier::kePetugas(
             $prioritas ? 'Konsultasi baru – PRIORITAS' : 'Konsultasi baru Ngopi Pagi',
             "{$k->nama} ({$k->kelurahan}, {$k->kecamatan}) memulai konsultasi"
-                . ($spesialisasi ? " – {$spesialisasi->nama}" : '') . ($konselor ? " dengan {$konselor->nama_tampilan}." : '.'),
+                . ($spesialisasi ? " – {$spesialisasi->nama}" : '')
+                . ($konselor ? " dengan {$konselor->nama_tampilan}." : '.'),
             $k->urlAdmin(),
             ['konsultasi_id' => $k->id, 'segera' => $prioritas],
             $konselor?->user_id,
@@ -186,23 +200,25 @@ class NgopiPagiPublikController extends Controller
         }
 
         $d = $request->validate(['isi' => ['required', 'string', 'max:2000']]);
+        $isi = trim($d['isi']);
 
         $adaBelumDibaca = $k->pesans()->where('pengirim', 'masyarakat')->whereNull('dibaca_at')->exists();
 
-        $p = $k->pesans()->create(['pengirim' => 'masyarakat', 'isi' => trim($d['isi'])]);
+        $p = $k->pesans()->create(['pengirim' => 'masyarakat', 'isi' => $isi]);
         $k->forceFill(['terakhir_pesan_at' => now()])->save();
 
         if (! $adaBelumDibaca) {
             NgopiPagiNotifier::kePetugas(
                 'Pesan baru – ' . $k->nama,
-                Str::limit(trim($d['isi']), 90),
+                Str::limit($isi, 90),
                 $k->urlAdmin(),
                 ['konsultasi_id' => $k->id],
                 $k->konselor_id ?: $k->petugas_id,
             );
         }
 
-        return response()->json(['pesan' => $p->ringkas()]);
+        // Konsisten dengan pesan(): sertakan konselor_id agar format pesan sama.
+        return response()->json(['pesan' => $p->ringkas($k->konselor_id)]);
     }
 
     /** Langkah 9: masyarakat mengonfirmasi apakah kebutuhannya sudah terpenuhi. */
@@ -215,15 +231,29 @@ class NgopiPagiPublikController extends Controller
             return redirect()->route('ngopi-pagi.chat', $k->token);
         }
 
+        $penerima = $k->konselor_id ?: $k->petugas_id;
+
         if ($jawab === 'ya') {
             $k->update(['dikonfirmasi_at' => now()]);
             $k->catat('konfirmasi_pengguna', 'konfirmasi', 'konfirmasi', 'Pengguna: kebutuhan sudah terpenuhi.');
             $k->kirimSistem('Terima kasih, konfirmasi Anda sudah kami terima. Petugas akan menutup layanan ini.');
-            NgopiPagiNotifier::kePetugas('Pengguna sudah mengonfirmasi', "{$k->nama}: kebutuhan terpenuhi. Siap ditutup.", $k->urlAdmin(), ['konsultasi_id' => $k->id], $k->konselor_id ?: $k->petugas_id);
+            NgopiPagiNotifier::kePetugas(
+                'Pengguna sudah mengonfirmasi',
+                "{$k->nama}: kebutuhan terpenuhi. Siap ditutup.",
+                $k->urlAdmin(),
+                ['konsultasi_id' => $k->id],
+                $penerima,
+            );
         } else {
             $k->pindahTahap('monitoring', 'belum_terpenuhi', 'Pengguna: kebutuhan belum terpenuhi.');
             $k->kirimSistem('Baik, kami catat bahwa kebutuhan Anda belum terpenuhi. Petugas akan menindaklanjuti kembali. Anda juga bisa menjelaskan kekurangannya di sini.');
-            NgopiPagiNotifier::kePetugas('Kebutuhan belum terpenuhi', "{$k->nama} menyatakan kebutuhannya belum terpenuhi. Kasus dikembalikan ke Monitoring.", $k->urlAdmin(), ['konsultasi_id' => $k->id], $k->konselor_id ?: $k->petugas_id);
+            NgopiPagiNotifier::kePetugas(
+                'Kebutuhan belum terpenuhi',
+                "{$k->nama} menyatakan kebutuhannya belum terpenuhi. Kasus dikembalikan ke Monitoring.",
+                $k->urlAdmin(),
+                ['konsultasi_id' => $k->id],
+                $penerima,
+            );
         }
 
         return redirect()->route('ngopi-pagi.chat', $k->token);

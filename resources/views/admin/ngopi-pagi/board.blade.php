@@ -5,17 +5,16 @@
 @section('content')
 @php $K = \App\Models\NgopiPagiKonsultasi::class; @endphp
 <div class="space-y-4">
-    @include('admin.ngopi-pagi._nav', ['aktif' => $tahap])
 
     <div class="rounded-2xl bg-white border border-outline-variant/40 p-4 flex flex-wrap items-center gap-3">
         <span class="w-11 h-11 rounded-xl bg-brand-soft text-brand flex items-center justify-center"><span class="material-symbols-outlined">{{ $cfg['icon'] }}</span></span>
-        <div class="min-w-0 flex-1">
+        <div class="min-w-0 flex-1 basis-56">
             <h2 class="text-base font-extrabold">{{ $cfg['label'] }} <span class="text-xs font-semibold text-on-surface-variant">· Langkah {{ $cfg['langkah'] }}</span></h2>
             <p class="text-xs text-on-surface-variant">{{ $cfg['desc'] }}</p>
         </div>
         <form method="GET" class="flex items-center gap-2">
             @if ($filter)<input type="hidden" name="kategori" value="{{ $filter }}">@endif
-            <label class="flex items-center gap-2 h-10 w-56 rounded-xl bg-surface-container-low px-3">
+            <label class="flex items-center gap-2 h-10 w-56 max-w-full rounded-xl bg-surface-container-low px-3">
                 <span class="material-symbols-outlined text-[18px] text-on-surface-variant">search</span>
                 <input type="search" name="q" value="{{ request('q') }}" placeholder="Cari…" class="w-full bg-transparent border-0 outline-none text-sm focus:ring-0">
             </label>
@@ -44,7 +43,7 @@
                     <div class="flex items-start gap-2">
                         <div class="min-w-0 flex-1">
                             <p class="text-sm font-extrabold truncate">{{ $it->nama }}</p>
-                            <p class="text-[11px] text-on-surface-variant">{{ $it->no_konsultasi }} · {{ $it->kelurahan }}, {{ $it->kecamatan }}</p>
+                            <p class="text-[11px] text-on-surface-variant truncate">{{ $it->no_konsultasi }} · {{ $it->kelurahan }}, {{ $it->kecamatan }}</p>
                         </div>
                         @if ($it->belum_dibaca > 0)
                             <span class="min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[11px] font-bold flex items-center justify-center">{{ $it->belum_dibaca }}</span>

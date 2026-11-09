@@ -399,43 +399,55 @@ Route::middleware(['auth', 'staff'])->group(function () {
 
     // ==========================================
     // NGOPI PAGI (admin) -- alur layanan LK3
+    //   Dipecah DUA kelompok akses:
+    //     1. Khusus ADMIN  (modul dayasos-ngopi-pagi)  : Rekapitulasi, Data Konselor, Spesialisasi
+    //     2. Kerja kasus   (modul dayasos-ngopi-pagi ATAU dayasos-ngopi-konselor)
+    //        Admin melihat semua kasus; konselor hanya kasus miliknya. Pembatasan per kasus
+    //        dilakukan di NgopiPagiController lewat NgopiPagiKonsultasi::untukUser() -> 404.
     //   Rute statis (/konselor, /spesialisasi, /rekapitulasi, /kasus) HARUS sebelum
     //   rute tahap yang punya {konsultasi?}.
     //   Harus didaftarkan SEBELUM loop DAYASOS di bawah.
     // ==========================================
-    Route::prefix('dayasos/ngopi-pagi')->name('ngopi-pagi.admin.')->middleware('module:dayasos-ngopi-pagi')->group(function () {
-        Route::get('/rekapitulasi', [NgopiPagiAdminController::class, 'rekap'])->name('rekap');
-        Route::get('/rekapitulasi/export', [NgopiPagiAdminController::class, 'export'])->name('rekap.export');
+    Route::prefix('dayasos/ngopi-pagi')->name('ngopi-pagi.admin.')->group(function () {
 
-        // Data Konselor
-        Route::get('/konselor', [NgopiPagiKonselorController::class, 'index'])->name('konselor.index');
-        Route::get('/konselor/tambah', [NgopiPagiKonselorController::class, 'create'])->name('konselor.create');
-        Route::post('/konselor', [NgopiPagiKonselorController::class, 'store'])->name('konselor.store');
-        Route::get('/konselor/{konselor}/edit', [NgopiPagiKonselorController::class, 'edit'])->whereNumber('konselor')->name('konselor.edit');
-        Route::put('/konselor/{konselor}', [NgopiPagiKonselorController::class, 'update'])->whereNumber('konselor')->name('konselor.update');
-        Route::delete('/konselor/{konselor}', [NgopiPagiKonselorController::class, 'destroy'])->whereNumber('konselor')->name('konselor.destroy');
+        // ---- 1. HANYA ADMIN ----
+        Route::middleware('module:dayasos-ngopi-pagi')->group(function () {
+            Route::get('/rekapitulasi', [NgopiPagiAdminController::class, 'rekap'])->name('rekap');
+            Route::get('/rekapitulasi/export', [NgopiPagiAdminController::class, 'export'])->name('rekap.export');
 
-        // Spesialisasi
-        Route::get('/spesialisasi', [NgopiPagiSpesialisasiController::class, 'index'])->name('spesialisasi.index');
-        Route::post('/spesialisasi', [NgopiPagiSpesialisasiController::class, 'store'])->name('spesialisasi.store');
-        Route::put('/spesialisasi/{spesialisasi}', [NgopiPagiSpesialisasiController::class, 'update'])->whereNumber('spesialisasi')->name('spesialisasi.update');
-        Route::delete('/spesialisasi/{spesialisasi}', [NgopiPagiSpesialisasiController::class, 'destroy'])->whereNumber('spesialisasi')->name('spesialisasi.destroy');
+            // Data Konselor
+            Route::get('/konselor', [NgopiPagiKonselorController::class, 'index'])->name('konselor.index');
+            Route::get('/konselor/tambah', [NgopiPagiKonselorController::class, 'create'])->name('konselor.create');
+            Route::post('/konselor', [NgopiPagiKonselorController::class, 'store'])->name('konselor.store');
+            Route::get('/konselor/{konselor}/edit', [NgopiPagiKonselorController::class, 'edit'])->whereNumber('konselor')->name('konselor.edit');
+            Route::put('/konselor/{konselor}', [NgopiPagiKonselorController::class, 'update'])->whereNumber('konselor')->name('konselor.update');
+            Route::delete('/konselor/{konselor}', [NgopiPagiKonselorController::class, 'destroy'])->whereNumber('konselor')->name('konselor.destroy');
 
-        Route::get('/kasus/{konsultasi}', [NgopiPagiAdminController::class, 'kasus'])->whereNumber('konsultasi')->name('kasus');
-        Route::post('/kasus/{konsultasi}/aksi', [NgopiPagiAdminController::class, 'aksi'])->whereNumber('konsultasi')->name('kasus.aksi');
-        Route::get('/kasus/{konsultasi}/pesan', [NgopiPagiAdminController::class, 'pesan'])->whereNumber('konsultasi')->name('kasus.pesan');
-        Route::post('/kasus/{konsultasi}/pesan', [NgopiPagiAdminController::class, 'kirimPesan'])->whereNumber('konsultasi')->name('kasus.pesan.kirim');
+            // Spesialisasi
+            Route::get('/spesialisasi', [NgopiPagiSpesialisasiController::class, 'index'])->name('spesialisasi.index');
+            Route::post('/spesialisasi', [NgopiPagiSpesialisasiController::class, 'store'])->name('spesialisasi.store');
+            Route::put('/spesialisasi/{spesialisasi}', [NgopiPagiSpesialisasiController::class, 'update'])->whereNumber('spesialisasi')->name('spesialisasi.update');
+            Route::delete('/spesialisasi/{spesialisasi}', [NgopiPagiSpesialisasiController::class, 'destroy'])->whereNumber('spesialisasi')->name('spesialisasi.destroy');
+        });
 
-        // Satu halaman per tahap: tahap.chat_masuk, tahap.screening, dst. (nama dipakai sidebar)
-        foreach (NgopiPagiKonsultasi::TAHAP as $key => $cfg) {
-            if (($cfg['menu'] ?? true) === false) {
-                continue;
+        // ---- 2. KERJA KASUS: admin (semua) ATAU konselor (miliknya saja) ----
+        Route::middleware('module:dayasos-ngopi-pagi,dayasos-ngopi-konselor')->group(function () {
+            Route::get('/kasus/{konsultasi}', [NgopiPagiAdminController::class, 'kasus'])->whereNumber('konsultasi')->name('kasus');
+            Route::post('/kasus/{konsultasi}/aksi', [NgopiPagiAdminController::class, 'aksi'])->whereNumber('konsultasi')->name('kasus.aksi');
+            Route::get('/kasus/{konsultasi}/pesan', [NgopiPagiAdminController::class, 'pesan'])->whereNumber('konsultasi')->name('kasus.pesan');
+            Route::post('/kasus/{konsultasi}/pesan', [NgopiPagiAdminController::class, 'kirimPesan'])->whereNumber('konsultasi')->name('kasus.pesan.kirim');
+
+            // Satu halaman per tahap: tahap.chat_masuk, tahap.screening, dst. (nama dipakai sidebar)
+            foreach (NgopiPagiKonsultasi::TAHAP as $key => $cfg) {
+                if (($cfg['menu'] ?? true) === false) {
+                    continue;
+                }
+                Route::get('/' . $cfg['url'] . '/{konsultasi?}', [NgopiPagiAdminController::class, 'tahap'])
+                    ->defaults('tahap', $key)
+                    ->whereNumber('konsultasi')
+                    ->name('tahap.' . $key);
             }
-            Route::get('/' . $cfg['url'] . '/{konsultasi?}', [NgopiPagiAdminController::class, 'tahap'])
-                ->defaults('tahap', $key)
-                ->whereNumber('konsultasi')
-                ->name('tahap.' . $key);
-        }
+        });
     });
 
     // ==========================================

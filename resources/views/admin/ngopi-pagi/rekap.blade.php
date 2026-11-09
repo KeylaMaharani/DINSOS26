@@ -8,7 +8,6 @@
     $inp = 'w-full rounded-xl border border-outline-variant/60 bg-white px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20';
 @endphp
 <div class="space-y-4">
-    @include('admin.ngopi-pagi._nav', ['aktif' => 'rekap'])
 
     {{-- Ringkasan --}}
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">

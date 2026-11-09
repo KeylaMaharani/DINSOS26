@@ -1,4 +1,4 @@
-{{-- Ruang kerja satu kasus: identitas, stepper alur, obrolan, dan panel aksi sesuai tahap. Variabel: $k --}}
+{{-- Ruang kerja satu kasus. Variabel: $k. Tinggi mengikuti pembungkus (inbox / show). --}}
 @php
     $K = \App\Models\NgopiPagiKonsultasi::class;
     $urut = array_keys($K::TAHAP);
@@ -12,13 +12,14 @@
     $btn = 'inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-brand text-white text-sm font-semibold shadow-sm hover:bg-primary transition-colors';
 @endphp
 
-<div class="space-y-4">
-    {{-- Identitas kasus --}}
-    <div class="rounded-2xl bg-white border border-outline-variant/40 border-l-4 {{ $kat['edge'] ?? 'border-l-brand' }} p-4 flex flex-wrap items-center gap-4">
-        <div class="w-12 h-12 shrink-0 rounded-full bg-brand text-white text-lg font-extrabold flex items-center justify-center">{{ $k->inisial() }}</div>
-        <div class="min-w-0 flex-1">
-            <div class="flex flex-wrap items-center gap-2">
-                <h2 class="text-base font-extrabold">{{ $k->nama }}</h2>
+<div class="flex flex-col gap-3 xl:h-full min-h-0">
+
+    {{-- ===== Identitas kasus ===== --}}
+    <div class="shrink-0 rounded-2xl bg-white border border-outline-variant/40 border-l-4 {{ $kat['edge'] ?? 'border-l-brand' }} px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div class="w-11 h-11 shrink-0 rounded-full bg-brand text-white text-lg font-extrabold flex items-center justify-center">{{ $k->inisial() }}</div>
+        <div class="min-w-0 flex-1 basis-64">
+            <div class="flex flex-wrap items-center gap-1.5">
+                <h2 class="text-base font-extrabold leading-tight">{{ $k->nama }}</h2>
                 @if ($k->butuh_segera)
                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-bold"><span class="material-symbols-outlined text-[12px]">emergency</span>Butuh segera</span>
                 @endif
@@ -29,43 +30,43 @@
                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold"><span class="material-symbols-outlined text-[12px]">verified</span>Terverifikasi</span>
                 @endif
             </div>
-            <p class="text-xs text-on-surface-variant mt-0.5">{{ $k->no_konsultasi }} · {{ $k->kelurahan }}, {{ $k->kecamatan }} · masuk {{ $k->created_at->locale('id')->isoFormat('D MMM YYYY, HH:mm') }}</p>
+            <p class="text-[11px] text-on-surface-variant mt-0.5 truncate">{{ $k->no_konsultasi }} · {{ $k->kelurahan }}, {{ $k->kecamatan }} · {{ $k->created_at->locale('id')->isoFormat('D MMM YYYY, HH:mm') }}</p>
         </div>
-        <div class="flex items-center gap-2">
-            <a href="tel:{{ preg_replace('/[^\d+]/', '', $k->kontak) }}" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-outline-variant/60 text-xs font-semibold hover:bg-surface-container">
+        <div class="flex items-center gap-2 shrink-0">
+            <a href="tel:{{ preg_replace('/[^\d+]/', '', $k->kontak) }}" class="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border border-outline-variant/60 text-xs font-semibold hover:bg-surface-container">
                 <span class="material-symbols-outlined text-[16px]">call</span>{{ $k->kontak }}
             </a>
-            <a href="{{ $k->waLink() }}" target="_blank" rel="noopener" title="Hubungi lewat WhatsApp (mis. untuk memberi tahu ada balasan)" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-emerald-300 text-emerald-700 text-xs font-semibold hover:bg-emerald-50">
+            <a href="{{ $k->waLink() }}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border border-emerald-300 text-emerald-700 text-xs font-semibold hover:bg-emerald-50">
                 <span class="material-symbols-outlined text-[16px]">chat</span>WhatsApp
             </a>
         </div>
     </div>
 
-    {{-- Stepper alur --}}
-    <ol class="flex items-center gap-1 overflow-x-auto py-1">
+    {{-- ===== Progres alur (selalu muat, tidak terpotong) ===== --}}
+    <ol class="shrink-0 grid grid-cols-7 gap-1.5 px-1">
         @foreach ($urut as $i => $key)
             @php $c = $K::TAHAP[$key]; $done = $i < $idx; $now = $i === $idx; @endphp
-            <li class="flex items-center gap-1 shrink-0">
-                <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold
-                    {{ $now ? 'bg-brand text-white' : ($done ? 'bg-emerald-100 text-emerald-800' : 'bg-surface-container text-on-surface-variant') }}">
-                    <span class="material-symbols-outlined text-[14px]">{{ $done ? 'check_circle' : $c['icon'] }}</span>{{ $c['label'] }}
-                </div>
-                @unless ($loop->last)<span class="w-3 h-px bg-outline-variant"></span>@endunless
+            <li class="min-w-0" title="{{ $c['label'] }}">
+                <div class="h-1.5 rounded-full {{ $now ? 'bg-brand' : ($done ? 'bg-emerald-500' : 'bg-outline-variant/50') }}"></div>
+                <p class="mt-1 text-[10px] font-semibold truncate {{ $now ? 'text-brand' : ($done ? 'text-emerald-700' : 'text-on-surface-variant') }}">{{ $c['label'] }}</p>
             </li>
         @endforeach
     </ol>
 
-    <div class="grid xl:grid-cols-5 gap-4 items-start">
+    <div class="grid gap-3 flex-1 min-h-0 xl:grid-cols-[minmax(0,1fr)_320px] xl:grid-rows-1">
+
         {{-- ================= OBROLAN ================= --}}
-        <section id="np-chat" class="xl:col-span-3 rounded-2xl bg-white border border-outline-variant/40 overflow-hidden flex flex-col h-[68vh] min-h-[440px]"
+        <section id="np-chat" class="flex flex-col min-h-0 h-[70vh] xl:h-full rounded-2xl bg-white border border-outline-variant/40 overflow-hidden"
             data-poll="{{ route('ngopi-pagi.admin.kasus.pesan', $k) }}" data-kirim="{{ route('ngopi-pagi.admin.kasus.pesan.kirim', $k) }}">
-            <div class="px-4 py-2.5 border-b border-outline-variant/30 flex items-center gap-2 text-xs font-semibold">
+            <div class="shrink-0 px-4 py-2.5 border-b border-outline-variant/30 flex items-center gap-2 text-xs font-semibold">
                 <span class="material-symbols-outlined text-[18px] text-brand">forum</span>
-                Obrolan dengan {{ $k->nama }}
-                <span class="ml-auto text-[10px] font-medium text-on-surface-variant">diperbarui otomatis</span>
+                <span class="truncate">Obrolan dengan {{ $k->nama }}</span>
+                <span class="ml-auto inline-flex items-center gap-1 text-[10px] font-medium text-on-surface-variant shrink-0">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>langsung
+                </span>
             </div>
 
-            <div data-list class="flex-1 overflow-y-auto px-4 py-4 space-y-2 bg-[#f1f6fb]"></div>
+            <div data-list class="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-2 bg-[#f1f6fb]"></div>
             <script type="application/json" id="np-initial">{!! json_encode($awal, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) !!}</script>
 
             @unless ($selesai)
@@ -84,28 +85,30 @@
                         default => [],
                     };
                 @endphp
-                @if ($cepat)
-                    <div class="px-3 pt-2 flex gap-1.5 overflow-x-auto border-t border-outline-variant/20">
-                        @foreach ($cepat as $nama => $teks)
-                            <button type="button" data-quick="{{ $teks }}" class="shrink-0 px-3 py-1 rounded-full border border-outline-variant/60 text-[11px] font-semibold text-brand hover:bg-brand-soft">{{ $nama }}</button>
-                        @endforeach
-                    </div>
-                @endif
-                <form class="p-3 flex items-end gap-2" autocomplete="off">
-                    @csrf
-                    <textarea name="isi" rows="1" maxlength="2000" placeholder="Tulis balasan… (Enter kirim, Shift+Enter baris baru)"
-                        class="flex-1 resize-none max-h-32 rounded-2xl border border-outline-variant/60 px-4 py-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"></textarea>
-                    <button type="submit" class="w-11 h-11 shrink-0 rounded-full bg-brand text-white flex items-center justify-center hover:bg-primary disabled:opacity-50" aria-label="Kirim">
-                        <span class="material-symbols-outlined text-[20px]">send</span>
-                    </button>
-                </form>
+                <div class="shrink-0 border-t border-outline-variant/30 bg-white">
+                    @if ($cepat)
+                        <div class="px-3 pt-2.5 flex gap-1.5 overflow-x-auto">
+                            @foreach ($cepat as $nama => $teks)
+                                <button type="button" data-quick="{{ $teks }}" class="shrink-0 px-3 py-1 rounded-full bg-brand-soft text-[11px] font-semibold text-brand hover:bg-brand hover:text-white transition-colors">{{ $nama }}</button>
+                            @endforeach
+                        </div>
+                    @endif
+                    <form class="p-3 flex items-end gap-2" autocomplete="off">
+                        @csrf
+                        <textarea name="isi" rows="1" maxlength="2000" placeholder="Tulis balasan… (Enter kirim, Shift+Enter baris baru)"
+                            class="flex-1 resize-none overflow-y-auto rounded-2xl border border-outline-variant/60 px-4 py-2.5 text-sm leading-5 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" style="max-height:8rem"></textarea>
+                        <button type="submit" class="w-11 h-11 shrink-0 rounded-full bg-brand text-white flex items-center justify-center hover:bg-primary disabled:opacity-50" aria-label="Kirim">
+                            <span class="material-symbols-outlined text-[20px]">send</span>
+                        </button>
+                    </form>
+                </div>
             @else
-                <div class="px-4 py-3 border-t border-outline-variant/30 bg-surface-container-low text-xs text-on-surface-variant text-center">Layanan sudah selesai. Obrolan hanya bisa dibaca.</div>
+                <div class="shrink-0 px-4 py-3 border-t border-outline-variant/30 bg-surface-container-low text-xs text-on-surface-variant text-center">Layanan sudah selesai. Obrolan hanya bisa dibaca.</div>
             @endunless
         </section>
 
-        {{-- ================= PANEL TAHAP ================= --}}
-        <section class="xl:col-span-2 space-y-4">
+        {{-- ================= PANEL TAHAP (scroll sendiri) ================= --}}
+        <aside class="space-y-3 xl:overflow-y-auto xl:min-h-0 xl:pr-1 xl:pb-16">
             @if ($errors->any())
                 <div class="rounded-xl bg-error-container text-on-error-container text-xs px-4 py-3 space-y-0.5">
                     @foreach ($errors->all() as $e)<p>{{ $e }}</p>@endforeach
@@ -113,33 +116,40 @@
             @endif
 
             <div class="rounded-2xl bg-white border border-outline-variant/40 p-4">
-                <div class="flex items-center gap-2 mb-3">
-                    <span class="material-symbols-outlined text-[20px] text-amber-700">{{ $K::TAHAP[$k->tahap]['icon'] }}</span>
-                    <div>
-                        <p class="text-sm font-extrabold leading-tight">{{ $K::TAHAP[$k->tahap]['label'] }}</p>
-                        <p class="text-[11px] text-on-surface-variant">Langkah {{ $K::TAHAP[$k->tahap]['langkah'] }} · Output: {{ $K::TAHAP[$k->tahap]['output'] }}</p>
+                {{-- Header tahap: ramping & menempel di atas panel saat form di-scroll --}}
+                <div class="sticky top-0 z-10 -mx-4 -mt-4 mb-3 px-4 pt-3 pb-2.5 bg-white rounded-t-2xl border-b border-outline-variant/30 flex items-center gap-2.5">
+                    <span class="w-8 h-8 shrink-0 rounded-lg bg-brand-soft text-brand flex items-center justify-center"><span class="material-symbols-outlined text-[18px]">{{ $K::TAHAP[$k->tahap]['icon'] }}</span></span>
+                    <div class="min-w-0">
+                        <p class="text-[13px] font-extrabold leading-tight">{{ $K::TAHAP[$k->tahap]['label'] }}</p>
+                        <p class="text-[10px] text-on-surface-variant truncate">Langkah {{ $K::TAHAP[$k->tahap]['langkah'] }} · {{ $K::TAHAP[$k->tahap]['output'] }}</p>
                     </div>
                 </div>
 
                 @switch($k->tahap)
-                    {{-- ---------- 1-3: verifikasi ---------- --}}
+                    {{-- ---------- 1-3: verifikasi (data pengguna TERKUNCI, hanya catatan yang bisa diisi) ---------- --}}
                     @case('chat_masuk')
                         <form method="POST" action="{{ $aksiUrl }}" class="space-y-3">
                             @csrf <input type="hidden" name="aksi" value="verifikasi">
-                            <div><label class="{{ $lbl }}">Nama / inisial</label><input name="nama" value="{{ old('nama', $k->nama) }}" class="{{ $inp }}" required></div>
-                            <div><label class="{{ $lbl }}">Nomor yang dapat dihubungi</label><input name="kontak" value="{{ old('kontak', $k->kontak) }}" class="{{ $inp }}" required></div>
-                            <div class="grid grid-cols-2 gap-2">
-                                <div><label class="{{ $lbl }}">Kecamatan</label>
-                                    <select name="kecamatan" class="{{ $inp }}" required>
-                                        @foreach ($K::KECAMATAN as $kc)<option @selected(old('kecamatan', $k->kecamatan) === $kc)>{{ $kc }}</option>@endforeach
-                                    </select></div>
-                                <div><label class="{{ $lbl }}">Kelurahan</label><input name="kelurahan" value="{{ old('kelurahan', $k->kelurahan) }}" class="{{ $inp }}" required></div>
+
+                            <div>
+                                <p class="flex items-center gap-1 text-[11px] font-semibold text-on-surface-variant mb-1.5">
+                                    <span class="material-symbols-outlined text-[14px]">lock</span>Data dari pengguna (tidak dapat diubah)
+                                </p>
+                                <dl class="rounded-xl bg-surface-container-low divide-y divide-outline-variant/30 text-[13px]">
+                                    @foreach ([['Nama / inisial', $k->nama], ['Nomor kontak', $k->kontak], ['Kecamatan', $k->kecamatan], ['Kelurahan', $k->kelurahan]] as [$dl, $dv])
+                                        <div class="flex items-center justify-between gap-3 px-3 py-2">
+                                            <dt class="text-xs text-on-surface-variant shrink-0">{{ $dl }}</dt>
+                                            <dd class="font-semibold text-right break-words min-w-0">{{ $dv }}</dd>
+                                        </div>
+                                    @endforeach
+                                    <div class="px-3 py-2">
+                                        <dt class="text-xs text-on-surface-variant">Kebutuhan awal</dt>
+                                        <dd class="mt-0.5 whitespace-pre-line">{{ $k->kebutuhan }}</dd>
+                                    </div>
+                                </dl>
                             </div>
-                            <div class="rounded-xl bg-surface-container-low px-3 py-2.5">
-                                <p class="text-[11px] font-semibold text-on-surface-variant mb-0.5">Kebutuhan awal (dari pengguna)</p>
-                                <p class="text-[13px] whitespace-pre-line">{{ $k->kebutuhan }}</p>
-                            </div>
-                            <div><label class="{{ $lbl }}">Catatan verifikasi (opsional)</label><textarea name="verifikasi_catatan" rows="2" class="{{ $inp }}">{{ old('verifikasi_catatan', $k->verifikasi_catatan) }}</textarea></div>
+
+                            <div><label class="{{ $lbl }}">Catatan verifikasi (opsional)</label><textarea name="verifikasi_catatan" rows="3" class="{{ $inp }}">{{ old('verifikasi_catatan', $k->verifikasi_catatan) }}</textarea></div>
                             <label class="flex items-start gap-2 text-xs">
                                 <input type="checkbox" name="identitas_terverifikasi" value="1" class="mt-0.5 rounded border-outline-variant text-brand focus:ring-brand" @checked(old('identitas_terverifikasi'))>
                                 <span>Identitas dan kebutuhan awal sudah saya verifikasi bersama pengguna.</span>
@@ -290,10 +300,10 @@
                 @endif
             </div>
 
-            {{-- Ringkasan yang sudah terisi --}}
+            {{-- Ringkasan: kebutuhan awal tidak diulang di Chat Masuk (sudah tampil di kartu verifikasi) --}}
             @php
                 $ringkas = array_filter([
-                    'Kebutuhan awal' => $k->kebutuhan,
+                    'Kebutuhan awal' => $k->tahap === 'chat_masuk' ? null : $k->kebutuhan,
                     'Jenis masalah' => $K::JENIS_MASALAH[$k->jenis_masalah] ?? null,
                     'Catatan klasifikasi' => $k->klasifikasi_catatan,
                     'Kondisi' => $k->kondisi, 'Kronologi' => $k->kronologi, 'Kebutuhan (asesmen)' => $k->kebutuhan_asesmen,
@@ -302,16 +312,17 @@
                     'Tujuan rujukan' => $k->tujuan_rujukan, 'Rencana intervensi' => $k->rencana_intervensi, 'Output layanan' => $k->output_layanan,
                 ]);
             @endphp
-            <details class="rounded-2xl bg-white border border-outline-variant/40" @if ($selesai) open @endif>
-                <summary class="px-4 py-3 text-sm font-bold cursor-pointer flex items-center gap-2"><span class="material-symbols-outlined text-[18px] text-brand">description</span>Ringkasan kasus</summary>
-                <dl class="px-4 pb-4 space-y-2.5">
-                    @foreach ($ringkas as $label => $nilai)
-                        <div><dt class="text-[11px] font-semibold text-on-surface-variant">{{ $label }}</dt><dd class="text-[13px] whitespace-pre-line">{{ $nilai }}</dd></div>
-                    @endforeach
-                </dl>
-            </details>
+            @if ($ringkas)
+                <details class="rounded-2xl bg-white border border-outline-variant/40" @if ($selesai) open @endif>
+                    <summary class="px-4 py-3 text-sm font-bold cursor-pointer flex items-center gap-2"><span class="material-symbols-outlined text-[18px] text-brand">description</span>Ringkasan kasus</summary>
+                    <dl class="px-4 pb-4 space-y-2.5">
+                        @foreach ($ringkas as $label => $nilai)
+                            <div><dt class="text-[11px] font-semibold text-on-surface-variant">{{ $label }}</dt><dd class="text-[13px] whitespace-pre-line">{{ $nilai }}</dd></div>
+                        @endforeach
+                    </dl>
+                </details>
+            @endif
 
-            {{-- Catatan monitoring --}}
             @if ($k->monitorings->isNotEmpty())
                 <details class="rounded-2xl bg-white border border-outline-variant/40" open>
                     <summary class="px-4 py-3 text-sm font-bold cursor-pointer flex items-center gap-2"><span class="material-symbols-outlined text-[18px] text-brand">monitor_heart</span>Catatan monitoring ({{ $k->monitorings->count() }})</summary>
@@ -327,10 +338,9 @@
                 </details>
             @endif
 
-            {{-- Riwayat proses --}}
             <details class="rounded-2xl bg-white border border-outline-variant/40">
                 <summary class="px-4 py-3 text-sm font-bold cursor-pointer flex items-center gap-2"><span class="material-symbols-outlined text-[18px] text-brand">history</span>Riwayat proses</summary>
-                <ol class="px-4 pb-4 ml-2 border-l border-outline-variant/50 space-y-3">
+                <ol class="px-4 pb-4 ml-5 border-l border-outline-variant/50 space-y-3">
                     @foreach ($k->logs as $lg)
                         <li class="pl-4 relative">
                             <span class="absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full bg-brand"></span>
@@ -341,7 +351,7 @@
                     @endforeach
                 </ol>
             </details>
-        </section>
+        </aside>
     </div>
 </div>
 
@@ -393,8 +403,13 @@
 
     if (!form) return;
     var ta = form.querySelector('textarea'), btn = form.querySelector('button[type=submit]');
+
+    // textarea membesar otomatis (maks 8rem) supaya teks panjang tidak terpotong
+    function grow() { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 128) + 'px'; }
+    ta.addEventListener('input', grow);
+
     box.querySelectorAll('[data-quick]').forEach(function (q) {
-        q.addEventListener('click', function () { ta.value = q.dataset.quick; ta.focus(); });
+        q.addEventListener('click', function () { ta.value = q.dataset.quick; grow(); ta.focus(); });
     });
     ta.addEventListener('keydown', function (e) {
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
@@ -408,7 +423,7 @@
             headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': form.querySelector('input[name=_token]').value, 'Content-Type': 'application/json' },
             body: JSON.stringify({ isi: isi })
         }).then(function (r) { return r.json(); })
-          .then(function (d) { if (d.pesan) { bubble(d.pesan, true); ta.value = ''; } else if (d.message) { alert(d.message); } })
+          .then(function (d) { if (d.pesan) { bubble(d.pesan, true); ta.value = ''; grow(); } else if (d.message) { alert(d.message); } })
           .catch(function () { alert('Pesan gagal terkirim. Coba lagi.'); })
           .finally(function () { btn.disabled = false; ta.focus(); });
     });

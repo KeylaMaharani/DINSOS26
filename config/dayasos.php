@@ -2,11 +2,13 @@
 
 /**
  * Menu DAYASOS (dipakai sidebar layouts/admin.blade.php dan routes/web.php).
- *   module = key di Role::MODULES. Anak menu otomatis mengikuti module induknya.
+ *   module = key di Role::MODULES. Anak menu otomatis mengikuti module induknya,
+ *            kecuali anak itu punya 'module' sendiri (dipakai untuk menu khusus admin).
  *   custom = true -> rute TIDAK dibuat oleh loop placeholder di web.php (sudah ada controller sendiri).
  *
  * Ngopi Pagi: submenu mengikuti alur layanan LK3 (lihat NgopiPagiKonsultasi::TAHAP),
- * ditambah Data Konselor dan Spesialisasi.
+ * ditambah Rekapitulasi, Data Konselor, dan Spesialisasi (ketiganya KHUSUS admin Ngopi Pagi).
+ * Konselor (modul 'dayasos-ngopi-konselor') hanya melihat tahap kerja.
  * Rute-nya ada di routes/web.php (blok "NGOPI PAGI (admin)").
  */
 $leaf = fn (string $label, string $path) => [
@@ -28,11 +30,11 @@ return [
         'label'  => 'Beranda',
         'route'  => 'dayasos.dashboard',
         'url'    => 'dayasos/dashboard',
-        'module' => ['dayasos-ngopi-pagi', 'dayasos-kesan', 'dayasos-lks'],
+        'module' => ['dayasos-ngopi-pagi', 'dayasos-ngopi-konselor', 'dayasos-kesan', 'dayasos-lks'],
     ],
     [
         'label'    => 'Ngopi Pagi',
-        'module'   => 'dayasos-ngopi-pagi',
+        'module'   => ['dayasos-ngopi-pagi', 'dayasos-ngopi-konselor'],
         'children' => [
             $np('Chat Masuk', 'chat_masuk', 'ngopi_chat_masuk'),
             $np('Screening', 'screening', 'ngopi_screening'),
@@ -45,18 +47,21 @@ return [
                 'route'  => 'ngopi-pagi.admin.rekap',
                 'match'  => ['ngopi-pagi.admin.kasus', 'ngopi-pagi.admin.rekap.*'],
                 'custom' => true,
+                'module' => 'dayasos-ngopi-pagi',
             ],
             [
                 'label'  => 'Data Konselor',
                 'route'  => 'ngopi-pagi.admin.konselor.index',
                 'match'  => ['ngopi-pagi.admin.konselor.*'],
                 'custom' => true,
+                'module' => 'dayasos-ngopi-pagi',
             ],
             [
                 'label'  => 'Spesialisasi',
                 'route'  => 'ngopi-pagi.admin.spesialisasi.index',
                 'match'  => ['ngopi-pagi.admin.spesialisasi.*'],
                 'custom' => true,
+                'module' => 'dayasos-ngopi-pagi',
             ],
         ],
     ],

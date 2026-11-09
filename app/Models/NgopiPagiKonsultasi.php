@@ -117,6 +117,35 @@ class NgopiPagiKonsultasi extends Model
         });
     }
 
+    /**
+     * Pembatas data per konselor.
+     *  - Super Admin / role ber-modul 'dayasos-ngopi-pagi' (admin Ngopi Pagi): semua kasus
+     *  - Role ber-modul 'dayasos-ngopi-konselor' saja: hanya kasus miliknya (konselor_id = user id)
+     *  - Selain itu: tidak ada
+     */
+    public function scopeUntukUser(Builder $q, ?User $user): Builder
+    {
+        $role = $user?->role;
+
+        if (! $role) {
+            return $q->whereRaw('1 = 0');
+        }
+        if ($role->hasModule('dayasos-ngopi-pagi')) {
+            return $q;
+        }
+        if (! $role->hasModule('dayasos-ngopi-konselor')) {
+            return $q->whereRaw('1 = 0');
+        }
+
+        return $q->where($q->getModel()->getTable() . '.konselor_id', $user->id);
+    }
+
+    /** Apakah kasus ini boleh dibuka oleh user tersebut (memakai aturan scopeUntukUser). */
+    public function bolehDiakses(?User $user): bool
+    {
+        return static::query()->untukUser($user)->whereKey($this->getKey())->exists();
+    }
+
     // ---------- Helper ----------
     public static function buatNomor(): string
     {

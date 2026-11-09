@@ -11,32 +11,33 @@ use Illuminate\Validation\Rule;
 
 class NgopiPagiController extends Controller
 {
-    private const REGEX_KONTAK = '/^[0-9+\-\s()]{6,20}$/';
-
     /**
      * Halaman per tahap. Tanpa {konsultasi}: daftar kasus (papan kartu).
      * Dengan {konsultasi}: halaman kerja kasus. Chat Masuk memakai tampilan kotak masuk (inbox).
+     * Semua data dibatasi lewat K::untukUser() -> konselor hanya melihat kasusnya sendiri.
      */
     public function tahap(Request $request)
     {
+        $user = $request->user();
         $tahap = (string) $request->route('tahap');
         $konsultasi = $request->route('konsultasi');
 
         abort_unless(isset(K::TAHAP[$tahap]), 404);
 
-        if ($konsultasi !== null && ! $konsultasi instanceof K) {
-            $konsultasi = K::findOrFail($konsultasi);
+        if ($konsultasi !== null) {
+            $konsultasi = $konsultasi instanceof K
+                ? $this->izin($konsultasi)
+                : K::untukUser($user)->findOrFail($konsultasi);
         }
 
         if ($konsultasi && $konsultasi->tahap !== $tahap) {
             return redirect()->to($konsultasi->urlAdmin());
         }
 
-        $hitung = K::selectRaw('tahap, count(*) as total')->groupBy('tahap')->pluck('total', 'tahap');
         $belumDibaca = fn ($p) => $p->where('pengirim', 'masyarakat')->whereNull('dibaca_at');
 
         if ($tahap === 'chat_masuk') {
-            $daftar = K::withCount(['pesans as belum_dibaca' => $belumDibaca])
+            $daftar = K::untukUser($user)->withCount(['pesans as belum_dibaca' => $belumDibaca])
                 ->where('tahap', 'chat_masuk')->cari($request->query('q'))->prioritas()->limit(100)->get();
 
             $terpilih = $konsultasi ?? $daftar->first();
@@ -45,17 +46,17 @@ class NgopiPagiController extends Controller
                 $daftar->each(fn ($x) => $x->id === $terpilih->id ? $x->belum_dibaca = 0 : null);
             }
 
-            return view('admin.ngopi-pagi.inbox', compact('daftar', 'terpilih', 'hitung'));
+            return view('admin.ngopi-pagi.inbox', compact('daftar', 'terpilih'));
         }
 
         if ($konsultasi) {
             $this->muat($konsultasi);
 
-            return view('admin.ngopi-pagi.show', ['k' => $konsultasi, 'aktif' => $tahap, 'hitung' => $hitung]);
+            return view('admin.ngopi-pagi.show', ['k' => $konsultasi, 'aktif' => $tahap]);
         }
 
         $filter = $request->query('kategori');
-        $items = K::with(['petugas', 'konselor'])
+        $items = K::untukUser($user)->with(['petugas', 'konselor'])
             ->withCount(['pesans as belum_dibaca' => $belumDibaca])
             ->where('tahap', $tahap)
             ->cari($request->query('q'))
@@ -64,21 +65,23 @@ class NgopiPagiController extends Controller
             ->prioritas()->paginate(12)->withQueryString();
 
         return view('admin.ngopi-pagi.board', [
-            'tahap' => $tahap, 'cfg' => K::TAHAP[$tahap], 'items' => $items, 'hitung' => $hitung, 'filter' => $filter,
+            'tahap' => $tahap, 'cfg' => K::TAHAP[$tahap], 'items' => $items, 'filter' => $filter,
         ]);
     }
 
     /** Halaman kasus generik (dari Rekapitulasi / kasus yang sudah selesai). */
     public function kasus(K $konsultasi)
     {
+        $this->izin($konsultasi);
         $this->muat($konsultasi);
-        $hitung = K::selectRaw('tahap, count(*) as total')->groupBy('tahap')->pluck('total', 'tahap');
 
-        return view('admin.ngopi-pagi.show', ['k' => $konsultasi, 'aktif' => 'rekap', 'hitung' => $hitung]);
+        return view('admin.ngopi-pagi.show', ['k' => $konsultasi, 'aktif' => 'rekap']);
     }
 
     public function aksi(Request $request, K $konsultasi)
     {
+        $this->izin($konsultasi);
+
         $aksi = (string) $request->input('aksi');
         $uid = $request->user()->id;
         $dari = $konsultasi->tahap;
@@ -107,16 +110,18 @@ class NgopiPagiController extends Controller
 
         switch ($aksi) {
             case 'verifikasi':
+                // Nama, kontak, kecamatan, kelurahan & kebutuhan awal = data dari pengguna, TERKUNCI.
+                // Sengaja tidak divalidasi / tidak di-update di sini, walaupun ada yang mengirimnya.
                 $d = $request->validate([
-                    'nama' => ['required', 'string', 'max:100'],
-                    'kontak' => ['required', 'string', 'max:20', 'regex:' . self::REGEX_KONTAK],
-                    'kecamatan' => ['required', Rule::in(K::KECAMATAN)],
-                    'kelurahan' => ['required', 'string', 'max:100'],
                     'identitas_terverifikasi' => ['accepted'],
                     'verifikasi_catatan' => ['nullable', 'string', 'max:500'],
                 ], ['identitas_terverifikasi.accepted' => 'Centang dulu bahwa identitas dan kebutuhan sudah diverifikasi.']);
-                unset($d['identitas_terverifikasi']);
-                $konsultasi->update($d + ['identitas_terverifikasi' => true, 'petugas_id' => $konsultasi->petugas_id ?? $uid]);
+
+                $konsultasi->update([
+                    'verifikasi_catatan' => $d['verifikasi_catatan'] ?? null,
+                    'identitas_terverifikasi' => true,
+                    'petugas_id' => $konsultasi->petugas_id ?? $uid,
+                ]);
                 $konsultasi->pindahTahap('screening', 'verifikasi', $d['verifikasi_catatan'] ?? null, $uid);
                 $pesan = 'Data terverifikasi. Kasus diteruskan ke Screening.';
                 break;
@@ -221,6 +226,8 @@ class NgopiPagiController extends Controller
 
     public function kirimPesan(Request $request, K $konsultasi)
     {
+        $this->izin($konsultasi);
+
         if ($konsultasi->tahap === 'selesai') {
             return response()->json(['message' => 'Layanan sudah selesai.'], 422);
         }
@@ -234,13 +241,15 @@ class NgopiPagiController extends Controller
 
     public function pesan(Request $request, K $konsultasi)
     {
+        $this->izin($konsultasi);
+
         $baru = $konsultasi->pesans()->with('user')->where('id', '>', (int) $request->query('after', 0))->get();
         $this->tandaiDibaca($konsultasi);
 
         return response()->json(['pesan' => $baru->map(fn ($p) => $p->ringkas($konsultasi->konselor_id))->values(), 'tahap' => $konsultasi->tahap]);
     }
 
-    // ---------- Rekapitulasi (langkah 11) ----------
+    // ---------- Rekapitulasi (khusus admin, dijaga di route) ----------
     public function rekap(Request $request)
     {
         $dasar = $this->rekapQuery($request);
@@ -255,9 +264,8 @@ class NgopiPagiController extends Controller
         $perJenis = (clone $dasar)->whereNotNull('jenis_tindak_lanjut')->selectRaw('jenis_tindak_lanjut, count(*) as total')->groupBy('jenis_tindak_lanjut')->pluck('total', 'jenis_tindak_lanjut');
 
         $items = (clone $dasar)->with('konselor')->latest()->paginate(20)->withQueryString();
-        $hitung = K::selectRaw('tahap, count(*) as total')->groupBy('tahap')->pluck('total', 'tahap');
 
-        return view('admin.ngopi-pagi.rekap', compact('items', 'stat', 'perKategori', 'perJenis', 'hitung'));
+        return view('admin.ngopi-pagi.rekap', compact('items', 'stat', 'perKategori', 'perJenis'));
     }
 
     public function export(Request $request)
@@ -285,9 +293,17 @@ class NgopiPagiController extends Controller
     }
 
     // ---------- util ----------
+    /** Tolak (404) kasus yang bukan milik user ini. Mengembalikan kasus agar bisa dirantai. */
+    private function izin(K $k): K
+    {
+        abort_unless($k->bolehDiakses(auth()->user()), 404);
+
+        return $k;
+    }
+
     private function rekapQuery(Request $r)
     {
-        return K::query()
+        return K::untukUser($r->user())
             ->cari($r->query('q'))
             ->when($r->filled('tanggal_awal'), fn ($q) => $q->whereDate('created_at', '>=', $r->query('tanggal_awal')))
             ->when($r->filled('tanggal_akhir'), fn ($q) => $q->whereDate('created_at', '<=', $r->query('tanggal_akhir')))
