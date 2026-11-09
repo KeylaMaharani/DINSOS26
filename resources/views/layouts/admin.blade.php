@@ -254,7 +254,9 @@
          |    route            nama route -> node ini menjadi LINK
          |    match            pola route tambahan agar menu tetap "aktif" (opsional)
          |    children         anak menu -> node ini menjadi FOLDER
-         |    module           key di Role::MODULES (string / array = salah satu).
+         |    module           key hak akses (string / array = salah satu).
+         |                     Bisa key modul ('pbi-apbd') ATAU key submenu detail
+         |                     ('pbi-apbd.ajuan', lihat config/akses.php).
          |                     Anak menu otomatis mengikuti modul induknya.
          |    superadmin_only  hanya Super Admin
          |    hide_for_superadmin  disembunyikan untuk Super Admin
@@ -329,6 +331,7 @@
             // Catatan: "Approval PBI APBD" TIDAK lagi di dalam folder PFM.
             // Tiap tahap approval (Operator, Kabid, Kadis, Dinkes, BPJS) sekarang jadi
             // menu tingkat atas sendiri di grup "Approval PBI APBD" (lihat di bawah).
+            // Submenu (Ajuan/Arsip/Monitoring) punya hak akses sendiri: 'modul.submenu'.
             [
                 'label' => 'Bidang P. Fakir Miskin',
                 'icon' => 'account_balance_wallet',
@@ -343,9 +346,19 @@
                                 'route' => 'pbi-apbd.ajuan.index',
                                 'match' => ['pbi-apbd.ajuan.*'],
                                 'badge' => 'pbi_ajuan',
+                                'module' => 'pbi-apbd.ajuan',
                             ],
-                            ['label' => 'Arsip', 'route' => 'pbi-apbd.arsip.index', 'match' => ['pbi-apbd.arsip.*']],
-                            ['label' => 'Monitoring', 'route' => 'pbi-apbd.monitoring.index'],
+                            [
+                                'label' => 'Arsip',
+                                'route' => 'pbi-apbd.arsip.index',
+                                'match' => ['pbi-apbd.arsip.*'],
+                                'module' => 'pbi-apbd.arsip',
+                            ],
+                            [
+                                'label' => 'Monitoring',
+                                'route' => 'pbi-apbd.monitoring.index',
+                                'module' => 'pbi-apbd.monitoring',
+                            ],
                         ],
                     ],
                     [
@@ -356,9 +369,14 @@
                                 'label' => 'Ajuan',
                                 'route' => 'kartu-kks.ajuan',
                                 'match' => ['kartu-kks.show', 'kartu-kks.detail*', 'kartu-kks.proses'],
+                                'module' => 'kartu-kks.ajuan',
                             ],
-                            ['label' => 'Arsip', 'route' => 'kartu-kks.arsip'],
-                            ['label' => 'Monitoring', 'route' => 'kartu-kks.monitoring'],
+                            ['label' => 'Arsip', 'route' => 'kartu-kks.arsip', 'module' => 'kartu-kks.arsip'],
+                            [
+                                'label' => 'Monitoring',
+                                'route' => 'kartu-kks.monitoring',
+                                'module' => 'kartu-kks.monitoring',
+                            ],
                         ],
                     ],
                     [
@@ -375,17 +393,18 @@
                                     'dtsen.lampiran.*',
                                     'dtsen.proses',
                                 ],
+                                'module' => 'dtsen.ajuan',
                             ],
-                            ['label' => 'Arsip', 'route' => 'dtsen.arsip'],
-                            ['label' => 'Monitoring', 'route' => 'dtsen.monitoring'],
+                            ['label' => 'Arsip', 'route' => 'dtsen.arsip', 'module' => 'dtsen.arsip'],
+                            ['label' => 'Monitoring', 'route' => 'dtsen.monitoring', 'module' => 'dtsen.monitoring'],
                         ],
                     ],
-                    // Ground Check ada di dalam modul PFM (hak akses tetap 'ground-check')
+                    // Ground Check ada di dalam modul PFM (hak akses 'ground-check.daftar')
                     [
                         'label' => 'Ground Check',
                         'route' => 'ground-check.index',
                         'match' => ['ground-check.*'],
-                        'module' => 'ground-check',
+                        'module' => 'ground-check.daftar',
                         'badge' => 'ground_check',
                     ],
                 ],
@@ -412,8 +431,14 @@
                                 'label' => 'Laporan Bantuan Bencana',
                                 'route' => 'sigap.index',
                                 'match' => ['sigap.show', 'sigap.create'],
+                                'module' => 'sigap-bencana.laporan',
                             ],
-                            ['label' => 'Stock Barang', 'route' => 'sigap.stok.index', 'match' => ['sigap.stok.*']],
+                            [
+                                'label' => 'Stock Barang',
+                                'route' => 'sigap.stok.index',
+                                'match' => ['sigap.stok.*'],
+                                'module' => 'sigap-bencana.stok',
+                            ],
                             ['label' => 'Laporan', 'route' => 'perlinsos.laporan'],
                         ],
                     ],
@@ -432,14 +457,23 @@
             // sendiri sebagai menu tingkat atas, sama seperti "Verifikasi Kelurahan".
             // Nama route TIDAK berubah (pbi-approval.{tahap}.*), jadi routes/web.php
             // dan controller tidak perlu diubah selain nama view-nya.
+            // Hak akses: '{modul}.daftar' (aksi diatur di Kelola Akses).
             ['separator' => 'Approval PBI APBD'],
 
+            [
+                'label' => 'Lurah',
+                'icon' => 'account_balance',
+                'route' => 'pbi-approval.lurah.index',
+                'match' => ['pbi-approval.lurah.*'],
+                'module' => 'pbi-lurah.daftar',
+                'badge' => 'pbi_lurah',
+            ],
             [
                 'label' => 'Operator Dinas Sosial',
                 'icon' => 'support_agent',
                 'route' => 'pbi-approval.operator.index',
                 'match' => ['pbi-approval.operator.*'],
-                'module' => 'pbi-operator',
+                'module' => 'pbi-operator.daftar',
                 'badge' => 'pbi_operator',
             ],
             [
@@ -447,7 +481,7 @@
                 'icon' => 'supervisor_account',
                 'route' => 'pbi-approval.kabid.index',
                 'match' => ['pbi-approval.kabid.*'],
-                'module' => 'pbi-kabid',
+                'module' => 'pbi-kabid.daftar',
                 'badge' => 'pbi_kabid',
             ],
             [
@@ -455,7 +489,7 @@
                 'icon' => 'verified_user',
                 'route' => 'pbi-approval.kadis.index',
                 'match' => ['pbi-approval.kadis.*'],
-                'module' => 'pbi-kadis',
+                'module' => 'pbi-kadis.daftar',
                 'badge' => 'pbi_kadis',
             ],
             [
@@ -463,7 +497,7 @@
                 'icon' => 'local_hospital',
                 'route' => 'pbi-approval.dinkes.index',
                 'match' => ['pbi-approval.dinkes.*'],
-                'module' => 'pbi-dinkes',
+                'module' => 'pbi-dinkes.daftar',
                 'badge' => 'pbi_dinkes',
             ],
             [
@@ -471,7 +505,7 @@
                 'icon' => 'health_and_safety',
                 'route' => 'pbi-approval.bpjs.index',
                 'match' => ['pbi-approval.bpjs.*'],
-                'module' => 'pbi-bpjs',
+                'module' => 'pbi-bpjs.daftar',
                 'badge' => 'pbi_bpjs',
             ],
 
@@ -481,7 +515,7 @@
                 'icon' => 'home_work',
                 'route' => 'pbi-kelurahan.index',
                 'match' => ['pbi-kelurahan.*'],
-                'module' => 'pbi-kelurahan',
+                'module' => 'pbi-kelurahan.daftar',
                 'badge' => 'pbi_kelurahan',
             ],
             // Kelurahan / OPD wilayah: HANYA satu menu ini untuk SIGAP
@@ -494,14 +528,14 @@
                 'hide_for_superadmin' => true,
             ],
 
-            // Template dokumen: semua role ber-modul 'dokumen' bisa lihat, preview & unduh,
-            // tambah/hapus hanya Super Admin (diatur di DokumenController & routes).
+            // Template dokumen: semua role ber-hak 'dokumen.daftar' bisa lihat & preview, unduh butuh
+            // 'dokumen.daftar.unduh'; tambah/hapus hanya Super Admin (diatur di DokumenController & routes).
             [
                 'label' => 'Dokumen',
                 'icon' => 'folder_open',
                 'route' => 'dokumen.index',
                 'match' => ['dokumen.*'],
-                'module' => 'dokumen',
+                'module' => 'dokumen.daftar',
             ],
 
             // ==================== DATA MASTER ====================
@@ -990,6 +1024,16 @@
                             ];
                         }
                         if (
+                            ($notif['pbi_lurah'] ?? 0) > 0 &&
+                            \Illuminate\Support\Facades\Route::has('pbi-approval.lurah.index')
+                        ) {
+                            $daftarNotif[] = [
+                                'judul' => 'Tanda Tangan Lurah',
+                                'jumlah' => (int) $notif['pbi_lurah'],
+                                'url' => route('pbi-approval.lurah.index'),
+                            ];
+                        }
+                        if (
                             ($notif['pbi_ajuan'] ?? 0) > 0 &&
                             \Illuminate\Support\Facades\Route::has('pbi-apbd.ajuan.index')
                         ) {
@@ -1003,7 +1047,7 @@
                     @include('partials.lonceng', ['extra' => $daftarNotif])
 
                     {{-- ===== Dropdown user + Edit Profil (pop-up, tidak lewat halaman Kelola Akses) ===== --}}
-                    <div class="shrink-0" x-data="{ userMenuOpen: false, profileModalOpen: {{ $errors->profil->any() ? 'true' : 'false' }} }">
+                    <div class="shrink-0" x-data="{ userMenuOpen: false, profileModalOpen: {{ $errors->profil->any() || $errors->has('ttd') ? 'true' : 'false' }} }">
                         <div class="relative">
                             <button @click="userMenuOpen = !userMenuOpen" @click.outside="userMenuOpen = false"
                                 class="flex items-center gap-3 pl-1 rounded-lg transition-colors">
@@ -1128,6 +1172,41 @@
                                             class="px-4 py-2 rounded-lg text-sm bg-primary text-on-primary">Simpan</button>
                                     </div>
                                 </form>
+
+                                {{-- Tanda tangan tersimpan: KHUSUS role Lurah & Kadis --}}
+                                @if (in_array($currentRole?->normalizedSlug(), ['lurah', 'kadis'], true))
+                                    <div class="px-5 pb-5 pt-1">
+                                        <div class="border-t border-outline-variant/40 pt-4">
+                                            <label class="block text-sm font-medium mb-1">Tanda Tangan</label>
+                                            <p class="text-xs text-on-surface-variant mb-3">Unggah sekali (PNG/JPG, maks. 2 MB). Dipakai otomatis saat Anda menandatangani berkas.</p>
+
+                                            @if (auth()->user()->ttd_path)
+                                                <div class="flex items-center gap-3 mb-3">
+                                                    <img src="{{ asset('storage/' . auth()->user()->ttd_path) }}" alt="Tanda tangan"
+                                                        class="h-16 max-w-[10rem] object-contain rounded border border-outline-variant/40 bg-white p-1">
+                                                    <form method="POST" action="{{ route('profil.ttd.destroy') }}"
+                                                        onsubmit="return confirm('Hapus tanda tangan tersimpan?');">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button type="submit" class="text-xs font-semibold text-error">Hapus</button>
+                                                    </form>
+                                                </div>
+                                            @endif
+
+                                            <form method="POST" action="{{ route('profil.ttd.store') }}" enctype="multipart/form-data" class="space-y-2">
+                                                @csrf
+                                                <input type="file" name="ttd" accept="image/png,image/jpeg" required
+                                                    class="block w-full text-xs border border-outline-variant/40 rounded-lg file:mr-3 file:py-2 file:px-3 file:border-0 file:bg-surface-container file:text-xs file:font-semibold">
+                                                @error('ttd')
+                                                    <p class="text-xs text-error">{{ $message }}</p>
+                                                @enderror
+                                                <button type="submit" class="px-4 py-2 rounded-lg text-sm bg-primary text-on-primary">
+                                                    {{ auth()->user()->ttd_path ? 'Ganti Tanda Tangan' : 'Simpan Tanda Tangan' }}
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                @endif
                             </div>
                         </div>
                     </div>
@@ -1152,6 +1231,8 @@
                     </div>
                 @endif
 
+                {{-- Alert global. Halaman yang punya alert sendiri cukup menulis @section('tanpa_alert_global', '1') --}}
+                @unless (View::hasSection('tanpa_alert_global'))
                 @if (session('success'))
                     <div class="mb-4 px-4 py-3 rounded-lg bg-success-container text-on-success-container text-sm">
                         {{ session('success') }}
@@ -1162,6 +1243,7 @@
                         {{ session('error') }}
                     </div>
                 @endif
+                @endunless
                 @yield('content')
             </main>
         </div>

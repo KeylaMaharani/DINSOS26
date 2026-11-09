@@ -61,9 +61,9 @@
         </div>
     @endif
 
-    {{-- pb-28 di mobile: ruang kosong supaya konten terakhir tidak tertutup tombol Simpan yang fixed --}}
+    {{-- Tombol Simpan berada di akhir form (tidak mengambang), jadi padding bawah form dibuat kecil. --}}
     <form method="POST" action="{{ route('masyarakat.pbi-apbd.lengkapi.store', $pbiApbd) }}" enctype="multipart/form-data"
-          class="space-y-4 sm:space-y-6 pb-44 sm:pb-0" id="form-lengkapi"
+          class="space-y-4 sm:space-y-6 pb-6" id="form-lengkapi"
           @if ($bisaDraft ?? false) data-draft-url="{{ route('masyarakat.pbi-apbd.lengkapi.store', $pbiApbd) }}" @endif>
         @csrf
 
@@ -142,11 +142,9 @@
             </div>
         @endforeach
 
-        {{-- Mobile: bar fixed selebar layar, latar solid + bayangan. Desktop: tombol biasa. --}}
+        {{-- Tombol simpan: blok biasa di paling bawah form (mobile & desktop), tidak mengambang. --}}
         @if ($bisaEdit)
-            <div style="bottom:var(--m-nav-h,0px)" class="fixed inset-x-0 z-30 px-4 pt-3 pb-3
-                        bg-surface border-t border-outline-variant/40 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]
-                        sm:static sm:inset-auto sm:z-auto sm:p-0 sm:bg-transparent sm:border-0 sm:shadow-none">
+            <div class="pt-2">
                 @if ($bisaDraft ?? false)
                     <p id="draft-status" aria-live="polite"
                        class="mb-2 text-center text-[11px] font-medium text-on-surface-variant sm:text-left empty:hidden"></p>
@@ -270,6 +268,39 @@
 })();
 </script>
 
+{{-- Lapangan usaha: penjelasannya tampil di bawah pilihan (sama seperti kolom Pekerjaan di registrasi) --}}
+<script>
+window.gcPenjelasanLap = @json($master['lapangan']->mapWithKeys(fn ($l) => [$l->nama => $l->penjelasan])->all());
+
+document.addEventListener('DOMContentLoaded', function () {
+    var lap = document.querySelector('[data-gc-lapangan]');
+    var wrap = lap ? lap.closest('.min-w-0') : null;
+    if (!lap || !wrap) { return; }
+
+    var peta = window.gcPenjelasanLap || {};
+    var info = document.createElement('p');
+    info.hidden = true;
+    info.style.cssText = 'margin:.5rem 0 0;padding:.5rem .75rem;border-radius:.75rem;background:#eef4fb;border:1px solid #d9e3f1;color:#42474e;font-size:.75rem;line-height:1.45';
+    wrap.appendChild(info);
+
+    function tampil() {
+        var nama = lap.value;
+        info.textContent = '';
+        if (!nama) { info.hidden = true; return; }
+
+        info.appendChild(document.createTextNode('Lapangan usaha: '));
+        var b = document.createElement('strong');
+        b.textContent = nama;
+        info.appendChild(b);
+        if (peta[nama]) { info.appendChild(document.createTextNode(' — ' + peta[nama])); }
+        info.hidden = false;
+    }
+
+    lap.addEventListener('change', tampil);
+    tampil();
+});
+</script>
+
 {{-- Lapangan usaha -> pilihan pekerjaan menyesuaikan --}}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -382,10 +413,52 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 
+{{-- Nama / No KK: terisi dari registrasi & terkunci selama pertanyaan "sama?"-nya bukan "Tidak".
+     Dijawab "Tidak" -> kosong & bisa diisi sendiri. Server tetap memaksa nilai registrasi saat terkunci. --}}
+<script>
+window.gcIdentitas = @json($identitas ?? []);
+
+document.addEventListener('DOMContentLoaded', function () {
+    var cfg = window.gcIdentitas;
+    var form = document.getElementById('form-lengkapi');
+    if (!cfg || !form) { return; }
+
+    var bisaEdit = !!document.getElementById('btn-submit');
+
+    function ambil(id) { return form.querySelector('[name="jawaban[' + id + ']"]'); }
+
+    function terapkan(id, awal) {
+        var c = cfg[id], fld = ambil(id), gate = ambil(c.gate);
+        if (!fld || !gate) { return; }
+
+        var ya = gate.value !== 'Tidak';
+
+        // Ya -> isi dari registrasi & kunci. Tidak -> hanya buka kunci, isian sebelumnya dibiarkan (tidak dikosongkan).
+        if (ya) {
+            fld.value = c.nilai;
+        }
+
+        fld.readOnly = ya || !bisaEdit;
+        fld.classList.toggle('bg-surface-container', ya);
+        fld.classList.toggle('opacity-70', ya);
+    }
+
+    form.addEventListener('change', function (e) {
+        Object.keys(cfg).forEach(function (id) {
+            if (e.target.name === 'jawaban[' + cfg[id].gate + ']') { terapkan(id, false); }
+        });
+    });
+
+    Object.keys(cfg).forEach(function (id) { terapkan(id, true); });
+});
+</script>
+
 {{-- Ketenagakerjaan: bila "Apakah responden bekerja ...?" dijawab Tidak, field lainnya dinonaktifkan & dikosongkan.
      Field yang terkunci dari registrasi (lapangan usaha & pekerjaan) dipulihkan lagi saat dijawab Ya. --}}
 <script>
 window.gcKerja = @json($kerja);
+// Nilai awal dari registrasi (Lapangan usaha & Pekerjaan): dipasang kembali saat "bekerja" = Ya bila field masih kosong
+window.gcIsiAwal = @json($isiAwal ?? new \stdClass);
 
 document.addEventListener('DOMContentLoaded', function () {
     var cfg = window.gcKerja;
@@ -409,8 +482,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (!ya) {
                     if (el.type === 'checkbox' || el.type === 'radio') { el.checked = false; el.dispatchEvent(new Event('change', { bubbles: true })); }
                     else if (el.type !== 'file') { el.value = ''; el.dispatchEvent(new Event('change', { bubbles: true })); }
-                } else if (el.hasAttribute('data-gc-kunci') && el.dataset.kunciNilai && el.value !== el.dataset.kunciNilai) {
-                    pulih.push(el);
+                } else {
+                    // Terkunci -> selalu kembali ke nilai kunci. Terisi awal dari registrasi -> hanya bila masih kosong.
+                    var tujuan = el.hasAttribute('data-gc-kunci')
+                        ? el.dataset.kunciNilai
+                        : (el.value === '' ? ((window.gcIsiAwal || {})[id] || '') : '');
+                    if (tujuan && el.value !== tujuan) { pulih.push({ el: el, nilai: tujuan }); }
                 }
                 var baris = el.closest('.min-w-0');
                 if (baris) { baris.classList.toggle('opacity-50', !ya); }
@@ -419,11 +496,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Lapangan usaha dulu, baru pekerjaan (opsi pekerjaan dibangun dari lapangan usaha)
         pulih.sort(function (a, b) {
-            return (b.hasAttribute('data-gc-lapangan') ? 1 : 0) - (a.hasAttribute('data-gc-lapangan') ? 1 : 0);
+            return (b.el.hasAttribute('data-gc-lapangan') ? 1 : 0) - (a.el.hasAttribute('data-gc-lapangan') ? 1 : 0);
         });
-        pulih.forEach(function (el) {
-            el.value = el.dataset.kunciNilai;
-            el.dispatchEvent(new Event('change', { bubbles: true }));
+        pulih.forEach(function (p) {
+            p.el.value = p.nilai;
+            p.el.dispatchEvent(new Event('change', { bubbles: true }));
         });
     }
 
@@ -451,7 +528,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (jalan) { ulang = true; return; }
 
         var fd = new FormData(form);
-        // Foto tidak ikut draft; foto baru dikirim saat "Simpan Data"
+        // Foto tidak ikut draft; file baru dikirim saat "Simpan Data"
         form.querySelectorAll('input[type=file]').forEach(function (f) { fd.delete(f.name); });
         fd.set('aksi', 'draft');
 
@@ -486,7 +563,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // tidak boleh membuat draft sendiri hanya karena halaman dibuka.
     ['change', 'input'].forEach(function (nama) {
         form.addEventListener(nama, function (e) {
-            if (e.isTrusted && e.target.type !== 'search') { jadwal(); }
+            if (e.isTrusted && e.target.type !== 'search' && e.target.type !== 'file') { jadwal(); }
         });
     });
 

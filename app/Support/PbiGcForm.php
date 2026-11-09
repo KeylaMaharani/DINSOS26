@@ -42,10 +42,16 @@ class PbiGcForm
         return Str::contains(Str::lower($p->nama), ['lintang', 'bujur']);
     }
 
-    /** Tidak diwajibkan dari warga: foto & koordinat (koordinat diambil otomatis dari lokasi rumah). */
+    /**
+     * Tidak diwajibkan dari warga:
+     *  - koordinat / lintang / bujur (diambil otomatis dari lokasi rumah), atau
+     *  - pertanyaan yang "Wajib diisi"-nya dimatikan di Master Kriteria Ground Check.
+     */
     public static function opsional(GcKriteriaParameter $p): bool
     {
-        return in_array($p->tipe_input, ['foto', 'koordinat'], true) || self::lintangBujur($p);
+        return $p->tipe_input === 'koordinat'
+            || self::lintangBujur($p)
+            || ! $p->wajib;
     }
 
     /** id parameter yang wajib diisi, diberi peta id => jawaban yang sudah ada. */

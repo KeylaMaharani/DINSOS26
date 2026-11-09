@@ -13,6 +13,7 @@ use App\Models\GcPbiJawaban;
 use App\Models\GcPenyakitKronis;
 use App\Models\PbiApbdLog;
 use App\Models\PbiKriteriaParameter;
+use App\Support\DokumenMasyarakat;
 use App\Support\GroundCheckSinkron;
 use App\Support\PbiGcForm;
 use Illuminate\Support\Str;
@@ -1019,12 +1020,28 @@ class MasyarakatController extends Controller
         }
         $terkunci = array_fill_keys(array_keys($kunciReg), true);
 
+        // ---- Lapangan usaha & Pekerjaan: terisi dari registrasi (bila belum pernah dijawab), tetap bisa diubah ----
+        $isiAwal = $this->isiAwalPekerjaan($pbiApbd, $parameters, $master);
+        foreach ($isiAwal as $id => $v) {
+            if (blank($nilai[$id] ?? null)) {
+                $nilai[$id] = $v;
+            }
+        }
+
         // ---- "Apakah No KK sama?" Ya -> "Apakah nama sama?" ikut Ya ----
         $sama = $this->pasanganSama($parameters);
 
+        // ---- Nama & No KK: terisi dari registrasi selama jawaban "sama?"-nya bukan "Tidak" ----
+        $identitas = $this->petaIdentitas($pbiApbd, $parameters);
+        foreach ($identitas as $id => $cfg) {
+            if (($nilai[$cfg['gate']] ?? null) !== 'Tidak') {
+                $nilai[$id] = $cfg['nilai'];
+            }
+        }
+
         return view('masyarakat.pbi-apbd.lengkapi', compact(
             'pbiApbd', 'parameters', 'perKelompok', 'opsiLabels', 'nilai', 'master', 'kerja', 'bisaEdit', 'bisaDraft',
-            'petaAlamat', 'sesuai', 'kk', 'wilayah', 'petaKk', 'terkunci', 'sama'
+            'petaAlamat', 'sesuai', 'kk', 'wilayah', 'petaKk', 'terkunci', 'sama', 'identitas', 'isiAwal'
         ));
     }
 
@@ -1088,6 +1105,14 @@ class MasyarakatController extends Controller
         $opsiLabelsKunci = $parameters->mapWithKeys(fn ($x) => [$x->id => $this->labelOpsi($x, $master)])->all();
         $terkunci = $this->nilaiTerkunciRegistrasi($pbiApbd, $parameters, $opsiLabelsKunci, $master);
 
+        // Nama / No KK: dipaksa dari registrasi kecuali pertanyaan pasangannya dijawab "Tidak"
+        $kunciIdentitas = [];
+        foreach ($this->petaIdentitas($pbiApbd, $parameters) as $id => $cfg) {
+            if ($request->input("jawaban.{$cfg['gate']}") !== 'Tidak') {
+                $kunciIdentitas[$id] = $cfg['nilai'];
+            }
+        }
+
         foreach ($parameters as $p) {
             $key = "jawaban.{$p->id}";
             $attributes[$key] = $p->nama;
@@ -1109,6 +1134,12 @@ class MasyarakatController extends Controller
 
             // Alamat sesuai KK & isian terkunci dari registrasi: tidak divalidasi dari kiriman browser
             if (isset($petaKk[$p->id]) || isset($terkunci[$p->id])) {
+                $rules[$key] = ['nullable'];
+                continue;
+            }
+
+            // Nama / No KK terkunci: nilai dipaksa dari registrasi
+            if (isset($kunciIdentitas[$p->id])) {
                 $rules[$key] = ['nullable'];
                 continue;
             }
@@ -1193,7 +1224,10 @@ class MasyarakatController extends Controller
                     break;
 
                 case 'foto':
-                    $rules[$key] = ['nullable', 'image', 'max:5120'];
+                    // Foto wajib (bila "Wajib diisi" aktif di master) kecuali sudah pernah diunggah
+                    $sudahAda = filled(GcPbiJawaban::where('pbi_apbd_id', $pbiApbd->id)
+                        ->where('parameter_id', $p->id)->value('jawaban'));
+                    $rules[$key] = [($req === 'required' && ! $sudahAda) ? 'required' : 'nullable', 'image', 'max:5120'];
                     break;
 
                 default: // teks
@@ -1261,7 +1295,7 @@ class MasyarakatController extends Controller
             }
         }
 
-        DB::transaction(function () use ($pbiApbd, $parameters, $validated, $request, $ajukanUlang, $dependen, $bekerja, $draft, $petaAlamat, $kunciAlamat, $kk, $petaKk, $terkunci) {
+        DB::transaction(function () use ($pbiApbd, $parameters, $validated, $request, $ajukanUlang, $dependen, $bekerja, $draft, $petaAlamat, $kunciAlamat, $kk, $petaKk, $terkunci, $kunciIdentitas) {
             $lama = GcPbiJawaban::where('pbi_apbd_id', $pbiApbd->id)->get()->keyBy('parameter_id');
             $final = [];
 
@@ -1284,6 +1318,11 @@ class MasyarakatController extends Controller
                 }
                 if (! $kosongkan && isset($terkunci[$p->id])) {
                     $input = $terkunci[$p->id];
+                }
+
+                // Nama / No KK terkunci: selalu dari registrasi, abaikan kiriman browser
+                if (isset($kunciIdentitas[$p->id])) {
+                    $input = $kunciIdentitas[$p->id];
                 }
 
                 // Alamat sesuai KK: nilai dipaksa dari data registrasi, abaikan kiriman browser.
@@ -1386,6 +1425,9 @@ class MasyarakatController extends Controller
             ]);
         }
 
+        // Berkas lampiran yang masih kosong diisi otomatis dari menu Dokumen (yang sudah terpasang tidak diubah)
+        DokumenMasyarakat::isiBilaKosongPbi($pbiApbd);
+
         // Submit sungguhan -> anggota keluarga masuk Ground Check + notifikasi petugas
         $pbiApbd->sinkronGroundCheck();
 
@@ -1476,12 +1518,16 @@ class MasyarakatController extends Controller
         $validated = $request->validate($rules, $messages);
 
         // Simpan berkas baru dulu; kalau transaksi gagal, berkas ini dihapus lagi.
-        $berkasBaru = [];
-        foreach (['scan_ktp', 'screenshot_dtsen'] as $field) {
-            if ($request->hasFile($field)) {
-                $berkasBaru[$field] = $request->file($field)->store('dtsen/lampiran', 'public');
-            }
+        // Screenshot DTSEN wajib: sudah terpasang di pengajuan, atau ada di menu Dokumen
+        $user = $request->user();
+        if (blank($lampiranLama->screenshot_dtsen ?? null) && ! DokumenMasyarakat::ada($user, 'screenshot_dtsen')) {
+            throw ValidationException::withMessages([
+                'screenshot_dtsen' => 'Screenshot DTSEN belum ada. Unggah dulu di menu Dokumen.',
+            ]);
         }
+
+        // Lampiran yang masih kosong disalin dari menu Dokumen; kalau transaksi gagal, berkas ini dihapus lagi (blok catch di bawah).
+        $berkasBaru = DokumenMasyarakat::salinUntukDtsen($user, $lampiranLama);
 
         try {
             DB::transaction(function () use ($permohonan, $validated, $berkasBaru, $request, $ajukanUlang) {
@@ -1761,10 +1807,43 @@ class MasyarakatController extends Controller
     }
 
     /**
+     * Field identitas (Nama, No KK) yang terkunci dari registrasi selama pertanyaan pasangannya
+     * ("Apakah nama sama?" / "Apakah No KK sama?") tidak dijawab "Tidak".
+     * Hasil: [id parameter field => ['gate' => id pertanyaan Ya/Tidak, 'nilai' => nilai registrasi]]
+     */
+    private function petaIdentitas(PbiApbd $pbi, $parameters): array
+    {
+        $pasangan = $this->pasanganSama($parameters);
+
+        if (! $pasangan) {
+            return [];
+        }
+
+        $cari = fn (array $daftar) => $parameters->first(
+            fn ($p) => $p->tipe_input === 'teks'
+                && in_array(preg_replace('/\s+/', ' ', Str::lower(trim((string) $p->nama))), $daftar, true)
+        );
+
+        $peta = [];
+
+        $kk = $cari(['no kk', 'nomor kk', 'no. kk']);
+        if ($kk && filled($pbi->no_kk)) {
+            $peta[$kk->id] = ['gate' => $pasangan['sumber'], 'nilai' => (string) $pbi->no_kk];
+        }
+
+        $nama = $cari(['nama', 'nama lengkap', 'nama kepala keluarga', 'nama responden']);
+        if ($nama && filled($pbi->nama_kepala_keluarga)) {
+            $peta[$nama->id] = ['gate' => $pasangan['target'], 'nilai' => (string) $pbi->nama_kepala_keluarga];
+        }
+
+        return $peta;
+    }
+
+    /**
      * Isian yang dikunci dari data registrasi: [id parameter => nilai].
      * - Status hubungan dengan kepala keluarga  <- status hubungan di Step 2
-     * - Lapangan usaha & Pekerjaan              <- pekerjaan di Step 2 (dicari di master; lapangan usaha diturunkan darinya)
-     * Hanya yang nilainya BENAR-BENAR cocok dengan opsi/master yang dikunci; yang tidak cocok tetap bisa diisi warga.
+     * (Lapangan usaha & Pekerjaan tidak dikunci: lihat isiAwalPekerjaan()).
+     * Hanya yang nilainya BENAR-BENAR cocok dengan opsi yang dikunci; yang tidak cocok tetap bisa diisi warga.
      */
     private function nilaiTerkunciRegistrasi(PbiApbd $pbi, $parameters, array $opsiLabels, array $master): array
     {
@@ -1795,17 +1874,34 @@ class MasyarakatController extends Controller
             }
         }
 
-        // ---- Lapangan usaha & pekerjaan ----
+        return $hasil;
+    }
+
+    /**
+     * Isian awal Lapangan usaha & Pekerjaan dari pekerjaan saat registrasi (Step 2): [id parameter => nilai].
+     * Hanya nilai awal: warga tetap bisa mengubahnya, dan server tidak memaksa nilainya.
+     */
+    private function isiAwalPekerjaan(PbiApbd $pbi, $parameters, array $master): array
+    {
+        $pemohon = $pbi->anggotaKeluarga()->where('nik', $pbi->nik_kepala_keluarga)->first();
         $pLap = $parameters->firstWhere('sumber', 'lapangan_usaha');
         $pPek = $parameters->firstWhere('sumber', 'pekerjaan');
 
-        if ($pLap && $pPek) {
-            $pk = $this->temukanPekerjaan((string) $pemohon->pekerjaan, $master['lapangan']);
+        // Master GC bisa hanya punya pertanyaan "Lapangan usaha" tanpa "Pekerjaan": lapangan usaha tetap diisi sendiri
+        if (! $pemohon || ! $pLap) {
+            return [];
+        }
 
-            if ($pk) {
-                $hasil[$pLap->id] = $pk['lapangan'];
-                $hasil[$pPek->id] = $pk['pekerjaan'];
-            }
+        $pk = $this->temukanPekerjaan((string) $pemohon->pekerjaan, $master['lapangan']);
+
+        if (! $pk) {
+            return [];
+        }
+
+        $hasil = [$pLap->id => $pk['lapangan']];
+
+        if ($pPek) {
+            $hasil[$pPek->id] = $pk['pekerjaan'];
         }
 
         return $hasil;

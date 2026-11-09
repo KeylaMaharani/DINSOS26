@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\PbiApbd;
 use App\Models\PbiApbdLog;
 use App\Support\PbiGcForm;
-use App\Support\PbiSuratIsian;
+use App\Support\PbiSuratPengantar;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
@@ -16,27 +16,33 @@ use Illuminate\Validation\Rule;
 
 /**
  * Halaman Petugas Kelurahan untuk modul PBI APBD.
- * Alur: Masyarakat isi data -> Kelurahan verifikasi + upload lampiran -> Operator Dinsos -> Kabid -> Kadis.
+ * Alur: Masyarakat isi data -> Kelurahan verifikasi + lampiran lapangan -> Lurah (TTD) -> Operator Dinsos -> Kabid -> Kadis.
  * Kelurahan HANYA melihat jawaban (tanpa indeks/bobot/skor).
  * Daftar pertanyaan yang dihitung = yang tampil di form masyarakat (Master Kriteria Ground Check).
  */
 class PbiKelurahanController extends Controller
 {
-    /** field => [label, wajib untuk validasi, mimes] */
-    public const LAMPIRAN = [
+    /** Diunggah MASYARAKAT. Kelurahan hanya menandai sesuai / tidak sesuai (kecuali yang opsional tanpa verifikasi). */
+    public const LAMPIRAN_MASYARAKAT = [
         'scan_ktp' => ['Scan KTP', true, 'jpg,jpeg,png,pdf'],
         'scan_kk' => ['Scan Kartu Keluarga', true, 'jpg,jpeg,png,pdf'],
-        'foto_rumah' => ['Foto Rumah Pemohon', true, 'jpg,jpeg,png'],
-        'foto_kamar_mandi' => ['Foto Kamar Mandi', true, 'jpg,jpeg,png'],
-        'foto_selfie_ktp' => ['Foto Selfie dengan KTP', true, 'jpg,jpeg,png'],
         'surat_rawat_inap' => ['Surat Ket. Rawat Inap (jika ada)', false, 'jpg,jpeg,png,pdf'],
-        'screenshot_pembaharuan_desil' => ['Screenshot Pembaharuan Desil', false, 'jpg,jpeg,png'],
-        'screenshot_dtsen' => ['Screenshot DTSEN', false, 'jpg,jpeg,png'],
-        // Surat pengantar boleh PDF, Word (DOC/DOCX), atau gambar.
-        // Kalau .docx berisi placeholder ${...}, otomatis diisi dari data pengajuan (lihat PbiSuratIsian).
-        'scan_surat_pengantar' => ['Scan Surat Pengantar Kelurahan', false, 'jpg,jpeg,png,pdf,doc,docx'],
-        'ttd_kelurahan' => ['Tanda Tangan Kelurahan', false, 'jpg,jpeg,png'],
+        'screenshot_pembaharuan_desil' => ['Screenshot Pembaharuan Desil (opsional)', false, 'jpg,jpeg,png'],
     ];
+
+    /** Berkas masyarakat yang dicek Kelurahan (sesuai / tidak sesuai). */
+    public const VERIFIKASI = ['scan_ktp', 'scan_kk', 'surat_rawat_inap'];
+
+    /** Diunggah KELURAHAN (hasil verifikasi lapangan). field => [label, wajib, mimes, hanya kamera] */
+    public const LAMPIRAN_KELURAHAN = [
+        'foto_selfie_ktp' => ['Foto Selfie dengan KTP', true, 'jpg,jpeg,png', true],
+        'foto_rumah' => ['Foto Rumah Pemohon', true, 'jpg,jpeg,png', false],
+        'foto_kamar_mandi' => ['Foto Kamar Mandi', true, 'jpg,jpeg,png', false],
+        'screenshot_dtsen' => ['Screenshot DTSEN', true, 'jpg,jpeg,png', false],
+    ];
+
+    /** Semua lampiran (dipakai tampilan read-only). field => [label, wajib, mimes, ...] */
+    public const LAMPIRAN = self::LAMPIRAN_MASYARAKAT + self::LAMPIRAN_KELURAHAN;
 
     public function index(Request $request)
     {
@@ -112,6 +118,9 @@ class PbiKelurahanController extends Controller
         return view('admin.pbi-kelurahan.show', [
             'data' => $pbiApbd,
             'lampiran' => self::LAMPIRAN,
+            'lampiranMasyarakat' => self::LAMPIRAN_MASYARAKAT,
+            'lampiranKelurahan' => self::LAMPIRAN_KELURAHAN,
+            'fieldVerifikasi' => self::VERIFIKASI,
             'totalParameter' => $kelengkapan['total'],
             'terjawab' => $kelengkapan['terjawab'],
             'gcJawabans' => $pbiApbd->gcJawabans()->get(),
@@ -129,31 +138,30 @@ class PbiKelurahanController extends Controller
                 ->with('error', 'Berkas ini sudah tidak berada di Kelurahan.');
         }
 
-        // Apa pun tombolnya (simpan/validasi/kembalikan/tolak), berkas dianggap sudah ditangani
-        // oleh user ini -> badge notifikasinya berkurang. Dipanggil SEBELUM status berubah;
-        // tahap berikutnya otomatis jadi notifikasi baru (lihat PbiApbd::booted()).
+        // Apa pun tombolnya, berkas dianggap sudah ditangani user ini -> badge notifikasi berkurang.
+        // Dipanggil SEBELUM status berubah; tahap berikutnya otomatis jadi notifikasi baru (PbiApbd::booted()).
         $pbiApbd->tandaiDilihat(Auth::user());
 
         $rules = [
-            'aksi' => ['required', Rule::in(['simpan', 'simpan_surat', 'validasi', 'kembalikan', 'tolak'])],
-            'kesimpulan_rekomendasi' => ['nullable', 'string', 'max:2000'],
+            'aksi' => ['required', Rule::in(['simpan', 'validasi', 'kembalikan', 'tolak'])],
             'catatan' => [
                 Rule::requiredIf(in_array($request->input('aksi'), ['kembalikan', 'tolak'], true)),
                 'nullable', 'string', 'max:2000',
             ],
+            'verifikasi' => ['nullable', 'array'],
         ];
-        foreach (self::LAMPIRAN as $field => [$label, $wajib, $mimes]) {
+        foreach (self::VERIFIKASI as $field) {
+            $rules["verifikasi.{$field}"] = ['nullable', Rule::in(['sesuai', 'tidak_sesuai'])];
+        }
+        // Hanya lampiran milik Kelurahan yang boleh diunggah di sini
+        foreach (self::LAMPIRAN_KELURAHAN as $field => [$label, $wajib, $mimes]) {
             $rules[$field] = ['nullable', 'file', "mimes:{$mimes}", 'max:4096'];
         }
-        // TTD yang digambar langsung di layar (kanvas) dikirim sebagai data URL PNG
-        $rules['ttd_kelurahan_data'] = ['nullable', 'string', 'starts_with:data:image/png;base64,', 'max:1500000'];
 
         $request->validate($rules, [
             'catatan.required' => 'Catatan wajib diisi untuk aksi ini.',
             'aksi.in' => 'Aksi tidak dikenali.',
-            'ttd_kelurahan_data.starts_with' => 'Tanda tangan di layar tidak valid, silakan ulangi.',
-            'ttd_kelurahan_data.max' => 'Tanda tangan di layar terlalu besar, silakan ulangi.',
-            'scan_surat_pengantar.mimes' => 'Surat pengantar harus berformat PDF, Word (DOC/DOCX), JPG, atau PNG.',
+            'verifikasi.*.in' => 'Pilihan verifikasi tidak valid.',
             '*.mimes' => 'Format file tidak didukung.',
             '*.max' => 'Ukuran file maksimal 4 MB.',
         ]);
@@ -161,6 +169,18 @@ class PbiKelurahanController extends Controller
         $user = Auth::user();
         $aksi = $request->input('aksi');
         $catatan = $request->input('catatan');
+
+        // ---- Simpan hasil cek berkas masyarakat (berlaku untuk semua aksi kecuali tolak) ----
+        if ($aksi !== 'tolak') {
+            $hasil = $pbiApbd->verifikasi_berkas ?? [];
+            foreach (self::VERIFIKASI as $field) {
+                $nilai = $request->input("verifikasi.{$field}");
+                if ($nilai !== null && $pbiApbd->{$field}) {
+                    $hasil[$field] = $nilai;
+                }
+            }
+            $pbiApbd->update(['verifikasi_berkas' => $hasil]);
+        }
 
         // ---- Kembalikan ke masyarakat / Tolak: tidak memproses file ----
         if ($aksi === 'kembalikan') {
@@ -181,71 +201,30 @@ class PbiKelurahanController extends Controller
             return redirect()->route('pbi-kelurahan.index')->with('success', 'Permohonan ditolak.');
         }
 
-        // ---- TTD digital (digambar di layar): cek dulu SEBELUM ada file yang disimpan ----
-        // Kalau petugas juga mengunggah file TTD, file itu yang dipakai.
-        $ttdBiner = null;
-        if (! $request->hasFile('ttd_kelurahan') && $request->filled('ttd_kelurahan_data')) {
-            $dataUrl = (string) $request->input('ttd_kelurahan_data');
-            $biner = base64_decode(substr($dataUrl, strlen('data:image/png;base64,')), true);
-            $info = $biner !== false ? @getimagesizefromstring($biner) : false;
-
-            if ($biner === false || ! $info || $info[2] !== IMAGETYPE_PNG || strlen($biner) > 1048576) {
-                return redirect()->route('pbi-kelurahan.show', $pbiApbd)
-                    ->withInput()
-                    ->withErrors(['ttd_kelurahan_data' => 'Tanda tangan di layar tidak valid, silakan ulangi.']);
-            }
-
-            $ttdBiner = $biner;
-        }
-
-        // ---- Simpan / Validasi: simpan lampiran + kesimpulan dulu ----
+        // ---- Simpan / Verifikasi: simpan lampiran hasil lapangan dulu ----
         $update = [];
-        foreach (array_keys(self::LAMPIRAN) as $field) {
+        foreach (array_keys(self::LAMPIRAN_KELURAHAN) as $field) {
             if ($request->hasFile($field)) {
                 if ($pbiApbd->{$field}) {
                     Storage::disk('public')->delete($pbiApbd->{$field});
-                    if ($field === 'scan_surat_pengantar') {
-                        Storage::disk('public')->delete($this->pathTemplate($pbiApbd->{$field}));
-                    }
                 }
                 // Disimpan dengan nama asli yang terbaca (acak6__nama-asli.ext)
                 $update[$field] = $this->simpanDenganNama($request->file($field), 'pbi-apbd/lampiran');
-
-                if ($field === 'scan_surat_pengantar') {
-                    // Simpan salinan template asli (masih ber-placeholder) agar surat bisa
-                    // diisi ulang setiap kali data / tanda tangan berubah.
-                    $disk = Storage::disk('public');
-                    $disk->put($this->pathTemplate($update[$field]), $disk->get($update[$field]));
-                }
             }
-        }
-        if ($ttdBiner !== null) {
-            if ($pbiApbd->ttd_kelurahan) {
-                Storage::disk('public')->delete($pbiApbd->ttd_kelurahan);
-            }
-            $pathTtd = 'pbi-apbd/lampiran/ttd-kelurahan-' . $pbiApbd->id . '-' . now()->timestamp . '.png';
-            Storage::disk('public')->put($pathTtd, $ttdBiner);
-            $update['ttd_kelurahan'] = $pathTtd;
-        }
-        if ($request->filled('kesimpulan_rekomendasi')) {
-            $update['kesimpulan_rekomendasi'] = $request->input('kesimpulan_rekomendasi');
         }
         if ($update) {
             $pbiApbd->update($update);
         }
 
-        // Isi surat pengantar (.docx): reset ke template, sisipkan TTD, isi placeholder ${...}
-        $infoSurat = $this->isiSuratPengantar($pbiApbd->fresh(), $user);
-        $sambung = fn (string $pesan) => trim($pesan . ' ' . $infoSurat);
-
-        if (in_array($aksi, ['simpan', 'simpan_surat'], true)) {
+        if ($aksi === 'simpan') {
             $this->catatLog($pbiApbd, 'Kelurahan menyimpan hasil verifikasi lapangan', $catatan);
 
             return redirect()->route('pbi-kelurahan.show', $pbiApbd)
-                ->with('success', $sambung('Hasil verifikasi & lampiran tersimpan.'));
+                ->with('success', 'Hasil verifikasi & lampiran tersimpan.');
         }
 
-        // ---- Validasi & teruskan: cek kelengkapan ----
+        // ---- Verifikasi berkas & teruskan ke Lurah: cek kelengkapan ----
+        $pbiApbd->refresh();
         $masalah = [];
 
         $kelengkapan = PbiGcForm::kelengkapan($pbiApbd);
@@ -253,6 +232,7 @@ class PbiKelurahanController extends Controller
             $masalah[] = "Masyarakat belum menjawab semua parameter ({$kelengkapan['terjawab']}/{$kelengkapan['total']}). Gunakan \"Kembalikan ke Masyarakat\" bila perlu.";
         }
 
+        // Berkas wajib: milik masyarakat (harus sudah diunggah) dan milik Kelurahan
         $kurang = [];
         foreach (self::LAMPIRAN as $field => [$label, $wajib]) {
             if ($wajib && ! $pbiApbd->{$field}) {
@@ -263,8 +243,25 @@ class PbiKelurahanController extends Controller
             $masalah[] = 'Lampiran wajib belum lengkap: ' . implode(', ', $kurang) . '.';
         }
 
-        if (blank($pbiApbd->kesimpulan_rekomendasi)) {
-            $masalah[] = 'Kesimpulan/rekomendasi kelurahan wajib diisi.';
+        // Setiap berkas masyarakat yang ada harus sudah ditandai, dan semuanya harus sesuai
+        $belumDicek = [];
+        $tidakSesuai = [];
+        foreach (self::VERIFIKASI as $field) {
+            if (! $pbiApbd->{$field}) {
+                continue;
+            }
+            $status = $pbiApbd->verifikasi_berkas[$field] ?? null;
+            if ($status === null) {
+                $belumDicek[] = self::LAMPIRAN[$field][0];
+            } elseif ($status === 'tidak_sesuai') {
+                $tidakSesuai[] = self::LAMPIRAN[$field][0];
+            }
+        }
+        if ($belumDicek) {
+            $masalah[] = 'Tandai sesuai / tidak sesuai untuk: ' . implode(', ', $belumDicek) . '.';
+        }
+        if ($tidakSesuai) {
+            $masalah[] = 'Berkas tidak sesuai: ' . implode(', ', $tidakSesuai) . '. Gunakan "Kembalikan ke Masyarakat" (beri catatan) agar diperbaiki.';
         }
 
         if ($masalah) {
@@ -273,72 +270,20 @@ class PbiKelurahanController extends Controller
                 ->withErrors(['validasi' => $masalah]);
         }
 
+        // Surat pengantar dibuat otomatis dari template (tanpa unggah). TTD & nama penandatangan diisi Lurah.
+        $infoSurat = PbiSuratPengantar::generate($pbiApbd, $user);
+
         $pbiApbd->update([
-            'status' => $pbiApbd->nextStageKey(), // kelurahan -> operator_dinsos
+            'status' => $pbiApbd->nextStageKey(), // kelurahan -> lurah
             'sudah_diverifikasi_kelurahan' => true,
             'dikembalikan_ke_masyarakat' => false,
             'divalidasi_kelurahan_at' => now(),
             'divalidasi_kelurahan_oleh' => $user->id,
         ]);
-        $this->catatLog($pbiApbd, 'Verifikasi kelurahan selesai, diteruskan ke Operator Dinsos', $pbiApbd->kesimpulan_rekomendasi);
+        $this->catatLog($pbiApbd, 'Verifikasi kelurahan selesai, diteruskan ke Lurah', $catatan);
 
         return redirect()->route('pbi-kelurahan.index')
-            ->with('success', $sambung('Berkas divalidasi dan diteruskan ke Operator Dinsos.'));
-    }
-
-    /** Lokasi salinan template asli surat pengantar (masih ber-placeholder). */
-    private function pathTemplate(string $path): string
-    {
-        return 'pbi-apbd/template/' . basename($path);
-    }
-
-    /**
-     * Isi ulang surat pengantar .docx dari template asli:
-     *  1) reset file ke template, 2) sisipkan gambar TTD di ${ttd_kelurahan},
-     *  3) isi placeholder teks ${...} lewat PbiSuratIsian.
-     * Mengembalikan pesan info untuk notifikasi (string kosong bila tidak ada yang diproses).
-     */
-    private function isiSuratPengantar(PbiApbd $pbiApbd, $user): string
-    {
-        $path = $pbiApbd->scan_surat_pengantar;
-        if (! $path || strtolower(pathinfo($path, PATHINFO_EXTENSION)) !== 'docx') {
-            return '';
-        }
-
-        $disk = Storage::disk('public');
-        $tpl = $this->pathTemplate($path);
-        if (! $disk->exists($tpl)) {
-            // Surat diunggah sebelum fitur ini: placeholder sudah terisi, TTD tidak bisa disisipkan.
-            return 'TTD belum masuk ke surat: surat ini belum punya template asli. '
-                . 'Unggah ulang template surat (berisi ${ttd_kelurahan}), lalu simpan lagi.';
-        }
-
-        $disk->put($path, $disk->get($tpl)); // kembali ke template asli
-
-        $peringatan = '';
-        if (! $pbiApbd->ttd_kelurahan || ! $disk->exists($pbiApbd->ttd_kelurahan)) {
-            $peringatan = 'TTD belum dibuat, jadi belum disisipkan ke surat.';
-        } else {
-            try {
-                $tp = new \PhpOffice\PhpWord\TemplateProcessor($disk->path($path));
-                if (in_array('ttd_kelurahan', $tp->getVariables(), true)) {
-                    $tp->setImageValue('ttd_kelurahan', [
-                        'path' => $disk->path($pbiApbd->ttd_kelurahan),
-                        'width' => 140,
-                        'height' => 70,
-                        'ratio' => true,
-                    ]);
-                    $tp->saveAs($disk->path($path));
-                } else {
-                    $peringatan = 'TTD tidak disisipkan: template surat belum punya placeholder ${ttd_kelurahan}.';
-                }
-            } catch (\Throwable $e) {
-                report($e);
-                $peringatan = 'TTD gagal disisipkan ke surat (cek storage/logs/laravel.log).';
-            }
-        }
-
-        return trim(PbiSuratIsian::isiBerkas($pbiApbd, $path, $user, null) . ' ' . $peringatan);
+            ->with('success', trim('Berkas diverifikasi dan diteruskan ke Lurah. ' . $infoSurat));
     }
 
     /**

@@ -18,6 +18,9 @@ class PbiApbd extends Model
         'longitude' => 'decimal:7',
         'punya_kendaraan_roda_2' => 'boolean',
         'sudah_diverifikasi_kelurahan' => 'boolean',
+        // Hasil cek Kelurahan per berkas masyarakat: ['scan_ktp' => 'sesuai'|'tidak_sesuai', ...]
+        'verifikasi_berkas' => 'array',
+        'divalidasi_lurah_at' => 'datetime',
     ];
 
     /**
@@ -62,7 +65,7 @@ class PbiApbd extends Model
 
     // ==========================================================
     // ALUR STATUS
-    // kelurahan -> operator_dinsos -> kabid -> kadis -> dinkes -> bpjs -> disetujui
+    // kelurahan -> lurah -> operator_dinsos -> kabid -> kadis -> dinkes -> bpjs -> disetujui
     // "ditolak" adalah status akhir terpisah (bisa terjadi dari tahap manapun)
     // ==========================================================
     public const OPERATOR_ROLE = 'dayasos';
@@ -71,6 +74,10 @@ class PbiApbd extends Model
         'kelurahan' => [
             'label' => 'Kelurahan',
             'role' => 'kelurahan',
+        ],
+        'lurah' => [
+            'label' => 'Lurah',
+            'role' => 'lurah',
         ],
         'operator_dinsos' => [
             'label' => 'Operator Dinsos',
@@ -96,6 +103,7 @@ class PbiApbd extends Model
 
     public const STATUS_LABELS = [
         'kelurahan' => 'Di Kelurahan',
+        'lurah' => 'Di Lurah',
         'operator_dinsos' => 'Di Operator Dinsos',
         'kabid' => 'Di Kepala Bidang',
         'kadis' => 'Di Kepala Dinas',
@@ -113,6 +121,7 @@ class PbiApbd extends Model
      *  diagnosa : boleh menambah diagnosa
      */
     public const TAHAP = [
+        'lurah'    => ['status' => 'lurah',           'label' => 'Lurah',           'module' => 'pbi-lurah',    'edit' => false, 'diagnosa' => false],
         'operator' => ['status' => 'operator_dinsos', 'label' => 'Operator Dinsos', 'module' => 'pbi-operator', 'edit' => true,  'diagnosa' => true],
         'kabid'    => ['status' => 'kabid',           'label' => 'Kepala Bidang',   'module' => 'pbi-kabid',    'edit' => false, 'diagnosa' => false],
         'kadis'    => ['status' => 'kadis',           'label' => 'Kepala Dinas',    'module' => 'pbi-kadis',    'edit' => false, 'diagnosa' => false],

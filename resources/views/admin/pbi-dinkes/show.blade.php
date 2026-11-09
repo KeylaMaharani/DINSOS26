@@ -112,36 +112,48 @@
 
     @include('admin.pbi-apbd.partials.hasil-verifikasi')
 
-    {{-- Diagnosa --}}
+    {{-- Diagnosa: diisi masyarakat (Master Ground Check). Dinkes hanya dapat MENGUBAH, tidak dapat menambah. --}}
+    @php
+        $diagnosaTerisi = $diagnosaGc->filter(fn ($r) => filled($r->jawaban));
+        $diagnosaKosong = $diagnosaGc->reject(fn ($r) => filled($r->jawaban));
+    @endphp
     <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
         <div class="px-5 py-4 border-b border-outline-variant/40">
             <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">medical_information</span> Diagnosa</h3>
+            <p class="text-xs text-on-surface-variant mt-1">Diagnosa diisi oleh masyarakat. Dinkes dapat mengubahnya bila perlu; perubahan tercatat di Log Proses.</p>
         </div>
-        <div class="p-5 space-y-3">
-            <div class="space-y-2 max-h-64 overflow-y-auto">
-                @forelse ($data->diagnosaLogs as $log)
-                    <div class="p-3 bg-surface-container/30 rounded-lg border border-outline-variant/30">
-                        <div class="flex justify-between gap-2 flex-wrap mb-1">
-                            <span class="text-xs font-semibold">{{ $log->username }} <span class="font-normal text-on-surface-variant">({{ $log->role_name }})</span></span>
-                            <span class="text-[11px] text-on-surface-variant">{{ $log->created_at->format('d M Y - H:i') }}</span>
-                        </div>
-                        <p class="text-sm">{{ $log->diagnosa }}</p>
-                    </div>
-                @empty
-                    <p class="text-sm text-on-surface-variant italic">Belum ada diagnosa yang tercatat.</p>
-                @endforelse
-            </div>
 
-            @if ($canDiagnosa)
-                <form method="POST" action="{{ route('pbi-approval.dinkes.diagnosa', $data) }}" class="pt-3 border-t border-outline-variant/30">
-                    @csrf
-                    <textarea name="diagnosa" rows="3" placeholder="Tulis diagnosa baru..." class="w-full px-4 py-3 rounded-lg border border-outline-variant/60 text-sm">{{ old('diagnosa') }}</textarea>
-                    <button type="submit" class="mt-3 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-on-primary text-sm font-medium">
-                        <span class="material-symbols-outlined text-[18px]">add</span> Tambah Diagnosa
-                    </button>
-                </form>
-            @endif
-        </div>
+        @if ($diagnosaTerisi->isEmpty())
+            <div class="p-5 space-y-2">
+                <p class="text-sm text-on-surface-variant italic">Masyarakat belum mengisi diagnosa.</p>
+                @foreach ($diagnosaKosong as $row)
+                    <p class="text-xs text-on-surface-variant">{{ $row->nama_parameter }}: belum diisi masyarakat.</p>
+                @endforeach
+            </div>
+        @elseif ($canDiagnosa)
+            <form method="POST" action="{{ route('pbi-approval.dinkes.diagnosa', $data) }}" class="p-5 space-y-4">
+                @csrf @method('PUT')
+                @foreach ($diagnosaTerisi as $row)
+                    <div>
+                        <label for="diagnosa-{{ $row->id }}" class="block text-xs font-semibold text-on-surface-variant mb-1">{{ $row->nama_parameter }}</label>
+                        <textarea id="diagnosa-{{ $row->id }}" name="diagnosa[{{ $row->id }}]" rows="3" maxlength="500" required
+                                  class="w-full px-4 py-3 rounded-lg border border-outline-variant/60 text-sm">{{ old('diagnosa.' . $row->id, $row->jawaban) }}</textarea>
+                    </div>
+                @endforeach
+                <button type="submit" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-on-primary text-sm font-medium">
+                    <span class="material-symbols-outlined text-[18px]">save</span> Simpan Perubahan Diagnosa
+                </button>
+            </form>
+        @else
+            <div class="p-5 space-y-3">
+                @foreach ($diagnosaTerisi as $row)
+                    <div class="p-3 bg-surface-container/30 rounded-lg border border-outline-variant/30">
+                        <p class="text-xs text-on-surface-variant mb-1">{{ $row->nama_parameter }}</p>
+                        <p class="text-sm font-semibold">{{ $row->jawaban }}</p>
+                    </div>
+                @endforeach
+            </div>
+        @endif
     </div>
 
     {{-- Log --}}
@@ -183,11 +195,12 @@
                 <input type="hidden" name="ids[]" value="{{ $data->id }}">
                 <div class="mb-5">
                     <label class="block text-sm font-bold mb-2">Catatan <span class="text-error">*</span></label>
-                    <textarea name="catatan" rows="3" required class="w-full px-4 py-3 rounded-lg border border-outline-variant/60 text-sm">{{ old('catatan') }}</textarea>
+                    <x-catatan-template tahap="dinkes" />
+                    <textarea id="catatan" name="catatan" rows="3" required class="w-full px-4 py-3 rounded-lg border border-outline-variant/60 text-sm">{{ old('catatan') }}</textarea>
                 </div>
                 <div class="flex flex-col sm:flex-row flex-wrap items-center gap-3">
                     <button type="submit" name="aksi" value="back" class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-5 py-2.5 rounded-lg border border-outline-variant hover:bg-surface-container-highest text-sm font-bold">
-                        <span class="material-symbols-outlined text-[18px]">undo</span> Kembalikan ke Kepala Dinas
+                        <span class="material-symbols-outlined text-[18px]">undo</span> Kembalikan ke Kelurahan
                     </button>
                     <button type="submit" name="aksi" value="next" class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-on-primary hover:bg-secondary text-sm font-bold shadow-md sm:ml-auto">
                         <span class="material-symbols-outlined text-[18px]">redo</span> Teruskan ke BPJS Kesehatan

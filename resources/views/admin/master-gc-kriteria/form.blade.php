@@ -92,10 +92,17 @@
                 <label class="block text-xs font-semibold mb-1">Urutan *</label>
                 <input type="number" min="1" name="urutan" value="{{ old('urutan', $parameter->urutan) }}" class="{{ $in }}">
             </div>
-            <div class="sm:col-span-2 flex items-end">
-                <label class="inline-flex items-center gap-2 text-sm pb-2">
+            <div class="sm:col-span-2 flex flex-col justify-end gap-2 pb-2">
+                <label class="inline-flex items-center gap-2 text-sm">
                     <input type="checkbox" name="aktif" value="1" class="rounded" @checked(old('aktif', $parameter->aktif))>
-                        Tampil di halaman masyarakat
+                    Tampil di halaman masyarakat
+                </label>
+
+                {{-- Wajib diisi warga. Koordinat selalu otomatis (tidak wajib), jadi opsinya disembunyikan. --}}
+                <label class="inline-flex items-center gap-2 text-sm" x-show="tipe !== 'koordinat'">
+                    <input type="hidden" name="wajib" value="0">
+                    <input type="checkbox" name="wajib" value="1" class="rounded" @checked(old('wajib', $parameter->wajib ?? true))>
+                    Wajib diisi
                 </label>
             </div>
 
