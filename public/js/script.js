@@ -415,7 +415,7 @@ document.addEventListener("DOMContentLoaded", function () {
      KHUSUS TOUCH DEVICE / HP
      ========================================= */
 
-    if (isTouchDevice) {
+    if (false && isTouchDevice) {
       var fabItems = fabRadial.querySelectorAll(".fab-radial-item");
 
       fabItems.forEach(function (item) {

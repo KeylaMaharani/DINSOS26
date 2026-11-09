@@ -440,21 +440,58 @@ header.header-scrolled #nav-search.open #nav-search-toggle {
 }
 
 @media (max-width: 640px) {
+  /* Hero HP: tinggi mengikuti isi, teks di tengah area atas, akses cepat di bawah */
   #hero-carousel .relative.w-full.h-\[500px\] {
-    height: 620px !important;
+    height: auto !important;
+    min-height: 680px;
+    display: flex;
+    flex-direction: column;
+    padding: 6.5rem 0 3.5rem;
   }
   #hero-carousel h1 {
-    font-size: 26px !important;
-    line-height: 32px !important;
+    font-size: 28px !important;
+    line-height: 34px !important;
   }
   #hero-carousel p#hero-desc {
     font-size: 14px !important;
-    line-height: 20px !important;
+    line-height: 21px !important;
   }
   #hero-carousel .relative.z-10.max-w-\[1400px\] {
-    padding-top: 6.5rem !important;
-    padding-bottom: 10.5rem !important;
-    justify-content: flex-start !important;
+    flex: 1 1 auto;
+    width: 100%;
+    height: auto !important;
+    padding-top: 1.5rem !important;
+    padding-bottom: 0 !important;
+    justify-content: center !important;
+  }
+
+  /* Akses cepat: kartu 3 x 2, sejajar dengan tepi konten */
+  #hero-carousel .fab-radial {
+    position: relative;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    width: auto;
+    margin: 0.5rem var(--site-pad-r) 0 var(--site-pad-l);
+    padding: 1rem 0.5rem;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem 0.25rem;
+    overflow: visible;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 1.25rem;
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+  #hero-carousel .fab-radial-item { width: 100%; gap: 0.35rem; }
+  #hero-carousel .fab-radial-item-icon { width: 3.5rem; height: 3.5rem; }
+  #hero-carousel .fab-radial-item-icon img { width: 2.2rem; height: 2.2rem; }
+  #hero-carousel .fab-radial-item-label {
+    width: 100%;
+    max-width: 5.5rem;
+    font-size: 11px;
+    line-height: 13px;
   }
 }
 
@@ -717,11 +754,12 @@ header.header-scrolled #nav-search.open #nav-search-toggle {
   }
   .wa-fab {
     right: 0.75rem;
-    bottom: calc(0.75rem + 1.25rem + 0.5rem + 2.75rem + 0.5rem + env(safe-area-inset-bottom, 0px));
-    width: 2.85rem;
-    height: 2.85rem;
+    /* posisi tombol aksesibilitas (2.5rem) + tingginya (3.25rem) + jarak 0.5rem */
+    bottom: calc(2.5rem + 3.25rem + 0.5rem + env(safe-area-inset-bottom, 0px));
+    width: 3.25rem;
+    height: 3.25rem;
   }
-  .wa-fab svg { width: 22px; height: 22px; }
+  .wa-fab svg { width: 26px; height: 26px; }
   .social-icon { width: 2.4rem; height: 2.4rem; }
   .social-fab-toggle { right: 2.55rem; }
   .social-fab.closed .social-fab-toggle { right: 0.4rem; }
