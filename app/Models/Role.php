@@ -26,6 +26,10 @@ class Role extends Model
         // --- Portal (menu website; dulu bernama "Front End") ---
         'menu-frontend' => 'Portal - Kelola Menu Website',
 
+        // --- KESAN (Kolaborasi Entaskan Kemiskinan / Filantropi) ---
+        // Submenu & aksi detailnya ada di config/akses.php (kunci 'kesan').
+        'kesan' => 'KESAN - Verifikasi Pilihan, Calon Penerima, Kategori, Data Filantropi',
+
         // --- PFM (Monitoring) ---
         'pbi-apbd' => 'PFM - PBI APBD (Super Admin: Ajuan, Arsip, Monitoring)',
         'kartu-kks' => 'PFM - Kartu KKS',

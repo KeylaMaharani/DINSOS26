@@ -159,6 +159,7 @@
         }
         #chart-sebaran-wrap {
             width: 100%;
+            min-width: 520px;
             height: 380px;
         }
         #chart-sebaran-wrap svg {
@@ -250,10 +251,11 @@
                 Berani berbuat baik, karena kebaikan itu akan kembali kepadamu suatu saat nanti.
             </p>
             <div class="pt-space-sm">
-                <a href="#penerima" class="fp-btn fp-btn-accent">
-                    <span class="material-symbols-outlined text-[18px]">volunteer_activism</span>
-                    Lihat Penerima Bantuan
-                </a>
+                <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
+                    <a href="{{ route('kesan.masuk') }}" class="fp-btn fp-btn-accent">
+                        <span class="material-symbols-outlined text-[18px]">volunteer_activism</span>Masuk sebagai Filantropi</a>
+                    <a href="#alur" class="fp-btn" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.5)">Lihat Alur</a>
+                </div>
             </div>
         </div>
     </section>
@@ -280,14 +282,15 @@
                         <a class="fp-toc-link" data-toc href="#tentang"><span class="fp-toc-dot"></span>Tentang
                             Program</a>
                         <a class="fp-toc-link" data-toc href="#bantuan"><span class="fp-toc-dot"></span>Jenis Bantuan</a>
+                        <a class="fp-toc-link" data-toc href="#alur"><span class="fp-toc-dot"></span>Alur KESAN</a>
                         <a class="fp-toc-link" data-toc href="#penerima"><span class="fp-toc-dot"></span>Sebaran Calon
                             Penerima</a>
                         <a class="fp-toc-link" data-toc href="#kontak"><span class="fp-toc-dot"></span>Hubungi Kami</a>
                     </div>
-                    <a href="#penerima"
+                    <a href="{{ route('kesan.masuk') }}"
                         class="w-full flex items-center justify-center gap-space-xs px-space-md py-3 rounded-lg bg-secondary hover:bg-primary text-on-primary font-label-md text-label-md transition-colors shadow-sm">
                         <span class="material-symbols-outlined text-[18px]">volunteer_activism</span>
-                        <span>Lihat Penerima Bantuan</span>
+                        <span>Masuk sebagai Filantropi</span>
                     </a>
                 </aside>
 
@@ -364,7 +367,7 @@
                         </div>
                     </div>
 
-                    {{-- Jenis Bantuan --}}
+                    {{-- Jenis Bantuan (dari tabel kategori KESAN) --}}
                     <div id="bantuan" class="space-y-space-md">
                         <div class="space-y-space-2xs">
                             <h3 class="font-headline-md text-headline-md text-primary font-bold">
@@ -375,29 +378,18 @@
                             </p>
                         </div>
                         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-space-md">
-                            <a class="fp-help-card" href="#penerima">
-                                <span class="fp-help-icon"><span class="material-symbols-outlined">redeem</span></span>
-                                <span class="fp-help-title">Paket Sembako</span>
-                            </a>
-                            <a class="fp-help-card" href="#penerima">
-                                <span class="fp-help-icon"><span class="material-symbols-outlined">backpack</span></span>
-                                <span class="fp-help-title">Peralatan Sekolah</span>
-                            </a>
-                            <a class="fp-help-card" href="#penerima">
-                                <span class="fp-help-icon"><span class="material-symbols-outlined">school</span></span>
-                                <span class="fp-help-title">Biaya Pendidikan</span>
-                            </a>
-                            <a class="fp-help-card" href="#penerima">
-                                <span class="fp-help-icon"><span
-                                        class="material-symbols-outlined">medical_services</span></span>
-                                <span class="fp-help-title">Bantuan Kesehatan</span>
-                            </a>
-                            <a class="fp-help-card" href="#penerima">
-                                <span class="fp-help-icon"><span class="material-symbols-outlined">favorite</span></span>
-                                <span class="fp-help-title">Bentuk Kepedulian Lain</span>
-                            </a>
+                            @foreach ($kategoris as $k)
+                                <a class="fp-help-card" href="{{ route('kesan.masuk') }}">
+                                    <span class="w-[3.25rem] h-[3.25rem] rounded-full flex items-center justify-center text-white {{ $k->warnaCfg()['solid'] }}">
+                                        <span class="material-symbols-outlined" style="font-size:26px;font-variation-settings:'FILL' 1">{{ $k->ikon }}</span></span>
+                                    <span class="fp-help-title">{{ $k->nama }}</span>
+                                </a>
+                            @endforeach
                         </div>
                     </div>
+
+                    {{-- Alur KESAN --}}
+                    @include('kesan._alur')
 
                     {{-- Sebaran Calon Penerima (grafik SVG murni) --}}
                     <div id="penerima" class="space-y-space-md">
@@ -416,10 +408,12 @@
                                 <span class="fp-menu-dots"><span
                                         class="material-symbols-outlined text-[20px]">menu</span></span>
                             </div>
-                            <div id="chart-sebaran-wrap">
-                                <svg id="chart-sebaran" viewBox="0 0 720 380" preserveAspectRatio="xMidYMid meet"
-                                    role="img"
-                                    aria-label="Grafik distribusi calon penerima bantuan per kecamatan di Kota Bogor"></svg>
+                            <div style="overflow-x:auto">
+                                <div id="chart-sebaran-wrap">
+                                    <svg id="chart-sebaran" viewBox="0 0 720 380" preserveAspectRatio="xMidYMid meet"
+                                        role="img"
+                                        aria-label="Grafik distribusi calon penerima bantuan per kecamatan di Kota Bogor"></svg>
+                                </div>
                             </div>
                         </div>
                         <p class="font-label-sm text-label-sm text-on-surface-variant">
@@ -437,11 +431,18 @@
                                 dan penyaluran donasi.
                             </p>
                         </div>
-                        <a href="https://wa.me/6285333395667" rel="noreferrer" target="_blank"
-                            class="shrink-0 inline-flex items-center gap-space-xs px-space-lg py-3 rounded-lg bg-surface-container-lowest text-primary font-label-md text-label-md hover:bg-white transition-colors">
-                            <span class="material-symbols-outlined text-[20px]">chat</span>
-                            Hubungi Kami
-                        </a>
+                        <div class="shrink-0 flex flex-col sm:flex-row items-center gap-3">
+                            <a href="{{ route('kesan.masuk') }}"
+                                class="inline-flex items-center gap-space-xs px-space-lg py-3 rounded-lg border border-white/50 text-on-primary font-label-md text-label-md hover:bg-white/10 transition-colors">
+                                <span class="material-symbols-outlined text-[20px]">volunteer_activism</span>
+                                Masuk sebagai Filantropi
+                            </a>
+                            <a href="https://wa.me/6285333395667" rel="noreferrer" target="_blank"
+                                class="inline-flex items-center gap-space-xs px-space-lg py-3 rounded-lg bg-surface-container-lowest text-primary font-label-md text-label-md hover:bg-white transition-colors">
+                                <span class="material-symbols-outlined text-[20px]">chat</span>
+                                Hubungi Kami
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -484,12 +485,13 @@
 
         /* ============================================================
            Grafik "Sebaran Calon Penerima" — SVG murni, tanpa library.
-           Ubah dataSebaran untuk memperbarui data (mis. dari API).
+           Data dari database (PageController@kesan). Jika belum ada
+           data, dipakai angka contoh di bawah.
            ============================================================ */
-        var dataSebaran = {
-            categories: ["Bogor Selatan", "Bogor Barat", "Bogor Utara", "Tanah Sareal", "Bogor Timur", "Bogor Tengah"],
-            values: [2050, 1670, 1380, 1150, 1020, 950],
-        };
+        var dataSebaran = @json($sebaran ?? [
+            'categories' => ['Bogor Selatan', 'Bogor Barat', 'Bogor Utara', 'Tanah Sareal', 'Bogor Timur', 'Bogor Tengah'],
+            'values' => [2050, 1670, 1380, 1150, 1020, 950],
+        ]);
 
         var barColors = ["#4f46e5", "#ec4899", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
 
@@ -505,7 +507,8 @@
             var chartH = height - padding.top - padding.bottom;
 
             var maxVal = Math.max.apply(null, values);
-            var niceMax = Math.ceil(maxVal / 500) * 500 || 1;
+            var unit = maxVal <= 10 ? 2 : maxVal <= 100 ? 10 : maxVal <= 1000 ? 100 : 500;
+            var niceMax = Math.ceil(maxVal / unit) * unit || 1;
             var steps = 5;
             var barGap = 22;
             var barW = (chartW - barGap * (categories.length - 1)) / categories.length;

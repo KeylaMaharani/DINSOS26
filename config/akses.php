@@ -1,20 +1,4 @@
 <?php
-
-/**
- * Katalog hak akses DETAIL: modul -> submenu -> aksi.
- * Hanya modul yang halamannya sudah ada. Modul yang belum ada di sini (Portal, Kesan, LKS,
- * Rehabsos, Asesmen SPMB, Kedaruratan Medis, Proses Bantuan, Beranda) tetap satu centang per modul.
- *
- * Kunci yang disimpan di roles.permissions (semuanya string biasa):
- *   modul               mis. pbi-apbd                  (otomatis, bila ada submenu yang dicentang)
- *   modul.submenu       mis. pbi-apbd.ajuan            = boleh MEMBUKA halaman (lihat)
- *   modul.submenu.aksi  mis. pbi-apbd.ajuan.proses     = boleh melakukan aksi itu
- * Aksi hanya sah bila submenu-nya dicentang (dinormalkan di Role::normalisasi()).
- *
- * Menambah submenu/aksi baru: cukup tambah di sini, lalu pasang di route:
- *   ->middleware('module:modul.submenu.aksi')
- * Catatan: role lama TIDAK otomatis dapat submenu/aksi baru; centang di Kelola Akses.
- */
 $aksi = [
     'tambah' => 'Tambah',
     'ubah'   => 'Ubah',
@@ -103,6 +87,14 @@ return [
     'sigap-bencana' => [
         'laporan' => ['label' => 'Laporan Bantuan Bencana'],
         'stok'    => ['label' => 'Stock Barang', 'aksi' => ['tambah' => 'Tambah barang & stok masuk']],
+    ],
+
+        // ---------- KESAN (Portal / Filantropi) ----------
+    'kesan' => [
+        'pilihan'    => ['label' => 'Verifikasi Pilihan', 'aksi' => ['proses' => 'Verifikasi / tolak / selesaikan penyaluran']],
+        'penerima'   => ['label' => 'Calon Penerima', 'aksi' => $pilih('tambah', 'ubah', 'hapus')],
+        'kategori'   => ['label' => 'Kategori Bantuan', 'aksi' => $pilih('tambah', 'ubah', 'hapus')],
+        'filantropi' => ['label' => 'Data Filantropi', 'aksi' => $pilih('tambah', 'ubah', 'hapus')],
     ],
 
     // ---------- Dokumen ----------

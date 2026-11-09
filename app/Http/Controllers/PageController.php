@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\KesanKategori;
+use App\Models\KesanPenerima;
 use App\Models\PbiApbd;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
@@ -84,7 +87,8 @@ class PageController extends Controller
 
             // Halaman /login ini KHUSUS masyarakat. Role apapun selain
             // masyarakat (admin, kelurahan, kabid, kadis, operator_dinsos, dll)
-            // wajib login lewat /admin-login.
+            // wajib login lewat /admin-login. Akun Filantropi (KESAN) login
+            // lewat /kesan/masuk, jadi di sini juga ditolak.
             if ($roleSlug !== 'masyarakat') {
                 throw ValidationException::withMessages([
                     'username' => 'Akun ini bukan akun masyarakat. Silakan login lewat halaman khusus petugas.',
@@ -158,9 +162,29 @@ class PageController extends Controller
         return view('kejadian-bencana');
     }
 
+    /**
+     * Halaman publik KESAN (Kolaborasi Entaskan Kemiskinan).
+     * - $kategoris : jenis bantuan aktif (dari tabel kategori KESAN)
+     * - $sebaran   : calon penerima yang masih tersedia, dikelompokkan per kecamatan.
+     *                null = belum ada data, view memakai angka contoh.
+     */
     public function kesan()
     {
-        return view('kesan');
+        $kategoris = KesanKategori::aktif()->get();
+
+        $sebaran = KesanPenerima::tersedia()
+            ->select('kecamatan', DB::raw('count(*) as total'))
+            ->groupBy('kecamatan')
+            ->orderByDesc('total')
+            ->pluck('total', 'kecamatan');
+
+        return view('kesan', [
+            'kategoris' => $kategoris,
+            'sebaran' => $sebaran->isEmpty() ? null : [
+                'categories' => $sebaran->keys()->all(),
+                'values' => $sebaran->values()->map(fn ($v) => (int) $v)->all(),
+            ],
+        ]);
     }
 
     public function tutorialPendaftaran()
