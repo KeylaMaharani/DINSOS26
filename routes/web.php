@@ -12,6 +12,7 @@ use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\ImpersonateController;
 use App\Http\Controllers\Auth\LoginAdminController;
 use App\Http\Controllers\Auth\ProfileController;
+use App\Http\Controllers\Auth\ProfilTtdController;
 use App\Http\Controllers\Auth\UserController;
 use App\Http\Controllers\NotifikasiController;
 use App\Http\Controllers\PageController;
@@ -19,6 +20,7 @@ use App\Http\Controllers\RegistrasiController;
 use App\Http\Controllers\Layanan\KartuKksAjuanController;
 use App\Http\Controllers\Layanan\DtsenAjuanController;
 use App\Http\Controllers\Masyarakat\MasyarakatController;
+use App\Http\Controllers\Masyarakat\MasyarakatDokumenController;
 use App\Http\Controllers\Admin\KriteriaController;
 use App\Http\Controllers\Admin\GcKriteriaController;
 use App\Http\Controllers\Admin\GroundCheckController;
@@ -131,12 +133,22 @@ Route::middleware('auth')->group(function () {
 
 // ==========================================
 // ADMIN / PROTECTED ROUTES
+//
+// HAK AKSES DETAIL: middleware 'module:' menerima kunci bertingkat (lihat config/akses.php):
+//   module:modul                 -> boleh masuk modul
+//   module:modul.submenu         -> boleh membuka halaman submenu
+//   module:modul.submenu.aksi    -> boleh melakukan aksi (tambah / ubah / hapus / proses / unduh)
+// Middleware modul pada group tetap dipertahankan; kunci submenu/aksi ditumpuk di tiap route.
 // ==========================================
 Route::middleware(['auth', 'staff'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('module:beranda')->name('dashboard');
 
     // Edit profil akun sendiri (dipakai di dropdown pojok kanan atas, tampil sebagai pop-up)
     Route::put('/profil', [ProfileController::class, 'update'])->name('profil.update');
+
+    // Tanda tangan tersimpan (hanya role Lurah & Kadis; dicek di controller)
+    Route::post('/profil/ttd', [ProfilTtdController::class, 'store'])->name('profil.ttd.store');
+    Route::delete('/profil/ttd', [ProfilTtdController::class, 'destroy'])->name('profil.ttd.destroy');
 
     // Menu tunggal "Kelola User & Role" dengan tab: Pengguna | Hak Akses
     Route::prefix('kelola-role-user')->name('akun.')->middleware('module:kelola-akses')->group(function () {
@@ -174,41 +186,41 @@ Route::middleware(['auth', 'staff'])->group(function () {
     // Layanan Kelurahan — Ajukan & Riwayat Kartu KKS
     // ==========================================
     Route::prefix('layanan/kartu-kks')->name('layanan.kartu-kks.')->middleware('module:layanan-kartu-kks')->group(function () {
-        Route::get('/ajukan', [KartuKksAjuanController::class, 'create'])->name('ajukan');
-        Route::post('/ajukan', [KartuKksAjuanController::class, 'store'])->name('ajukan.store');
-        Route::get('/riwayat', [KartuKksAjuanController::class, 'riwayat'])->name('riwayat');
+        Route::get('/ajukan', [KartuKksAjuanController::class, 'create'])->middleware('module:layanan-kartu-kks.ajukan')->name('ajukan');
+        Route::post('/ajukan', [KartuKksAjuanController::class, 'store'])->middleware('module:layanan-kartu-kks.ajukan.tambah')->name('ajukan.store');
+        Route::get('/riwayat', [KartuKksAjuanController::class, 'riwayat'])->middleware('module:layanan-kartu-kks.riwayat')->name('riwayat');
     });
 
     // ==========================================
     // Layanan Kelurahan — Ajukan & Riwayat DTSEN
     // ==========================================
     Route::prefix('layanan/dtsen')->name('layanan.dtsen.')->middleware('module:layanan-dtsen')->group(function () {
-        Route::get('/ajukan', [DtsenAjuanController::class, 'create'])->name('ajukan');
-        Route::post('/ajukan', [DtsenAjuanController::class, 'store'])->name('ajukan.store');
-        Route::get('/riwayat', [DtsenAjuanController::class, 'riwayat'])->name('riwayat');
+        Route::get('/ajukan', [DtsenAjuanController::class, 'create'])->middleware('module:layanan-dtsen.ajukan')->name('ajukan');
+        Route::post('/ajukan', [DtsenAjuanController::class, 'store'])->middleware('module:layanan-dtsen.ajukan.tambah')->name('ajukan.store');
+        Route::get('/riwayat', [DtsenAjuanController::class, 'riwayat'])->middleware('module:layanan-dtsen.riwayat')->name('riwayat');
     });
 
     // ==========================================
     // 3. PBI APBD — Ajuan / Arsip / Monitoring / Log (pintu masuk Super Admin, lintas tahap)
     // ==========================================
     Route::prefix('pbi-apbd')->name('pbi-apbd.')->middleware('module:pbi-apbd')->group(function () {
-        Route::get('/ajuan', [PbiApbdController::class, 'ajuanIndex'])->name('ajuan.index');
-        Route::get('/ajuan/{pbiApbd}', [PbiApbdController::class, 'ajuanShow'])->name('ajuan.show');
-        Route::post('/ajuan/{pbiApbd}/aksi', [PbiApbdController::class, 'ajuanAksi'])->name('ajuan.aksi');
-        Route::put('/ajuan/{pbiApbd}/tambahan', [PbiApbdController::class, 'ajuanUpdateTambahan'])->name('ajuan.updateTambahan');
-        Route::post('/ajuan/{pbiApbd}/diagnosa', [PbiApbdController::class, 'ajuanTambahDiagnosa'])->name('ajuan.diagnosa.store');
+        Route::get('/ajuan', [PbiApbdController::class, 'ajuanIndex'])->middleware('module:pbi-apbd.ajuan')->name('ajuan.index');
+        Route::get('/ajuan/{pbiApbd}', [PbiApbdController::class, 'ajuanShow'])->middleware('module:pbi-apbd.ajuan')->name('ajuan.show');
+        Route::post('/ajuan/{pbiApbd}/aksi', [PbiApbdController::class, 'ajuanAksi'])->middleware('module:pbi-apbd.ajuan.proses')->name('ajuan.aksi');
+        Route::put('/ajuan/{pbiApbd}/tambahan', [PbiApbdController::class, 'ajuanUpdateTambahan'])->middleware('module:pbi-apbd.ajuan.ubah')->name('ajuan.updateTambahan');
+        Route::post('/ajuan/{pbiApbd}/diagnosa', [PbiApbdController::class, 'ajuanTambahDiagnosa'])->middleware('module:pbi-apbd.ajuan.tambah')->name('ajuan.diagnosa.store');
 
-        Route::get('/arsip', [PbiApbdController::class, 'arsipIndex'])->name('arsip.index');
-        Route::get('/arsip/{pbiApbd}/detail', [PbiApbdController::class, 'arsipDetail'])->name('arsip.detail');
-        Route::get('/monitoring', [PbiApbdController::class, 'monitoringIndex'])->name('monitoring.index');
-        Route::get('/log', [PbiApbdController::class, 'logIndex'])->name('log.index');
+        Route::get('/arsip', [PbiApbdController::class, 'arsipIndex'])->middleware('module:pbi-apbd.arsip')->name('arsip.index');
+        Route::get('/arsip/{pbiApbd}/detail', [PbiApbdController::class, 'arsipDetail'])->middleware('module:pbi-apbd.arsip')->name('arsip.detail');
+        Route::get('/monitoring', [PbiApbdController::class, 'monitoringIndex'])->middleware('module:pbi-apbd.monitoring')->name('monitoring.index');
+        Route::get('/log', [PbiApbdController::class, 'logIndex'])->middleware('module:pbi-apbd.log')->name('log.index');
     });
 
     // Halaman Kelurahan (PBI APBD)
-    Route::prefix('pbi-kelurahan')->name('pbi-kelurahan.')->middleware('module:pbi-kelurahan')->group(function () {
+    Route::prefix('pbi-kelurahan')->name('pbi-kelurahan.')->middleware('module:pbi-kelurahan.daftar')->group(function () {
         Route::get('/', [PbiKelurahanController::class, 'index'])->name('index');
         Route::get('/{pbiApbd}', [PbiKelurahanController::class, 'show'])->name('show');
-        Route::post('/{pbiApbd}/aksi', [PbiKelurahanController::class, 'aksi'])->name('aksi');
+        Route::post('/{pbiApbd}/aksi', [PbiKelurahanController::class, 'aksi'])->middleware('module:pbi-kelurahan.daftar.proses')->name('aksi');
     });
 
     // ==========================================
@@ -219,23 +231,30 @@ Route::middleware(['auth', 'staff'])->group(function () {
     //   Nama route TETAP pbi-approval.{tahap}.* (dipakai sidebar & controller
     //   untuk membaca tahap), view-nya ada di admin/pbi-{tahap}/.
     //   Rute statis (/aksi) didaftarkan SEBELUM rute wildcard {pbiApbd}.
-    //   PUT edit hanya ada untuk Operator; diagnosa hanya untuk Operator & Dinkes.
+    //   PUT edit hanya ada untuk Operator (isi Desil Nasional); diagnosa hanya untuk Dinkes (ubah diagnosa).
     //   Kabid / Kadis / BPJS tidak punya rute edit sama sekali.
+    //   Hak akses: {modul}.daftar = buka halaman, .daftar.proses = aksi, .daftar.ubah = ubah data.
     // ==========================================
     foreach (\App\Models\PbiApbd::TAHAP as $tahapKey => $tahapCfg) {
+        $modulTahap = $tahapCfg['module'];
+
         Route::prefix("pbi-{$tahapKey}")
             ->name("pbi-approval.{$tahapKey}.")
-            ->middleware("module:{$tahapCfg['module']}")
-            ->group(function () use ($tahapCfg) {
+            ->middleware("module:{$modulTahap}.daftar")
+            ->group(function () use ($tahapCfg, $modulTahap) {
                 Route::get('/', [PbiApprovalController::class, 'index'])->name('index');
-                Route::post('/aksi', [PbiApprovalController::class, 'aksi'])->name('aksi');
+                Route::post('/aksi', [PbiApprovalController::class, 'aksi'])
+                    ->middleware("module:{$modulTahap}.daftar.proses")->name('aksi');
                 Route::get('/{pbiApbd}', [PbiApprovalController::class, 'show'])->name('show');
 
                 if ($tahapCfg['diagnosa']) {
-                    Route::post('/{pbiApbd}/diagnosa', [PbiApprovalController::class, 'diagnosa'])->name('diagnosa');
+                    // Mengubah diagnosa yang diisi masyarakat (tidak menambah baru)
+                    Route::put('/{pbiApbd}/diagnosa', [PbiApprovalController::class, 'diagnosa'])
+                        ->middleware("module:{$modulTahap}.daftar.ubah")->name('diagnosa');
                 }
                 if ($tahapCfg['edit']) {
-                    Route::put('/{pbiApbd}', [PbiApprovalController::class, 'update'])->name('update');
+                    Route::put('/{pbiApbd}', [PbiApprovalController::class, 'update'])
+                        ->middleware("module:{$modulTahap}.daftar.ubah")->name('update');
                 }
             });
     }
@@ -289,14 +308,15 @@ Route::middleware(['auth', 'staff'])->group(function () {
     // ==========================================
     // GROUND CHECK 2026
     //   Rute statis (/keluarga/...) HARUS sebelum rute wildcard {sasaran}.
+    //   Hak akses: ground-check.daftar = buka, .tambah = tambah sasaran, .ubah = isi form & ubah status.
     // ==========================================
     Route::prefix('ground-check')->name('ground-check.')->middleware('module:ground-check')->group(function () {
-        Route::get('/', [GroundCheckController::class, 'index'])->name('index');
-        Route::get('/keluarga/{noKk}', [GroundCheckController::class, 'keluarga'])->name('keluarga');
-        Route::post('/{sasaran}/status', [GroundCheckController::class, 'statusStore'])->whereNumber('sasaran')->name('status');
-        Route::get('/{sasaran}/form', [GroundCheckController::class, 'form'])->whereNumber('sasaran')->name('form');
-        Route::post('/{sasaran}/form', [GroundCheckController::class, 'simpan'])->whereNumber('sasaran')->name('simpan');
-        Route::post('/', [GroundCheckController::class, 'store'])->name('store');
+        Route::get('/', [GroundCheckController::class, 'index'])->middleware('module:ground-check.daftar')->name('index');
+        Route::get('/keluarga/{noKk}', [GroundCheckController::class, 'keluarga'])->middleware('module:ground-check.daftar')->name('keluarga');
+        Route::post('/{sasaran}/status', [GroundCheckController::class, 'statusStore'])->whereNumber('sasaran')->middleware('module:ground-check.daftar.ubah')->name('status');
+        Route::get('/{sasaran}/form', [GroundCheckController::class, 'form'])->whereNumber('sasaran')->middleware('module:ground-check.daftar')->name('form');
+        Route::post('/{sasaran}/form', [GroundCheckController::class, 'simpan'])->whereNumber('sasaran')->middleware('module:ground-check.daftar.ubah')->name('simpan');
+        Route::post('/', [GroundCheckController::class, 'store'])->middleware('module:ground-check.daftar.tambah')->name('store');
     });
 
     // ==========================================
@@ -304,31 +324,31 @@ Route::middleware(['auth', 'staff'])->group(function () {
     // PENTING: rute /ajuan, /arsip, /monitoring, /log HARUS sebelum wildcard /{permohonan}.
     // ==========================================
     Route::prefix('kartu-kks')->name('kartu-kks.')->middleware('module:kartu-kks')->group(function () {
-        Route::get('/ajuan', [KartuKksController::class, 'ajuan'])->name('ajuan');
-        Route::get('/arsip', [KartuKksController::class, 'arsip'])->name('arsip');
-        Route::get('/monitoring', [KartuKksController::class, 'monitoring'])->name('monitoring');
-        Route::get('/log', [KartuKksController::class, 'logIndex'])->name('log');
+        Route::get('/ajuan', [KartuKksController::class, 'ajuan'])->middleware('module:kartu-kks.ajuan')->name('ajuan');
+        Route::get('/arsip', [KartuKksController::class, 'arsip'])->middleware('module:kartu-kks.arsip')->name('arsip');
+        Route::get('/monitoring', [KartuKksController::class, 'monitoring'])->middleware('module:kartu-kks.monitoring')->name('monitoring');
+        Route::get('/log', [KartuKksController::class, 'logIndex'])->middleware('module:kartu-kks.log')->name('log');
 
-        Route::get('/{permohonan}', [KartuKksController::class, 'show'])->name('show');
-        Route::get('/{permohonan}/detail', [KartuKksController::class, 'detail'])->name('detail');
-        Route::put('/{permohonan}/detail', [KartuKksController::class, 'updateDetail'])->name('detail.update');
-        Route::post('/{permohonan}/proses', [KartuKksController::class, 'proses'])->name('proses');
+        Route::get('/{permohonan}', [KartuKksController::class, 'show'])->middleware('module:kartu-kks.ajuan')->name('show');
+        Route::get('/{permohonan}/detail', [KartuKksController::class, 'detail'])->middleware('module:kartu-kks.ajuan')->name('detail');
+        Route::put('/{permohonan}/detail', [KartuKksController::class, 'updateDetail'])->middleware('module:kartu-kks.ajuan.ubah')->name('detail.update');
+        Route::post('/{permohonan}/proses', [KartuKksController::class, 'proses'])->middleware('module:kartu-kks.ajuan.proses')->name('proses');
     });
 
     // ==========================================
     // 5. DTSEN
     // ==========================================
     Route::prefix('dtsen')->name('dtsen.')->middleware('module:dtsen')->group(function () {
-        Route::get('/ajuan', [DtsenController::class, 'ajuan'])->name('ajuan');
-        Route::get('/arsip', [DtsenController::class, 'arsip'])->name('arsip');
-        Route::get('/monitoring', [DtsenController::class, 'monitoring'])->name('monitoring');
+        Route::get('/ajuan', [DtsenController::class, 'ajuan'])->middleware('module:dtsen.ajuan')->name('ajuan');
+        Route::get('/arsip', [DtsenController::class, 'arsip'])->middleware('module:dtsen.arsip')->name('arsip');
+        Route::get('/monitoring', [DtsenController::class, 'monitoring'])->middleware('module:dtsen.monitoring')->name('monitoring');
 
-        Route::get('/{permohonan}', [DtsenController::class, 'show'])->name('show');
-        Route::get('/{permohonan}/detail', [DtsenController::class, 'detail'])->name('detail');
-        Route::put('/{permohonan}/detail', [DtsenController::class, 'updateDetail'])->name('detail.update');
-        Route::put('/{permohonan}/bansos', [DtsenController::class, 'updateBansos'])->name('bansos.update');
-        Route::put('/{permohonan}/lampiran', [DtsenController::class, 'updateLampiran'])->name('lampiran.update');
-        Route::post('/{permohonan}/proses', [DtsenController::class, 'proses'])->name('proses');
+        Route::get('/{permohonan}', [DtsenController::class, 'show'])->middleware('module:dtsen.ajuan')->name('show');
+        Route::get('/{permohonan}/detail', [DtsenController::class, 'detail'])->middleware('module:dtsen.ajuan')->name('detail');
+        Route::put('/{permohonan}/detail', [DtsenController::class, 'updateDetail'])->middleware('module:dtsen.ajuan.ubah')->name('detail.update');
+        Route::put('/{permohonan}/bansos', [DtsenController::class, 'updateBansos'])->middleware('module:dtsen.ajuan.ubah')->name('bansos.update');
+        Route::put('/{permohonan}/lampiran', [DtsenController::class, 'updateLampiran'])->middleware('module:dtsen.ajuan.ubah')->name('lampiran.update');
+        Route::post('/{permohonan}/proses', [DtsenController::class, 'proses'])->middleware('module:dtsen.ajuan.proses')->name('proses');
     });
 
     // ==========================================
@@ -348,16 +368,18 @@ Route::middleware(['auth', 'staff'])->group(function () {
 
     // ==========================================
     // SIGAP BENCANA (Perlinsos)
+    //   Hak akses detail hanya untuk halaman Dinsos (Laporan & Stock Barang).
+    //   Buat/lihat/proses laporan dipakai bersama Kelurahan/OPD, jadi tetap di level modul.
     // ==========================================
     Route::prefix('sigap-bencana')->name('sigap.')->group(function () {
 
         // --- Staf Dinsos ---
         Route::middleware('module:sigap-bencana')->group(function () {
-            Route::get('/laporan', [SigapBencanaController::class, 'index'])->name('index');
+            Route::get('/laporan', [SigapBencanaController::class, 'index'])->middleware('module:sigap-bencana.laporan')->name('index');
 
-            Route::get('/stok', [SigapBencanaController::class, 'stokIndex'])->name('stok.index');
-            Route::post('/stok/barang', [SigapBencanaController::class, 'stokStoreBarang'])->name('stok.barang.store');
-            Route::post('/stok/barang/{barang}/masuk', [SigapBencanaController::class, 'stokMasuk'])->name('stok.masuk');
+            Route::get('/stok', [SigapBencanaController::class, 'stokIndex'])->middleware('module:sigap-bencana.stok')->name('stok.index');
+            Route::post('/stok/barang', [SigapBencanaController::class, 'stokStoreBarang'])->middleware('module:sigap-bencana.stok.tambah')->name('stok.barang.store');
+            Route::post('/stok/barang/{barang}/masuk', [SigapBencanaController::class, 'stokMasuk'])->middleware('module:sigap-bencana.stok.tambah')->name('stok.masuk');
         });
 
         // --- Kelurahan / OPD wilayah ---
@@ -402,29 +424,32 @@ Route::middleware(['auth', 'staff'])->group(function () {
     //   Rute statis (/konselor, /spesialisasi, /rekapitulasi, /kasus) HARUS sebelum
     //   rute tahap yang punya {konsultasi?}.
     //   Harus didaftarkan SEBELUM loop DAYASOS di bawah.
+    //   Hak akses detail: dayasos-ngopi-pagi.{submenu}[.aksi] (lihat config/akses.php).
     // ==========================================
     Route::prefix('dayasos/ngopi-pagi')->name('ngopi-pagi.admin.')->middleware('module:dayasos-ngopi-pagi')->group(function () {
-        Route::get('/rekapitulasi', [NgopiPagiAdminController::class, 'rekap'])->name('rekap');
-        Route::get('/rekapitulasi/export', [NgopiPagiAdminController::class, 'export'])->name('rekap.export');
+        $np = 'module:dayasos-ngopi-pagi.';
+
+        Route::get('/rekapitulasi', [NgopiPagiAdminController::class, 'rekap'])->middleware($np . 'rekap')->name('rekap');
+        Route::get('/rekapitulasi/export', [NgopiPagiAdminController::class, 'export'])->middleware($np . 'rekap.unduh')->name('rekap.export');
 
         // Data Konselor
-        Route::get('/konselor', [NgopiPagiKonselorController::class, 'index'])->name('konselor.index');
-        Route::get('/konselor/tambah', [NgopiPagiKonselorController::class, 'create'])->name('konselor.create');
-        Route::post('/konselor', [NgopiPagiKonselorController::class, 'store'])->name('konselor.store');
-        Route::get('/konselor/{konselor}/edit', [NgopiPagiKonselorController::class, 'edit'])->whereNumber('konselor')->name('konselor.edit');
-        Route::put('/konselor/{konselor}', [NgopiPagiKonselorController::class, 'update'])->whereNumber('konselor')->name('konselor.update');
-        Route::delete('/konselor/{konselor}', [NgopiPagiKonselorController::class, 'destroy'])->whereNumber('konselor')->name('konselor.destroy');
+        Route::get('/konselor', [NgopiPagiKonselorController::class, 'index'])->middleware($np . 'konselor')->name('konselor.index');
+        Route::get('/konselor/tambah', [NgopiPagiKonselorController::class, 'create'])->middleware($np . 'konselor.tambah')->name('konselor.create');
+        Route::post('/konselor', [NgopiPagiKonselorController::class, 'store'])->middleware($np . 'konselor.tambah')->name('konselor.store');
+        Route::get('/konselor/{konselor}/edit', [NgopiPagiKonselorController::class, 'edit'])->whereNumber('konselor')->middleware($np . 'konselor.ubah')->name('konselor.edit');
+        Route::put('/konselor/{konselor}', [NgopiPagiKonselorController::class, 'update'])->whereNumber('konselor')->middleware($np . 'konselor.ubah')->name('konselor.update');
+        Route::delete('/konselor/{konselor}', [NgopiPagiKonselorController::class, 'destroy'])->whereNumber('konselor')->middleware($np . 'konselor.hapus')->name('konselor.destroy');
 
         // Spesialisasi
-        Route::get('/spesialisasi', [NgopiPagiSpesialisasiController::class, 'index'])->name('spesialisasi.index');
-        Route::post('/spesialisasi', [NgopiPagiSpesialisasiController::class, 'store'])->name('spesialisasi.store');
-        Route::put('/spesialisasi/{spesialisasi}', [NgopiPagiSpesialisasiController::class, 'update'])->whereNumber('spesialisasi')->name('spesialisasi.update');
-        Route::delete('/spesialisasi/{spesialisasi}', [NgopiPagiSpesialisasiController::class, 'destroy'])->whereNumber('spesialisasi')->name('spesialisasi.destroy');
+        Route::get('/spesialisasi', [NgopiPagiSpesialisasiController::class, 'index'])->middleware($np . 'spesialisasi')->name('spesialisasi.index');
+        Route::post('/spesialisasi', [NgopiPagiSpesialisasiController::class, 'store'])->middleware($np . 'spesialisasi.tambah')->name('spesialisasi.store');
+        Route::put('/spesialisasi/{spesialisasi}', [NgopiPagiSpesialisasiController::class, 'update'])->whereNumber('spesialisasi')->middleware($np . 'spesialisasi.ubah')->name('spesialisasi.update');
+        Route::delete('/spesialisasi/{spesialisasi}', [NgopiPagiSpesialisasiController::class, 'destroy'])->whereNumber('spesialisasi')->middleware($np . 'spesialisasi.hapus')->name('spesialisasi.destroy');
 
-        Route::get('/kasus/{konsultasi}', [NgopiPagiAdminController::class, 'kasus'])->whereNumber('konsultasi')->name('kasus');
-        Route::post('/kasus/{konsultasi}/aksi', [NgopiPagiAdminController::class, 'aksi'])->whereNumber('konsultasi')->name('kasus.aksi');
-        Route::get('/kasus/{konsultasi}/pesan', [NgopiPagiAdminController::class, 'pesan'])->whereNumber('konsultasi')->name('kasus.pesan');
-        Route::post('/kasus/{konsultasi}/pesan', [NgopiPagiAdminController::class, 'kirimPesan'])->whereNumber('konsultasi')->name('kasus.pesan.kirim');
+        Route::get('/kasus/{konsultasi}', [NgopiPagiAdminController::class, 'kasus'])->whereNumber('konsultasi')->middleware($np . 'kasus')->name('kasus');
+        Route::post('/kasus/{konsultasi}/aksi', [NgopiPagiAdminController::class, 'aksi'])->whereNumber('konsultasi')->middleware($np . 'kasus.proses')->name('kasus.aksi');
+        Route::get('/kasus/{konsultasi}/pesan', [NgopiPagiAdminController::class, 'pesan'])->whereNumber('konsultasi')->middleware($np . 'kasus')->name('kasus.pesan');
+        Route::post('/kasus/{konsultasi}/pesan', [NgopiPagiAdminController::class, 'kirimPesan'])->whereNumber('konsultasi')->middleware($np . 'kasus.pesan')->name('kasus.pesan.kirim');
 
         // Satu halaman per tahap: tahap.chat_masuk, tahap.screening, dst. (nama dipakai sidebar)
         foreach (NgopiPagiKonsultasi::TAHAP as $key => $cfg) {
@@ -434,6 +459,7 @@ Route::middleware(['auth', 'staff'])->group(function () {
             Route::get('/' . $cfg['url'] . '/{konsultasi?}', [NgopiPagiAdminController::class, 'tahap'])
                 ->defaults('tahap', $key)
                 ->whereNumber('konsultasi')
+                ->middleware($np . $key)
                 ->name('tahap.' . $key);
         }
     });
@@ -513,11 +539,12 @@ Route::middleware(['auth', 'staff'])->group(function () {
 
     // ==========================================
     // 7. Dokumen — template dokumen (lihat, preview & unduh)
+    //   Hak akses: dokumen.daftar = lihat & preview, .daftar.unduh = unduh.
     // ==========================================
     Route::prefix('dokumen')->name('dokumen.')->middleware('module:dokumen')->group(function () {
-        Route::get('/', [DokumenController::class, 'index'])->name('index');
-        Route::get('/{dokumen}/preview', [DokumenController::class, 'preview'])->name('preview');
-        Route::get('/{dokumen}/unduh', [DokumenController::class, 'unduh'])->name('unduh');
+        Route::get('/', [DokumenController::class, 'index'])->middleware('module:dokumen.daftar')->name('index');
+        Route::get('/{dokumen}/preview', [DokumenController::class, 'preview'])->middleware('module:dokumen.daftar')->name('preview');
+        Route::get('/{dokumen}/unduh', [DokumenController::class, 'unduh'])->middleware('module:dokumen.daftar.unduh')->name('unduh');
 
         Route::middleware('module:kelola-akses')->group(function () {
             Route::post('/', [DokumenController::class, 'store'])->name('store');
@@ -560,4 +587,9 @@ Route::middleware(['auth', 'role:masyarakat'])->prefix('akun-saya')->name('masya
         Route::get('/lengkapi', [MasyarakatController::class, 'lengkapiDtsen'])->name('lengkapi');
         Route::post('/lengkapi', [MasyarakatController::class, 'lengkapiDtsenStore'])->name('lengkapi.store');
     });
+
+    Route::get('/dokumen', [MasyarakatDokumenController::class, 'index'])->name('dokumen');
+    Route::post('/dokumen', [MasyarakatDokumenController::class, 'store'])->name('dokumen.store');
+    Route::post('/dokumen/{dokumen}/pakai', [MasyarakatDokumenController::class, 'pakai'])->whereNumber('dokumen')->name('dokumen.pakai');
+    Route::delete('/dokumen/{dokumen}', [MasyarakatDokumenController::class, 'destroy'])->whereNumber('dokumen')->name('dokumen.destroy');
 });

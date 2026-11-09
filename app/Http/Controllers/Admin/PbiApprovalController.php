@@ -5,9 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\PbiApbd;
 use App\Models\PbiApbdLog;
-use App\Support\PbiSuratIsian;
+use App\Support\PbiSuratPengantar;
 use Illuminate\Http\Request;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -71,6 +70,10 @@ class PbiApprovalController extends Controller
         $roleName = $user->role?->isSuperAdmin() ? null : ($user->role->name ?? null);
 
         $query = PbiApbd::with('logs');
+        // Lurah hanya melihat ajuan di wilayahnya sendiri
+        if ($tahap === 'lurah') {
+            $query->untukKelurahan($user);
+        }
 
         if ($tab === 'proses') {
             // Perlu diproses: berkas yang saat ini berada di tahap ini.
@@ -102,6 +105,9 @@ class PbiApprovalController extends Controller
                 ->orWhere(fn ($r) => $r->where('status', '!=', $cfg['status'])
                     ->whereHas('logs', fn ($l) => $this->logAksi($l, $roleName)));
         });
+        if ($tahap === 'lurah') {
+            $basis->untukKelurahan($user);
+        }
         $filter($basis);
 
         $stat = [
@@ -110,7 +116,9 @@ class PbiApprovalController extends Controller
             'ditolak' => (clone $basis)->where('status', 'ditolak')->count(),
         ];
 
-        return view("admin.pbi-{$tahap}.index", compact('tahap', 'cfg', 'ajuan', 'stat', 'tab'));
+        $wilayahBelumDiatur = $tahap === 'lurah' && ! $user->role?->isSuperAdmin() && blank($user->kelurahan);
+
+        return view("admin.pbi-{$tahap}.index", compact('tahap', 'cfg', 'ajuan', 'stat', 'tab', 'user', 'wilayahBelumDiatur'));
     }
 
     /** Awalan task_name pada log yang menandai tahap meneruskan / mengembalikan / menolak. */
@@ -154,6 +162,14 @@ class PbiApprovalController extends Controller
         $tahap = $this->tahap($request);
         $cfg = PbiApbd::TAHAP[$tahap];
 
+        if ($tahap === 'lurah') {
+            abort_unless(
+                PbiApbd::untukKelurahan(Auth::user()->loadMissing('role'))->whereKey($pbiApbd->getKey())->exists(),
+                403,
+                'Pengajuan ini bukan dari wilayah kelurahan Anda.'
+            );
+        }
+
         $canAct = $pbiApbd->status === $cfg['status'];
         $canEdit = $canAct && $cfg['edit'];
         $canDiagnosa = $canAct && $cfg['diagnosa'];
@@ -166,7 +182,11 @@ class PbiApprovalController extends Controller
 
         $faskesOptions = config('faskes.puskesmas', [])[$pbiApbd->kecamatan] ?? [];
 
+        // Diagnosa = jawaban masyarakat di Master Ground Check (hanya dimuat untuk tahap yang boleh mengubahnya)
+        $diagnosaGc = $cfg['diagnosa'] ? $this->diagnosaGc($pbiApbd) : collect();
+
         return view("admin.pbi-{$tahap}.show", [
+            'diagnosaGc' => $diagnosaGc,
             'tahap' => $tahap,
             'cfg' => $cfg,
             'data' => $pbiApbd,
@@ -177,7 +197,10 @@ class PbiApprovalController extends Controller
         ]);
     }
 
-    /** Hanya tahap Operator (route PUT hanya didaftarkan untuk tahap dengan edit = true). */
+    /**
+     * Hanya tahap Operator (route PUT hanya didaftarkan untuk tahap dengan edit = true).
+     * Operator hanya boleh mengisi Desil Nasional; field lain tidak disentuh walau dikirim.
+     */
     public function update(Request $request, PbiApbd $pbiApbd)
     {
         $tahap = $this->tahap($request);
@@ -185,76 +208,17 @@ class PbiApprovalController extends Controller
 
         abort_unless($cfg['edit'] && $pbiApbd->status === $cfg['status'], 403);
 
-        // Samakan penulisan dengan config/wilayah.php (huruf besar) sebelum divalidasi
-        $request->merge([
-            'kecamatan' => strtoupper(trim((string) $request->input('kecamatan'))),
-            'desa_kelurahan' => strtoupper(trim((string) $request->input('desa_kelurahan'))),
-        ]);
-
-        $wilayah = config('wilayah.kecamatan', []);
-
-        // Data lama yang tidak ada di config tetap boleh dipertahankan (kecamatan/kelurahan tersimpan)
-        $kecLama = strtoupper(trim((string) $pbiApbd->kecamatan));
-        $kelLama = strtoupper(trim((string) $pbiApbd->desa_kelurahan));
-        if ($kecLama !== '') {
-            $wilayah[$kecLama] = $wilayah[$kecLama] ?? [];
-            if ($kelLama !== '' && ! in_array($kelLama, $wilayah[$kecLama], true)) {
-                $wilayah[$kecLama][] = $kelLama;
-            }
-        }
-
         $data = $request->validate([
-            'nama_kepala_keluarga' => ['required', 'string', 'max:255'],
-            'no_kk' => ['required', 'string', 'max:20'],
-            'nik_kepala_keluarga' => ['required', 'string', 'max:20'],
-            'alamat' => ['required', 'string', 'max:500'],
-            'rt' => ['nullable', 'string', 'max:5'],
-            'rw' => ['nullable', 'string', 'max:5'],
-            'kecamatan' => ['required', 'string', Rule::in(array_keys($wilayah))],
-            'desa_kelurahan' => ['required', 'string', function ($attr, $value, $fail) use ($request, $wilayah) {
-                if (! in_array($value, $wilayah[$request->input('kecamatan')] ?? [], true)) {
-                    $fail('Desa/Kelurahan tidak sesuai dengan kecamatan yang dipilih.');
-                }
-            }],
-            'no_telp' => ['nullable', 'string', 'max:20'],
-            'email' => ['nullable', 'email', 'max:255'],
             'desil_nasional' => ['nullable', 'string', 'max:50'],
-            'nama_faskes' => ['nullable', 'string', 'max:150'],
-            'kelengkapan_kekurangan_berkas' => ['nullable', 'string', 'max:2000'],
-            'catatan_berkas' => ['nullable', 'string', 'max:2000'],
-            // Suket boleh PDF, Word (DOC/DOCX), atau gambar
-            'surat_keterangan' => ['nullable', 'file', 'mimes:pdf,doc,docx,jpg,jpeg,png', 'max:4096'],
-        ], [
-            'kecamatan.in' => 'Kecamatan tidak valid.',
-            'surat_keterangan.max' => 'Ukuran suket maksimal 4 MB.',
-            'surat_keterangan.mimes' => 'Suket harus berformat PDF, Word (DOC/DOCX), JPG, atau PNG.',
         ]);
-
-        unset($data['surat_keterangan']);
-
-        $suketBaru = null;
-        if ($request->hasFile('surat_keterangan')) {
-            if ($pbiApbd->surat_keterangan) {
-                Storage::disk('public')->delete($pbiApbd->surat_keterangan);
-            }
-            // Disimpan dengan nama asli yang terbaca (acak6__nama-asli.ext)
-            $data['surat_keterangan'] = $this->simpanDenganNama($request->file('surat_keterangan'), 'pbi-suket');
-            $suketBaru = $data['surat_keterangan'];
-        }
 
         $pbiApbd->update($data);
 
-        $diubah = array_keys(array_diff_key($pbiApbd->getChanges(), ['updated_at' => 1]));
-
-        if ($diubah) {
-            $this->catat($pbiApbd, 'Mengubah data pemohon', 'Kolom diubah: ' . implode(', ', $diubah));
+        if ($pbiApbd->wasChanged('desil_nasional')) {
+            $this->catat($pbiApbd, 'Mengisi Desil Nasional', 'Desil Nasional: ' . ($data['desil_nasional'] ?: '-'));
         }
 
-        // Isi placeholder ${...} pada suket (.docx) memakai data TERBARU (setelah update di atas).
-        // Nomor surat otomatis = No. Registrasi; isian lain diambil dari data pengajuan & akun user.
-        $info = PbiSuratIsian::isiBerkas($pbiApbd->fresh('anggotaKeluarga'), $suketBaru, Auth::user());
-
-        return back()->with('success', trim('Data berhasil disimpan. ' . $info));
+        return back()->with('success', 'Desil Nasional berhasil disimpan.');
     }
 
     public function diagnosa(Request $request, PbiApbd $pbiApbd)
@@ -265,25 +229,60 @@ class PbiApprovalController extends Controller
         abort_unless($cfg['diagnosa'] && $pbiApbd->status === $cfg['status'], 403);
 
         $v = $request->validate([
-            'diagnosa' => ['required', 'string', 'max:2000'],
-        ], ['diagnosa.required' => 'Diagnosa tidak boleh kosong.']);
-
-        $user = Auth::user();
-
-        $pbiApbd->diagnosaLogs()->create([
-            'user_id' => $user->id,
-            'username' => $user->name,
-            'role_name' => $user->role->name ?? '-',
-            'diagnosa' => $v['diagnosa'],
+            'diagnosa' => ['required', 'array', 'min:1'],
+            'diagnosa.*' => ['required', 'string', 'max:500'],
+        ], [
+            'diagnosa.required' => 'Diagnosa tidak boleh kosong.',
+            'diagnosa.*.required' => 'Diagnosa tidak boleh kosong.',
+            'diagnosa.*.max' => 'Diagnosa maksimal 500 karakter.',
         ]);
-        $pbiApbd->update(['diagnosa' => $v['diagnosa']]);
 
-        return back()->with('success', 'Diagnosa baru berhasil ditambahkan.');
+        // Hanya jawaban diagnosa yang SUDAH diisi masyarakat yang bisa diubah (tidak bisa menambah baru).
+        $baris = $this->diagnosaGc($pbiApbd)->filter(fn ($r) => filled($r->jawaban))->keyBy('id');
+
+        $diubah = [];
+        foreach ($v['diagnosa'] as $id => $teks) {
+            $row = $baris->get((int) $id);
+            if (! $row) {
+                continue; // bukan baris diagnosa milik ajuan ini / belum diisi masyarakat -> diabaikan
+            }
+
+            $teks = trim($teks);
+            if ($teks === trim((string) $row->jawaban)) {
+                continue;
+            }
+
+            $diubah[] = $row->nama_parameter . ': "' . $row->jawaban . '" menjadi "' . $teks . '"';
+            $row->update(['jawaban' => $teks]); // menimpa jawaban masyarakat
+        }
+
+        if (! $diubah) {
+            return back()->with('success', 'Tidak ada perubahan pada diagnosa.');
+        }
+
+        $this->catat($pbiApbd, 'Mengubah diagnosa', implode('; ', $diubah));
+
+        return back()->with('success', 'Diagnosa berhasil diperbarui.');
+    }
+
+    /**
+     * Jawaban Ground Check milik ajuan ini yang berupa isian teks "Diagnosa"
+     * (dikenali dari nama parameter di Master Kriteria Ground Check).
+     */
+    private function diagnosaGc(PbiApbd $m)
+    {
+        return $m->gcJawabans()
+            ->whereNotNull('parameter_id')
+            ->where('tipe_input', 'teks')
+            ->whereRaw('LOWER(nama_parameter) LIKE ?', ['%diagnosa%'])
+            ->orderBy('urutan')
+            ->get();
     }
 
     /**
      * Aksi next / back / reject untuk satu atau banyak data (ids[]).
      * BPJS: next = Aktivasi, reject = Tolak (tidak ada back).
+     * Operator: hanya next (verifikasi & teruskan ke Kabid).
      * Hanya data yang statusnya = tahap ini yang diproses.
      */
     public function aksi(Request $request)
@@ -291,14 +290,26 @@ class PbiApprovalController extends Controller
         $tahap = $this->tahap($request);
         $cfg = PbiApbd::TAHAP[$tahap];
 
-        $diizinkan = $tahap === 'bpjs' ? ['next', 'reject'] : ['next', 'back', 'reject'];
+        // Lurah: tanpa reject (menolak = mengembalikan ke Kelurahan).
+        // Operator: hanya meneruskan (tidak bisa mengembalikan / menolak).
+        // BPJS: boleh mengembalikan (ke Dinkes).
+        $diizinkan = match ($tahap) {
+            'bpjs' => ['next', 'back', 'reject'],
+            'lurah' => ['next', 'back'],
+            'operator' => ['next'],
+            default => ['next', 'back', 'reject'],
+        };
 
         $v = $request->validate([
             'aksi' => ['required', Rule::in($diizinkan)],
             'ids' => ['required', 'array', 'min:1'],
             'ids.*' => ['integer'],
-            // Catatan wajib untuk semua tahap dan semua aksi (Teruskan / Aktivasi / Back / Reject / Tolak)
-            'catatan' => ['required', 'string', 'max:2000'],
+            // Catatan wajib di semua tahap dan aksi, KECUALI Kabid & BPJS saat meneruskan/aktivasi (opsional).
+            'catatan' => [
+                Rule::requiredIf(! (in_array($tahap, ['kabid', 'bpjs'], true) && $request->input('aksi') === 'next')),
+                'nullable', 'string', 'max:2000',
+            ],
+            'keterangan_lurah' => ['nullable', 'string', 'max:2000'],
         ], [
             'ids.required' => 'Pilih minimal satu data.',
             'catatan.required' => 'Catatan wajib diisi.',
@@ -309,12 +320,35 @@ class PbiApprovalController extends Controller
         $berhasil = 0;
         $dilewati = [];
 
-        $items = PbiApbd::whereIn('id', $v['ids'])->where('status', $cfg['status'])->get();
+        $itemsQuery = PbiApbd::whereIn('id', $v['ids'])->where('status', $cfg['status']);
+        if ($tahap === 'lurah') {
+            $itemsQuery->untukKelurahan($user->loadMissing('role'));
+        }
+        $items = $itemsQuery->get();
+        $infoSurat = [];
 
         foreach ($items as $m) {
-            if ($v['aksi'] === 'next' && $tahap === 'operator' && blank($m->surat_keterangan)) {
-                $dilewati[] = "{$m->no_registrasi} (suket belum diunggah)";
-                continue;
+            // Lurah: tanda tangan (TTD tersimpan di akun) disalin ke ajuan lalu disisipkan ke surat pengantar
+            if ($tahap === 'lurah' && $v['aksi'] === 'next') {
+                $disk = Storage::disk('public');
+                if (blank($user->ttd_path) || ! $disk->exists($user->ttd_path)) {
+                    $dilewati[] = "{$m->no_registrasi} (TTD Anda belum diunggah)";
+                    continue;
+                }
+
+                $ttd = 'pbi-apbd/lampiran/ttd-lurah-' . $m->id . '-' . now()->timestamp . '.' . pathinfo($user->ttd_path, PATHINFO_EXTENSION);
+                $disk->copy($user->ttd_path, $ttd);
+                if ($m->ttd_kelurahan && $disk->exists($m->ttd_kelurahan)) {
+                    $disk->delete($m->ttd_kelurahan);
+                }
+                // Kolom ttd_kelurahan sekarang berisi TTD Lurah (nama kolom dipertahankan)
+                $m->update([
+                    'ttd_kelurahan' => $ttd,
+                    'keterangan_lurah' => $v['keterangan_lurah'] ?? null,
+                    'divalidasi_lurah_at' => now(),
+                    'divalidasi_lurah_oleh' => $user->id,
+                ]);
+                $infoSurat[] = PbiSuratPengantar::generate($m->fresh(), $user, $ttd);
             }
 
             $m->tandaiDilihat($user);
@@ -326,11 +360,8 @@ class PbiApprovalController extends Controller
                     : 'Meneruskan ke ' . (PbiApbd::STAGES[$next]['label'] ?? $next);
                 $m->update(['status' => $next, 'catatan_internal' => $catatan]);
             } elseif ($v['aksi'] === 'back') {
-                $prev = $m->previousStageKey();
-                if (! $prev) {
-                    $dilewati[] = "{$m->no_registrasi} (tidak bisa dikembalikan)";
-                    continue;
-                }
+                // Semua tahap mengembalikan langsung ke Kelurahan, kecuali BPJS yang mengembalikan ke Dinkes
+                $prev = $tahap === 'bpjs' ? 'dinkes' : 'kelurahan';
                 $task = 'Mengembalikan ke ' . (PbiApbd::STAGES[$prev]['label'] ?? $prev);
                 $m->update(['status' => $prev, 'catatan_internal' => $catatan]
                     + ($prev === 'kelurahan' ? ['sudah_diverifikasi_kelurahan' => false] : []));
@@ -346,7 +377,7 @@ class PbiApprovalController extends Controller
         $redirect = redirect()->route("pbi-approval.{$tahap}.index");
 
         if ($berhasil) {
-            $redirect->with('success', "{$berhasil} data berhasil diproses.");
+            $redirect->with('success', trim("{$berhasil} data berhasil diproses. " . implode(' ', array_filter($infoSurat))));
         }
         if ($dilewati) {
             $redirect->with('error', 'Tidak diproses: ' . implode('; ', $dilewati));
@@ -356,19 +387,6 @@ class PbiApprovalController extends Controller
         }
 
         return $redirect;
-    }
-
-    /**
-     * Simpan file ke disk public dengan nama asli yang tetap terbaca.
-     * Format: "acak6__nama-asli.ext". Komponen <x-lampiran-preview> menampilkan bagian setelah "__".
-     */
-    private function simpanDenganNama(UploadedFile $file, string $folder): string
-    {
-        $nama = Str::limit(Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME)), 60, '');
-        $nama = $nama !== '' ? $nama : 'berkas';
-        $ext = strtolower($file->getClientOriginalExtension() ?: $file->extension());
-
-        return $file->storeAs($folder, Str::random(6) . '__' . $nama . '.' . $ext, 'public');
     }
 
     private function catat(PbiApbd $m, string $task, ?string $catatan): void

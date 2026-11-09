@@ -2,11 +2,13 @@
 
 /**
  * Menu DAYASOS (dipakai sidebar layouts/admin.blade.php dan routes/web.php).
- *   module = key di Role::MODULES. Anak menu otomatis mengikuti module induknya.
+ *   module = key di Role::MODULES (atau kunci detail modul.submenu dari config/akses.php).
+ *            Anak menu otomatis mengikuti module induknya.
  *   custom = true -> rute TIDAK dibuat oleh loop placeholder di web.php (sudah ada controller sendiri).
  *
  * Ngopi Pagi: submenu mengikuti alur layanan LK3 (lihat NgopiPagiKonsultasi::TAHAP),
- * ditambah Data Konselor dan Spesialisasi.
+ * ditambah Data Konselor dan Spesialisasi. Tiap submenu punya hak akses sendiri
+ * (dayasos-ngopi-pagi.{submenu}), diatur di Kelola Akses.
  * Rute-nya ada di routes/web.php (blok "NGOPI PAGI (admin)").
  */
 $leaf = fn (string $label, string $path) => [
@@ -21,6 +23,7 @@ $np = fn (string $label, string $tahap, ?string $badge = null) => [
     'route'  => 'ngopi-pagi.admin.tahap.' . $tahap,
     'custom' => true,
     'badge'  => $badge,
+    'module' => 'dayasos-ngopi-pagi.' . $tahap,
 ];
 
 return [
@@ -45,18 +48,21 @@ return [
                 'route'  => 'ngopi-pagi.admin.rekap',
                 'match'  => ['ngopi-pagi.admin.kasus', 'ngopi-pagi.admin.rekap.*'],
                 'custom' => true,
+                'module' => 'dayasos-ngopi-pagi.rekap',
             ],
             [
                 'label'  => 'Data Konselor',
                 'route'  => 'ngopi-pagi.admin.konselor.index',
                 'match'  => ['ngopi-pagi.admin.konselor.*'],
                 'custom' => true,
+                'module' => 'dayasos-ngopi-pagi.konselor',
             ],
             [
                 'label'  => 'Spesialisasi',
                 'route'  => 'ngopi-pagi.admin.spesialisasi.index',
                 'match'  => ['ngopi-pagi.admin.spesialisasi.*'],
                 'custom' => true,
+                'module' => 'dayasos-ngopi-pagi.spesialisasi',
             ],
         ],
     ],

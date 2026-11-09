@@ -12,12 +12,13 @@ class GcKriteriaParameter extends Model
 
     protected $fillable = [
         'kelompok', 'urutan', 'nama', 'bobot', 'tipe_input', 'sumber',
-        'pbi_parameter_id', 'keterangan', 'aktif',
+        'pbi_parameter_id', 'keterangan', 'aktif', 'wajib',
     ];
 
     protected $casts = [
         'bobot' => 'float',
         'aktif' => 'boolean',
+        'wajib' => 'boolean',
     ];
 
     /** Kelompok di master (dipakai filter & form master). */
@@ -112,7 +113,7 @@ class GcKriteriaParameter extends Model
         return ! $this->sumber && in_array($this->tipe_input, ['pilihan', 'pilihan_ganda'], true);
     }
 
-      public function scopeUntukPetugas($query)
+    public function scopeUntukPetugas($query)
     {
         return $query->orderBy('urutan')->orderBy('id');
     }

@@ -131,6 +131,7 @@
             ['label' => 'Permohonan Saya', 'icon' => 'description', 'route' => 'masyarakat.permohonan', 'match' => ['masyarakat.permohonan.*']],
             ['label' => 'Tracking Permohonan', 'icon' => 'search', 'route' => 'masyarakat.tracking', 'match' => ['masyarakat.tracking.*']],
             ['label' => 'Anggota Keluarga', 'icon' => 'group', 'route' => 'masyarakat.keluarga', 'match' => ['masyarakat.keluarga.*']],
+            ['label' => 'Dokumen', 'icon' => 'folder_open', 'route' => 'masyarakat.dokumen', 'match' => ['masyarakat.dokumen.*']],
             // Profile: menu tunggal, 2 tab (Data Diri & Akun/Kata Sandi) ada di dalam halamannya
             ['label' => 'Profile', 'icon' => 'person', 'route' => 'masyarakat.profil', 'match' => ['masyarakat.profil.*', 'masyarakat.password', 'masyarakat.password.*']],
         ];

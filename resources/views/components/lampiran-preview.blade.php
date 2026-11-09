@@ -1,4 +1,4 @@
-@props(['src' => null, 'label' => 'Lampiran', 'icon' => 'image_not_supported'])
+@props(['src' => null, 'label' => 'Lampiran', 'icon' => 'image_not_supported', 'panel' => false])
 
 @php
     // Deteksi jenis file dari ekstensi URL (query string diabaikan)
@@ -46,10 +46,20 @@
     @if ($src)
         <div x-show="open" x-cloak x-transition
              class="absolute z-30 left-1/2 -translate-x-1/2 mt-1 w-36 bg-white border border-outline-variant/40 rounded-lg shadow-lg overflow-hidden">
-            <a href="{{ $lihat }}" target="_blank" rel="noopener"
-               class="flex items-center gap-2 px-3 py-2 text-xs hover:bg-surface-container text-on-surface">
-                <span class="material-symbols-outlined text-[16px]">visibility</span> Lihat
-            </a>
+            @if ($panel)
+                {{-- Mode panel: "Lihat" tidak membuka tab baru, tapi mengirim event ke halaman
+                     (ditangkap x-data pada halaman detail) untuk ditampilkan di card tersendiri. --}}
+                <button type="button"
+                        @click="open = false; $dispatch('lampiran-panel', { src: @js($src), view: @js($lihat), label: @js($label), img: @js($isImg) })"
+                        class="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-surface-container text-on-surface text-left">
+                    <span class="material-symbols-outlined text-[16px]">visibility</span> Lihat
+                </button>
+            @else
+                <a href="{{ $lihat }}" target="_blank" rel="noopener"
+                   class="flex items-center gap-2 px-3 py-2 text-xs hover:bg-surface-container text-on-surface">
+                    <span class="material-symbols-outlined text-[16px]">visibility</span> Lihat
+                </a>
+            @endif
             <a href="{{ $src }}" download="{{ $namaFile ?: $basename }}"
                class="flex items-center gap-2 px-3 py-2 text-xs hover:bg-surface-container text-on-surface border-t border-outline-variant/30">
                 <span class="material-symbols-outlined text-[16px]">download</span> Unduh

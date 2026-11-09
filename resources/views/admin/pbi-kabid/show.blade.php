@@ -159,7 +159,7 @@
         </div>
     </div>
 
-    {{-- Aksi --}}
+    {{-- Aksi: meneruskan tanpa catatan; mengembalikan / menolak wajib catatan --}}
     <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm mb-10">
         <div class="px-5 py-4 border-b border-outline-variant/40 bg-surface-container/20">
             <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">alt_route</span> Proses Permohonan</h3>
@@ -170,17 +170,23 @@
                 @csrf
                 <input type="hidden" name="ids[]" value="{{ $data->id }}">
                 <div class="mb-5">
-                    <label class="block text-sm font-bold mb-2">Catatan <span class="text-error">*</span></label>
-                    <textarea name="catatan" rows="3" required class="w-full px-4 py-3 rounded-lg border border-outline-variant/60 text-sm">{{ old('catatan') }}</textarea>
+                    <label class="block text-sm font-bold mb-2">
+                        Catatan <span class="font-normal text-on-surface-variant">(opsional saat meneruskan; wajib saat mengembalikan / menolak)</span>
+                    </label>
+                    <x-catatan-template tahap="kabid" />
+                    <textarea id="catatan" name="catatan" rows="3" class="w-full px-4 py-3 rounded-lg border border-outline-variant/60 text-sm">{{ old('catatan') }}</textarea>
                 </div>
                 <div class="flex flex-col sm:flex-row flex-wrap items-center gap-3">
-                    <button type="submit" name="aksi" value="back" class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-5 py-2.5 rounded-lg border border-outline-variant hover:bg-surface-container-highest text-sm font-bold">
-                        <span class="material-symbols-outlined text-[18px]">undo</span> Kembalikan ke Operator Dinsos
+                    <button type="submit" name="aksi" value="back"
+                        onclick="if (!this.form.catatan.value.trim()) { alert('Catatan wajib diisi untuk mengembalikan permohonan.'); this.form.catatan.focus(); return false; }"
+                        class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-5 py-2.5 rounded-lg border border-outline-variant hover:bg-surface-container-highest text-sm font-bold">
+                        <span class="material-symbols-outlined text-[18px]">undo</span> Kembalikan ke Kelurahan
                     </button>
                     <button type="submit" name="aksi" value="next" class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-on-primary hover:bg-secondary text-sm font-bold shadow-md sm:ml-auto">
                         <span class="material-symbols-outlined text-[18px]">redo</span> Teruskan ke Kepala Dinas
                     </button>
-                    <button type="submit" name="aksi" value="reject" onclick="return confirm('Yakin menolak permohonan ini?');"
+                    <button type="submit" name="aksi" value="reject"
+                        onclick="if (!this.form.catatan.value.trim()) { alert('Catatan wajib diisi untuk menolak permohonan.'); this.form.catatan.focus(); return false; } return confirm('Yakin menolak permohonan ini?');"
                         class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-5 py-2.5 rounded-lg border border-error text-error hover:bg-error hover:text-on-error text-sm font-bold">
                         <span class="material-symbols-outlined text-[18px]">cancel</span> Reject
                     </button>

@@ -8,8 +8,6 @@
     // Isian masyarakat = jawaban Ground Check (sama dengan form warga & hitungan kelengkapan di controller)
     $jawabans = $gcJawabans->sortBy('urutan')->values();
     $dataLengkap = $totalParameter > 0 && $terjawab >= $totalParameter;
-    // Field yang punya kartu sendiri (tidak ikut grid "Lampiran Hasil Verifikasi Lapangan")
-    $lampiranTerpisah = ['ttd_kelurahan', 'scan_surat_pengantar'];
 @endphp
 
 @section('content')
@@ -137,6 +135,44 @@
     </div>
 
     @if ($bisaProses)
+        {{-- Pengompres & pengambil foto (kamera / file). Foto dikecilkan agar muat batas 4 MB. --}}
+        <script>
+            window.fotoLapangan = function (hanyaKamera) {
+                return {
+                    hanyaKamera,
+                    nama: null,
+                    pratinjau: null,
+                    async olah(file) {
+                        if (!file || !file.type.startsWith('image/')) return file;
+                        try {
+                            const bmp = await createImageBitmap(file);
+                            const skala = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+                            const c = document.createElement('canvas');
+                            c.width = Math.round(bmp.width * skala);
+                            c.height = Math.round(bmp.height * skala);
+                            c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+                            const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.85));
+                            if (!blob) return file;
+                            return new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' });
+                        } catch (e) { return file; }
+                    },
+                    async terima(event) {
+                        const asli = event.target.files[0];
+                        event.target.value = '';
+                        if (!asli) return;
+                        const f = await this.olah(asli);
+                        if (f.size > 4 * 1024 * 1024) { alert('Ukuran file maksimal 4 MB.'); return; }
+                        const dt = new DataTransfer();
+                        dt.items.add(f);
+                        this.$refs.utama.files = dt.files;
+                        this.nama = f.name;
+                        if (this.pratinjau) URL.revokeObjectURL(this.pratinjau);
+                        this.pratinjau = f.type.startsWith('image/') ? URL.createObjectURL(f) : null;
+                    },
+                };
+            };
+        </script>
+
         <form method="POST" action="{{ route('pbi-kelurahan.aksi', $data) }}" enctype="multipart/form-data" class="space-y-5 mb-10">
             @csrf
 
@@ -149,224 +185,108 @@
                 </div>
             @endif
 
-            {{-- Lampiran hasil turun lapangan --}}
+            {{-- Berkas dari masyarakat: Kelurahan hanya menandai sesuai / tidak sesuai --}}
+            <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
+                <div class="px-5 py-4 border-b border-outline-variant/40">
+                    <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">folder_shared</span> Berkas dari Masyarakat</h3>
+                    <p class="text-xs text-on-surface-variant mt-1">Diunggah oleh masyarakat. Cek lalu tandai sesuai atau tidak sesuai. Bila ada yang tidak sesuai, gunakan "Kembalikan ke Masyarakat".</p>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 p-5">
+                    @foreach ($lampiranMasyarakat as $field => [$label, $wajib])
+                        @php
+                            $perluCek = in_array($field, $fieldVerifikasi, true);
+                            $nilaiCek = old("verifikasi.{$field}", $data->verifikasi_berkas[$field] ?? null);
+                        @endphp
+                        <div class="min-w-0 rounded-lg border border-outline-variant/40 p-3">
+                            <p class="text-xs font-semibold mb-2">{{ $label }} @if($wajib)<span class="text-error">*</span>@endif</p>
+                            @if ($data->{$field})
+                                <div class="w-28 mb-3"><x-lampiran-preview :src="asset('storage/' . $data->{$field})" :label="$label" /></div>
+                                @if ($perluCek)
+                                    <div class="flex flex-wrap gap-2">
+                                        <label class="cursor-pointer">
+                                            <input type="radio" class="peer sr-only" name="verifikasi[{{ $field }}]" value="sesuai" @checked($nilaiCek === 'sesuai')>
+                                            <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-outline-variant text-xs font-semibold peer-checked:bg-success peer-checked:text-white peer-checked:border-success">
+                                                <span class="material-symbols-outlined text-[16px]">check_circle</span> Sesuai
+                                            </span>
+                                        </label>
+                                        <label class="cursor-pointer">
+                                            <input type="radio" class="peer sr-only" name="verifikasi[{{ $field }}]" value="tidak_sesuai" @checked($nilaiCek === 'tidak_sesuai')>
+                                            <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-outline-variant text-xs font-semibold peer-checked:bg-error peer-checked:text-on-error peer-checked:border-error">
+                                                <span class="material-symbols-outlined text-[16px]">cancel</span> Tidak sesuai
+                                            </span>
+                                        </label>
+                                    </div>
+                                    @error("verifikasi.{$field}")<p class="text-error text-xs mt-1">{{ $message }}</p>@enderror
+                                @else
+                                    <p class="text-[11px] text-on-surface-variant">Opsional dari masyarakat, tidak perlu diverifikasi.</p>
+                                @endif
+                            @else
+                                <p class="text-xs text-on-surface-variant">{{ $wajib ? 'Belum diunggah masyarakat.' : 'Tidak dilampirkan masyarakat.' }}</p>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+
+            {{-- Lampiran hasil turun lapangan (diisi Kelurahan) --}}
             <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
                 <div class="px-5 py-4 border-b border-outline-variant/40">
                     <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">attach_file</span> Lampiran Hasil Verifikasi Lapangan</h3>
-                    <p class="text-xs text-on-surface-variant mt-1">Bertanda <span class="text-error">*</span> wajib ada sebelum divalidasi. Pilih file baru untuk mengganti. Maks. 4 MB.</p>
+                    <p class="text-xs text-on-surface-variant mt-1">Bertanda <span class="text-error">*</span> wajib ada sebelum diverifikasi. Maks. 4 MB (foto dikecilkan otomatis). Di ponsel, tombol kamera langsung membuka kamera.</p>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 p-5">
-                    @foreach ($lampiran as $field => [$label, $wajib, $mimes])
-                        {{-- TTD & Surat Pengantar punya kartu sendiri di bawah --}}
-                        @continue(in_array($field, $lampiranTerpisah, true))
-                        <div class="min-w-0" x-data="{ nama: null }">
-                            <label for="{{ $field }}" class="block text-xs font-semibold mb-1">{{ $label }} @if($wajib)<span class="text-error">*</span>@endif</label>
+                    @foreach ($lampiranKelurahan as $field => [$label, $wajib, $mimes, $hanyaKamera])
+                        @php $adaKamera = $field !== 'screenshot_dtsen'; @endphp
+                        <div class="min-w-0" x-data="fotoLapangan({{ $hanyaKamera ? 'true' : 'false' }})">
+                            <p class="block text-xs font-semibold mb-1">{{ $label }} @if($wajib)<span class="text-error">*</span>@endif</p>
+
                             @if ($data->{$field})
                                 <div class="flex items-center gap-3 mb-2">
                                     <div class="w-24 shrink-0"><x-lampiran-preview :src="asset('storage/' . $data->{$field})" :label="$label" /></div>
                                     <span class="flex items-center gap-1 text-xs text-success"><span class="material-symbols-outlined text-[15px]">check_circle</span> Sudah diunggah</span>
                                 </div>
                             @endif
-                            <input type="file" id="{{ $field }}" name="{{ $field }}"
-                                   accept="{{ collect(explode(',', $mimes))->map(fn ($m) => match ($m) {
-                                       'pdf' => '.pdf',
-                                       'doc' => '.doc',
-                                       'docx' => '.docx',
-                                       default => 'image/' . ($m === 'jpg' ? 'jpeg' : $m),
-                                   })->unique()->implode(',') }}"
-                                   @change="const f = $event.target.files[0]; if (f && f.size > 4 * 1024 * 1024) { alert('Ukuran file maksimal 4 MB.'); $event.target.value = ''; nama = null; } else { nama = f ? f.name : null; }"
-                                   class="block w-full text-xs border border-outline-variant/40 rounded-lg file:mr-3 file:py-2.5 file:px-3 file:border-0 file:bg-surface-container file:text-xs file:font-semibold" />
-                            <p x-show="nama" x-cloak class="mt-1 flex items-center gap-1 text-[11px] text-primary">
-                                <span class="material-symbols-outlined text-[14px]">attach_file</span>
+
+                            {{-- Input yang dikirim ke server (diisi lewat kamera / pilih file) --}}
+                            <input type="file" name="{{ $field }}" x-ref="utama" class="hidden" tabindex="-1">
+
+                            <div class="flex flex-wrap gap-2">
+                                @if ($adaKamera)
+                                    <input type="file" accept="image/*" capture="{{ $hanyaKamera ? 'user' : 'environment' }}" x-ref="kamera" class="hidden" @change="terima($event)">
+                                    <button type="button" @click="$refs.kamera.click()"
+                                        class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-on-primary text-xs font-semibold">
+                                        <span class="material-symbols-outlined text-[16px]">photo_camera</span> {{ $hanyaKamera ? 'Ambil Foto (Kamera)' : 'Ambil Foto' }}
+                                    </button>
+                                @endif
+                                @unless ($hanyaKamera)
+                                    <input type="file" accept="image/jpeg,image/png" x-ref="berkas" class="hidden" @change="terima($event)">
+                                    <button type="button" @click="$refs.berkas.click()"
+                                        class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-outline-variant text-xs font-semibold hover:bg-surface-container">
+                                        <span class="material-symbols-outlined text-[16px]">upload_file</span> Pilih File
+                                    </button>
+                                @endunless
+                            </div>
+                            @if ($hanyaKamera)
+                                <p class="text-[11px] text-on-surface-variant mt-1">Wajib foto langsung dari kamera, bukan dari galeri.</p>
+                            @endif
+
+                            <div x-show="nama" x-cloak class="mt-2 flex items-center gap-2 text-[11px] text-primary">
+                                <img x-show="pratinjau" :src="pratinjau" class="w-14 h-14 object-cover rounded border border-outline-variant/40" alt="">
                                 <span class="truncate"><strong x-text="nama"></strong> <span class="text-on-surface-variant">(belum disimpan)</span></span>
-                            </p>
+                            </div>
                             @error($field)<p class="text-error text-xs mt-1">{{ $message }}</p>@enderror
                         </div>
                     @endforeach
                 </div>
             </div>
 
-            {{-- Surat Pengantar Kelurahan: kartu sendiri, tampilan bersih --}}
-            @php
-                [$labelSp, , $mimesSp] = $lampiran['scan_surat_pengantar'];
-                $acceptSp = collect(explode(',', $mimesSp))->map(fn ($m) => match ($m) {
-                    'pdf' => '.pdf',
-                    'doc' => '.doc',
-                    'docx' => '.docx',
-                    default => 'image/' . ($m === 'jpg' ? 'jpeg' : $m),
-                })->unique()->implode(',');
-            @endphp
+            {{-- Verifikasi berkas --}}
             <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
-                <div class="px-5 py-4 border-b border-outline-variant/40">
-                    <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">description</span> {{ $labelSp }}</h3>
-                    <p class="text-xs text-on-surface-variant mt-1">PDF / Word (DOC/DOCX) / JPG / PNG, maks. 4 MB.</p>
-                </div>
-                <div class="p-5 space-y-3">
-                    @if ($data->scan_surat_pengantar)
-                        <div class="flex items-center gap-3">
-                            <div class="w-24 shrink-0"><x-lampiran-preview :src="asset('storage/' . $data->scan_surat_pengantar)" :label="$labelSp" /></div>
-                            <span class="flex items-center gap-1 text-xs text-success"><span class="material-symbols-outlined text-[15px]">check_circle</span> Sudah diunggah. Pilih file baru untuk mengganti.</span>
-                        </div>
-                    @endif
-
-                    <input type="file" id="scan_surat_pengantar" name="scan_surat_pengantar" accept="{{ $acceptSp }}"
-                           onchange="if (this.files[0] && this.files[0].size > 4*1024*1024) { alert('Ukuran file maksimal 4 MB.'); this.value=''; }"
-                           class="block w-full text-xs border border-outline-variant/40 rounded-lg file:mr-3 file:py-2.5 file:px-3 file:border-0 file:bg-surface-container file:text-xs file:font-semibold" />
-                    @error('scan_surat_pengantar')<p class="text-error text-xs">{{ $message }}</p>@enderror
-
-                    <button type="submit" name="aksi" value="simpan_surat"
-                        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-on-primary text-sm font-medium">
-                        <span class="material-symbols-outlined text-[18px]">save</span> Simpan Surat Pengantar
-                    </button>
-                </div>
-            </div>
-
-            {{-- Tanda tangan Kelurahan: digambar langsung di layar ATAU unggah foto --}}
-            <script>
-                // Dipanggil lewat x-data="ttdPad()". Hasil gambar dikirim sebagai data URL PNG
-                // lewat input tersembunyi "ttd_kelurahan_data" (diproses di PbiKelurahanController@aksi).
-                window.ttdPad = function () {
-                    return {
-                        mode: 'layar',
-                        ada: false,
-                        menggambar: false,
-                        ctx: null,
-                        init() {
-                            this.$nextTick(() => this.siap());
-                            this.$watch('mode', (v) => { if (v === 'layar') this.$nextTick(() => this.siap()); });
-                        },
-                        siap() {
-                            const c = this.$refs.kanvas;
-                            if (!c || !c.clientWidth) return;
-                            const rasio = window.devicePixelRatio || 1;
-                            // Ukuran kanvas hanya disesuaikan saat masih kosong (mengubah ukuran akan menghapus gambar)
-                            if (!this.ada) {
-                                c.width = c.clientWidth * rasio;
-                                c.height = c.clientHeight * rasio;
-                            }
-                            this.ctx = c.getContext('2d');
-                            this.ctx.setTransform(c.width / c.clientWidth, 0, 0, c.height / c.clientHeight, 0, 0);
-                            this.ctx.lineWidth = 2.4;
-                            this.ctx.lineCap = 'round';
-                            this.ctx.lineJoin = 'round';
-                            this.ctx.strokeStyle = '#121d26';
-                        },
-                        titik(e) {
-                            const r = this.$refs.kanvas.getBoundingClientRect();
-                            return { x: e.clientX - r.left, y: e.clientY - r.top };
-                        },
-                        mulai(e) {
-                            if (!this.ctx) this.siap();
-                            if (!this.ctx) return;
-                            e.preventDefault();
-                            this.$refs.kanvas.setPointerCapture(e.pointerId);
-                            const p = this.titik(e);
-                            this.menggambar = true;
-                            this.ctx.beginPath();
-                            this.ctx.moveTo(p.x, p.y);
-                            this.ctx.lineTo(p.x + 0.01, p.y + 0.01);
-                            this.ctx.stroke();
-                            this.ada = true;
-                        },
-                        gerak(e) {
-                            if (!this.menggambar) return;
-                            const p = this.titik(e);
-                            this.ctx.lineTo(p.x, p.y);
-                            this.ctx.stroke();
-                            this.ctx.beginPath();
-                            this.ctx.moveTo(p.x, p.y);
-                        },
-                        selesai() {
-                            if (!this.menggambar) return;
-                            this.menggambar = false;
-                            this.$refs.data.value = this.$refs.kanvas.toDataURL('image/png');
-                        },
-                        bersihkan() {
-                            const c = this.$refs.kanvas;
-                            this.ctx.save();
-                            this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-                            this.ctx.clearRect(0, 0, c.width, c.height);
-                            this.ctx.restore();
-                            this.ada = false;
-                            this.$refs.data.value = '';
-                        },
-                    };
-                };
-            </script>
-
-            <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm" x-data="ttdPad()" @resize.window="siap()">
-                <div class="px-5 py-4 border-b border-outline-variant/40">
-                    <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">draw</span> Tanda Tangan Kelurahan</h3>
-                    <p class="text-xs text-on-surface-variant mt-1">Tanda tangan langsung di layar, atau unggah foto tanda tangan.</p>
-                </div>
-
-                <div class="p-5 space-y-4">
-                    @if ($data->ttd_kelurahan)
-                        <div class="flex items-center gap-3">
-                            <div class="w-24 shrink-0"><x-lampiran-preview :src="asset('storage/' . $data->ttd_kelurahan)" label="Tanda Tangan Kelurahan" /></div>
-                            <span class="flex items-center gap-1 text-xs text-success"><span class="material-symbols-outlined text-[15px]">check_circle</span> Sudah ada. Buat atau unggah yang baru untuk menggantinya.</span>
-                        </div>
-                    @endif
-
-                    <div class="inline-flex rounded-lg border border-outline-variant/50 overflow-hidden text-xs font-semibold">
-                        <button type="button" @click="mode = 'layar'"
-                            :class="mode === 'layar' ? 'bg-primary text-on-primary' : 'bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container'"
-                            class="px-4 py-2 inline-flex items-center gap-1.5 transition-colors">
-                            <span class="material-symbols-outlined text-[16px]">gesture</span> Tanda tangan di layar
-                        </button>
-                        <button type="button" @click="mode = 'upload'"
-                            :class="mode === 'upload' ? 'bg-primary text-on-primary' : 'bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container'"
-                            class="px-4 py-2 inline-flex items-center gap-1.5 transition-colors">
-                            <span class="material-symbols-outlined text-[16px]">upload_file</span> Unggah foto
-                        </button>
-                    </div>
-
-                    {{-- Mode 1: digambar di layar --}}
-                    <div x-show="mode === 'layar'">
-                        <div class="relative rounded-lg border-2 border-dashed border-outline-variant bg-white">
-                            <canvas x-ref="kanvas" class="block w-full h-48 rounded-lg cursor-crosshair" style="touch-action: none;"
-                                @pointerdown="mulai($event)" @pointermove="gerak($event)"
-                                @pointerup="selesai()" @pointercancel="selesai()" @pointerleave="selesai()"></canvas>
-                            <p x-show="!ada" class="absolute inset-0 flex items-center justify-center text-xs text-on-surface-variant/60 pointer-events-none select-none">Tanda tangan di sini</p>
-                        </div>
-                        <div class="flex items-center justify-between gap-3 mt-2">
-                            <p class="text-[11px] text-on-surface-variant">Gunakan mouse, stylus, atau jari.</p>
-                            <button type="button" @click="bersihkan()" x-show="ada" x-cloak
-                                class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-outline-variant text-xs font-semibold hover:bg-surface-container">
-                                <span class="material-symbols-outlined text-[16px]">ink_eraser</span> Hapus
-                            </button>
-                        </div>
-                        <input type="hidden" name="ttd_kelurahan_data" x-ref="data" :disabled="mode !== 'layar'">
-                        @error('ttd_kelurahan_data')<p class="text-error text-xs mt-1">{{ $message }}</p>@enderror
-                    </div>
-
-                    {{-- Mode 2: unggah foto --}}
-                    <div x-show="mode === 'upload'" x-cloak>
-                        <input type="file" name="ttd_kelurahan" accept="image/jpeg,image/png" :disabled="mode !== 'upload'"
-                            class="block w-full text-xs border border-outline-variant/40 rounded-lg file:mr-3 file:py-2.5 file:px-3 file:border-0 file:bg-surface-container file:text-xs file:font-semibold" />
-                        <p class="text-[11px] text-on-surface-variant mt-1">Format JPG atau PNG. Maks. 4 MB.</p>
-                        @error('ttd_kelurahan')<p class="text-error text-xs mt-1">{{ $message }}</p>@enderror
-                    </div>
-
-                    <button type="submit" name="aksi" value="simpan_surat"
-                        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-on-primary text-sm font-medium">
-                        <span class="material-symbols-outlined text-[18px]">save</span> Simpan Tanda Tangan
-                    </button>
-                </div>
-            </div>
-
-            {{-- Kesimpulan & aksi --}}
-            <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
-                <div class="px-5 py-4 border-b border-outline-variant/40"><h3 class="text-sm font-bold flex items-center gap-2">
-                    <span class="material-symbols-outlined text-[20px] text-secondary">fact_check</span> Kesimpulan & Proses</h3></div>
                 <div class="p-5 space-y-4">
                     <div>
-                        <label class="block text-xs font-semibold mb-1">Kesimpulan / Rekomendasi Kelurahan <span class="text-error">*</span> <span class="font-normal text-on-surface-variant">(wajib untuk Validasi)</span></label>
-                        <textarea name="kesimpulan_rekomendasi" rows="3" class="w-full px-4 py-3 rounded-lg border border-outline-variant/60 text-sm">{{ old('kesimpulan_rekomendasi', $data->kesimpulan_rekomendasi) }}</textarea>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold mb-1">Catatan <span class="font-normal text-on-surface-variant">(wajib untuk Kembalikan / Tolak)</span></label>
+                        <label class="block text-xs font-semibold mb-1">Catatan <span class="font-normal text-on-surface-variant">(wajib untuk Kembalikan ke Masyarakat)</span></label>
                         <textarea name="catatan" rows="2" class="w-full px-4 py-3 rounded-lg border border-outline-variant/60 text-sm">{{ old('catatan') }}</textarea>
+                        @error('catatan')<p class="text-error text-xs mt-1">{{ $message }}</p>@enderror
                     </div>
 
                     <div class="flex flex-col sm:flex-row flex-wrap items-center gap-3">
@@ -380,9 +300,9 @@
                             <span class="material-symbols-outlined text-[18px]">save</span> Simpan Draft
                         </button>
                         <button type="submit" name="aksi" value="validasi"
-                            data-confirm="Validasi berkas ini dan teruskan ke Operator Dinsos? Setelah diteruskan, Kelurahan tidak bisa mengubahnya lagi." data-confirm-title="Validasi & Teruskan"
+                            data-confirm="Verifikasi berkas ini dan teruskan ke Lurah? Setelah diteruskan, Kelurahan tidak bisa mengubahnya lagi." data-confirm-title="Verifikasi Berkas"
                             class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-on-primary hover:bg-secondary text-sm font-bold shadow-md sm:ml-auto">
-                            <span class="material-symbols-outlined text-[18px]">redo</span> Validasi & Teruskan ke Operator Dinsos
+                            <span class="material-symbols-outlined text-[18px]">verified</span> Verifikasi Berkas & Teruskan ke Lurah
                         </button>
                         <button type="submit" name="aksi" value="tolak"
                             data-confirm="Yakin menolak permohonan ini?" data-confirm-variant="error" data-confirm-title="Tolak Permohonan"
@@ -396,9 +316,9 @@
     @else
         <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-6 text-center shadow-sm">
             <span class="material-symbols-outlined text-[32px] text-success">task_alt</span>
-            <h4 class="text-base font-bold mt-1">Sudah diproses Kelurahan</h4>
+            <h4 class="text-base font-bold mt-1">Sudah diverifikasi Kelurahan</h4>
             <p class="text-sm text-on-surface-variant">Status saat ini: <strong>{{ $data->statusLabel() }}</strong>.</p>
-            @if ($data->kesimpulan_rekomendasi)<p class="text-sm mt-3"><span class="text-on-surface-variant">Kesimpulan:</span> {{ $data->kesimpulan_rekomendasi }}</p>@endif
+
         </div>
 
         {{-- Lampiran tetap bisa dilihat (termasuk Surat Pengantar) setelah berkas diteruskan --}}
@@ -408,7 +328,13 @@
             </div>
             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-5">
                 @foreach ($lampiran as $field => [$label])
-                    <x-lampiran-preview :src="$data->{$field} ? asset('storage/' . $data->{$field}) : null" :label="$label" />
+                    <div>
+                        <x-lampiran-preview :src="$data->{$field} ? asset('storage/' . $data->{$field}) : null" :label="$label" />
+                        @php $cek = $data->verifikasi_berkas[$field] ?? null; @endphp
+                        @if ($cek)
+                            <p class="mt-1 text-[11px] font-semibold {{ $cek === 'sesuai' ? 'text-success' : 'text-error' }}">{{ $cek === 'sesuai' ? 'Sesuai' : 'Tidak sesuai' }}</p>
+                        @endif
+                    </div>
                 @endforeach
             </div>
         </div>

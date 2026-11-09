@@ -91,4 +91,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(DtsenPermohonan::class, 'user_id');
     }
+
+    public function dokumens(): HasMany
+    {
+        return $this->hasMany(MasyarakatDokumen::class, 'user_id');
+    }
 }
