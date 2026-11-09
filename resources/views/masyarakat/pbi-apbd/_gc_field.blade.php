@@ -189,19 +189,26 @@
                 <span class="material-symbols-outlined text-[15px]">check_circle</span> Sudah diunggah (ambil foto baru untuk mengganti)
             </p>
         @endif
-        {{-- Teks "Choose file" bawaan browser tidak bisa diubah, jadi input disembunyikan dan diganti label bertombol "Ambil foto" --}}
-        <input type="file" id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]" accept="image/*" capture="environment"
-               @if ($val) data-ada="1" @endif @disabled(! $bisaEdit) class="peer sr-only">
-        <label for="jawaban-{{ $p->id }}"
-               class="gc-file flex items-center gap-3 w-full rounded-xl border border-outline-variant bg-white p-1.5 cursor-pointer
-                      peer-disabled:opacity-50 peer-disabled:cursor-not-allowed peer-focus-visible:ring-2 peer-focus-visible:ring-brand/40">
-            <span class="shrink-0 inline-flex items-center gap-1.5 py-2.5 px-4 rounded-lg bg-primary text-white text-xs font-semibold">
-                <span class="material-symbols-outlined text-[16px]">photo_camera</span> Ambil foto
-            </span>
-            <span class="min-w-0 truncate text-sm text-on-surface-variant" data-gc-filename>
-                {{ $val ? 'Foto sudah ada' : 'Belum ada foto' }}
-            </span>
-        </label>
+        {{-- Teks "Choose file" bawaan browser tidak bisa diubah, jadi input disembunyikan dan diganti label bertombol "Ambil foto".
+             Atribut capture (kamera langsung) TIDAK dipasang di sini: dipasang oleh skrip hanya di HP/tablet,
+             supaya laptop/PC membuka dialog pilih file biasa. --}}
+        {{-- Pembungkus "relative": input sr-only bersifat absolute, tanpa induk relative browser menggulung/menggeser
+             kontainer halaman saat dialog file terbuka sehingga isi form tampak hilang. --}}
+        <div class="relative">
+            <input type="file" id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]" accept="image/*"
+                   @if ($val) data-ada="1" @endif @disabled(! $bisaEdit) class="peer sr-only"
+                   style="top:0;left:0">
+            <label for="jawaban-{{ $p->id }}"
+                   class="gc-file flex items-center gap-3 w-full rounded-xl border border-outline-variant bg-white p-1.5 cursor-pointer
+                          peer-disabled:opacity-50 peer-disabled:cursor-not-allowed peer-focus-visible:ring-2 peer-focus-visible:ring-brand/40">
+                <span class="shrink-0 inline-flex items-center gap-1.5 py-2.5 px-4 rounded-lg bg-primary text-white text-xs font-semibold">
+                    <span class="material-symbols-outlined text-[16px]">photo_camera</span> Ambil foto
+                </span>
+                <span class="min-w-0 truncate text-sm text-on-surface-variant" data-gc-filename>
+                    {{ $val ? 'Foto sudah ada' : 'Belum ada foto' }}
+                </span>
+            </label>
+        </div>
 
     @else
         {{-- teks, atau pilihan tanpa opsi di master --}}
@@ -677,6 +684,13 @@
             }
 
             function init() {
+                // Kamera langsung hanya di perangkat layar sentuh (HP/tablet); laptop/PC membuka pilihan file biasa
+                if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
+                    document.querySelectorAll('input[type=file][name^="jawaban"]').forEach(function (f) {
+                        f.setAttribute('capture', 'environment');
+                    });
+                }
+
                 document.querySelectorAll('select[data-gc-cari]').forEach(initSelect);
                 document.querySelectorAll('select[data-gc-kunci]:not([data-gc-cari])').forEach(kunciBiasa);
                 document.querySelectorAll('[data-gc-yn]').forEach(function (h) {

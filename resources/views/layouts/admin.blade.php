@@ -239,6 +239,11 @@
             $notif['ngopi_' . $t] = (int) ($ngopiHitung[$t] ?? 0);
         }
 
+        // Badge KESAN: jumlah pilihan donatur yang menunggu verifikasi petugas (status 'dipilih').
+        $notif['kesan_pilihan'] = $currentRole && ($currentRole->isSuperAdmin() || $currentRole->hasModule('kesan.pilihan'))
+            ? \App\Models\KesanPilihan::where('status', 'dipilih')->count()
+            : 0;
+
         // URL file PDF panduan penggunaan yang akan ditampilkan sebagai flipbook.
         // Taruh file PDF-nya di public/assets/help/panduan-penggunaan.pdf,
         // atau ganti path di bawah ini sesuai lokasi file kamu.
@@ -310,6 +315,43 @@
                 'icon' => 'language',
                 'module' => 'menu-frontend',
                 'children' => config('portal', []),
+            ],
+
+            // ==================== KESAN ====================
+            // Kolaborasi Entaskan Kemiskinan (Filantropi). Hak akses detail
+            // ('kesan.pilihan', 'kesan.penerima', dst) diatur di Kelola Akses
+            // lewat config/akses.php. Badge = pilihan donatur yang menunggu verifikasi.
+            [
+                'label' => 'KESAN',
+                'icon' => 'volunteer_activism',
+                'module' => 'kesan',
+                'children' => [
+                    [
+                        'label' => 'Verifikasi Pilihan',
+                        'route' => 'kesan-admin.pilihan.index',
+                        'match' => ['kesan-admin.pilihan.*'],
+                        'module' => 'kesan.pilihan',
+                        'badge' => 'kesan_pilihan',
+                    ],
+                    [
+                        'label' => 'Calon Penerima',
+                        'route' => 'kesan-admin.penerima.index',
+                        'match' => ['kesan-admin.penerima.*'],
+                        'module' => 'kesan.penerima',
+                    ],
+                    [
+                        'label' => 'Kategori Bantuan',
+                        'route' => 'kesan-admin.kategori.index',
+                        'match' => ['kesan-admin.kategori.*'],
+                        'module' => 'kesan.kategori',
+                    ],
+                    [
+                        'label' => 'Data Filantropi',
+                        'route' => 'kesan-admin.filantropi.index',
+                        'match' => ['kesan-admin.filantropi.*'],
+                        'module' => 'kesan.filantropi',
+                    ],
+                ],
             ],
 
             // ==================== BIDANG ====================
@@ -857,7 +899,7 @@
                                 @endif
                             </a>
                         @else
-                            {{-- Folder (Portal, PFM, Dayasos, Perlinsos, Rehabsos, Master Kriteria) --}}
+                            {{-- Folder (Portal, KESAN, PFM, Dayasos, Perlinsos, Rehabsos, Master Kriteria) --}}
                             <div class="relative" x-data="{ open: false, top: 0, maxH: 400 }" x-init="open = {{ $isAct ? 'true' : 'false' }} && !collapsed;
                             $watch('collapsed', function(v) { open = v ? false : {{ $isAct ? 'true' : 'false' }}; })"
                                 @click.outside="if (collapsed) open = false">
@@ -1041,6 +1083,16 @@
                                 'judul' => 'Ajuan PBI APBD',
                                 'jumlah' => (int) $notif['pbi_ajuan'],
                                 'url' => route('pbi-apbd.ajuan.index'),
+                            ];
+                        }
+                        if (
+                            ($notif['kesan_pilihan'] ?? 0) > 0 &&
+                            \Illuminate\Support\Facades\Route::has('kesan-admin.pilihan.index')
+                        ) {
+                            $daftarNotif[] = [
+                                'judul' => 'Verifikasi Pilihan KESAN',
+                                'jumlah' => (int) $notif['kesan_pilihan'],
+                                'url' => route('kesan-admin.pilihan.index'),
                             ];
                         }
                     @endphp

@@ -268,6 +268,35 @@
 })();
 </script>
 
+{{-- Isian teks yang terkunci dari registrasi (No. telp, Email): tampil terkunci. Dropdown terkunci sudah ditangani _gc_field. --}}
+<script>
+window.gcTerkunci = @json(array_keys($terkunci ?? []));
+
+document.addEventListener('DOMContentLoaded', function () {
+    var form = document.getElementById('form-lengkapi');
+    if (!form) { return; }
+
+    (window.gcTerkunci || []).forEach(function (id) {
+        var el = form.querySelector('[name="jawaban[' + id + ']"]');
+        if (!el || el.tagName !== 'INPUT' || el.type === 'hidden') { return; }
+        el.readOnly = true;
+        el.classList.add('bg-surface-container', 'opacity-70');
+        if (el.type === 'date') {
+            // Kotak tanggal: matikan juga pemilih kalendernya
+            el.style.pointerEvents = 'none';
+            el.tabIndex = -1;
+        }
+    });
+
+    // Isian angka yang selalu 0 (Perahu, Perahu motor, ternak babi): tampil terkunci juga
+    form.querySelectorAll('input[data-gc-nol]').forEach(function (el) {
+        el.readOnly = true;
+        el.tabIndex = -1;
+        el.classList.add('bg-surface-container', 'opacity-70', 'cursor-not-allowed');
+    });
+});
+</script>
+
 {{-- Lapangan usaha: penjelasannya tampil di bawah pilihan (sama seperti kolom Pekerjaan di registrasi) --}}
 <script>
 window.gcPenjelasanLap = @json($master['lapangan']->mapWithKeys(fn ($l) => [$l->nama => $l->penjelasan])->all());

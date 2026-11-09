@@ -1841,6 +1841,7 @@ class MasyarakatController extends Controller
 
     /**
      * Isian yang dikunci dari data registrasi: [id parameter => nilai].
+     * - Jenis kelamin, No. telp, Email           <- Step 2
      * - Status hubungan dengan kepala keluarga  <- status hubungan di Step 2
      * (Lapangan usaha & Pekerjaan tidak dikunci: lihat isiAwalPekerjaan()).
      * Hanya yang nilainya BENAR-BENAR cocok dengan opsi yang dikunci; yang tidak cocok tetap bisa diisi warga.
@@ -1849,11 +1850,45 @@ class MasyarakatController extends Controller
     {
         $pemohon = $pbi->anggotaKeluarga()->where('nik', $pbi->nik_kepala_keluarga)->first();
 
-        if (! $pemohon) {
-            return [];
+        $hasil = [];
+
+        $cari = fn (array $daftar, string $tipe) => $parameters->first(
+            fn ($p) => $p->tipe_input === $tipe
+                && in_array(preg_replace('/\s+/', ' ', Str::lower(trim((string) $p->nama))), $daftar, true)
+        );
+
+        // ---- No. telp & Email (dari Step 2) ----
+        $pTelp = $cari(['no telp', 'no. telp', 'no telepon', 'no. telepon', 'nomor telepon', 'nomor telp', 'no hp', 'no. hp', 'nomor hp', 'no handphone', 'telp', 'telepon'], 'teks');
+        if ($pTelp && filled($pbi->no_telp)) {
+            $hasil[$pTelp->id] = (string) $pbi->no_telp;
         }
 
-        $hasil = [];
+        $pEmail = $cari(['email', 'e-mail', 'alamat email'], 'teks');
+        if ($pEmail && filled($pbi->email)) {
+            $hasil[$pEmail->id] = (string) $pbi->email;
+        }
+
+        if (! $pemohon) {
+            return $hasil;
+        }
+
+        // ---- Jenis kelamin (dari Step 2) ----
+        $pJk = $cari(['jenis kelamin'], 'pilihan');
+        if ($pJk) {
+            $jk = strtoupper(substr(trim((string) $pemohon->jenis_kelamin), 0, 1));
+            $kandidatJk = $jk === 'L' ? ['Laki-laki', 'Pria', 'L'] : ($jk === 'P' ? ['Perempuan', 'Wanita', 'P'] : []);
+            $cocokJk = $this->cocokOpsi($kandidatJk, $opsiLabels[$pJk->id] ?? []);
+
+            if ($cocokJk !== null) {
+                $hasil[$pJk->id] = $cocokJk;
+            }
+        }
+
+        // ---- Tanggal lahir (dari Step 2) ----
+        $pTgl = $cari(['tanggal lahir', 'tgl lahir', 'tgl. lahir'], 'tanggal');
+        if ($pTgl && $pemohon->tanggal_lahir) {
+            $hasil[$pTgl->id] = Carbon::parse($pemohon->tanggal_lahir)->format('Y-m-d');
+        }
 
         // ---- Status hubungan ----
         $paramHub = $parameters->first(function ($p) {
