@@ -229,13 +229,7 @@
                         <!-- Surat Keterangan -->
                         <div>
                             <h4 class="text-[11px] font-bold mb-3 uppercase tracking-wider text-brand border-b border-outline-variant/20 pb-2">Surat Keterangan</h4>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <a :href="suratUrl('surat_pengantar_dtsen_kelurahan_digital')" target="_blank"
-                                    class="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-outline-variant/40 transition-all"
-                                    :class="suratUrl('surat_pengantar_dtsen_kelurahan_digital') ? 'text-brand hover:bg-brand/5 hover:border-brand/30 font-medium' : 'text-on-surface-variant/50 pointer-events-none bg-white'">
-                                    <span class="material-symbols-outlined text-[18px]">badge</span>
-                                    <span class="truncate">Surat Pengantar DTSEN Kelurahan Digital</span>
-                                </a>
+                            <div class="grid grid-cols-1 gap-3">
                                 <a :href="suratUrl('surat_keterangan_dtsen_digital')" target="_blank"
                                     class="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-outline-variant/40 transition-all"
                                     :class="suratUrl('surat_keterangan_dtsen_digital') ? 'text-brand hover:bg-brand/5 hover:border-brand/30 font-medium' : 'text-on-surface-variant/50 pointer-events-none bg-white'">

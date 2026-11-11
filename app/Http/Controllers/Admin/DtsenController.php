@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\DtsenPermohonan;
 use App\Models\Role;
+use App\Support\DtsenNotifikasi;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -65,37 +66,11 @@ class DtsenController extends Controller
     }
 
     /**
-     * Pastikan petugas Kelurahan hanya bisa membuka / mengubah / memproses
-     * permohonan dari wilayah kelurahannya sendiri. Admin & role Dinsos
-     * lainnya tidak dibatasi wilayah (mereka dibatasi oleh tahap/role).
-     */
-    private function pastikanWilayah(DtsenPermohonan $permohonan): void
-    {
-        $user = Auth::user();
-        $role = $user->role;
-
-        if ($this->isAdmin($role)) {
-            return;
-        }
-
-        $slug = strtolower(str_replace(['-', ' '], '_', (string) $this->roleSlug($role)));
-
-        if ($slug === 'kelurahan') {
-            abort_unless(
-                filled($user->kelurahan) && $permohonan->kelurahan === $user->kelurahan,
-                403,
-                'Pengajuan ini bukan dari wilayah kelurahan Anda.'
-            );
-        }
-    }
-
-    /**
      * Label tampilan untuk sebuah role slug.
      */
     private function roleLabel(string $slug): string
     {
         return match ($slug) {
-            'kelurahan' => 'Kelurahan',
             'operator_dinsos' => 'Operator Dinsos',
             'kabin' => 'Kabin',
             'kadis' => 'Kepala Dinas',
@@ -105,47 +80,24 @@ class DtsenController extends Controller
 
     /**
      * Peta alur status -> aksi berikutnya & aksi kembali.
-     * Identik dengan alur Kartu KKS:
-     *   Kelurahan -> Verifikasi Kelurahan -> TTD Lurah -> Validasi Dinsos
-     *   -> Diproses Kabin -> Disetujui Kadis -> Selesai
+     *   Validasi Dinsos (Operator) -> Diproses Kabin -> Disetujui Kadis -> Selesai
+     * (Ditolak dapat terjadi di tahap mana pun.)
      */
     private function transitions(): array
     {
         return [
-            DtsenPermohonan::STATUS_DIAJUKAN => [
-                'allowed_role' => 'kelurahan',
-                'task_lanjut' => 'Verifikasi Kelurahan',
-                'next' => DtsenPermohonan::STATUS_VERIFIKASI_KELURAHAN,
-                'next_role' => 'kelurahan',
-            ],
-            DtsenPermohonan::STATUS_VERIFIKASI_KELURAHAN => [
-                'allowed_role' => 'kelurahan',
-                'task_lanjut' => 'TTD Lurah',
-                'next' => DtsenPermohonan::STATUS_TTD_LURAH,
-                'next_role' => 'operator_dinsos',
-            ],
-            DtsenPermohonan::STATUS_TTD_LURAH => [
-                'allowed_role' => 'operator_dinsos',
-                'task_lanjut' => 'Validasi Dinsos',
-                'next' => DtsenPermohonan::STATUS_VALIDASI_DINSOS,
-                'next_role' => 'operator_dinsos',
-                'return_status' => DtsenPermohonan::STATUS_VERIFIKASI_KELURAHAN,
-                'return_role' => 'kelurahan',
-            ],
             DtsenPermohonan::STATUS_VALIDASI_DINSOS => [
                 'allowed_role' => 'operator_dinsos',
                 'task_lanjut' => 'Diteruskan ke Kabin',
                 'next' => DtsenPermohonan::STATUS_DIPROSES_KABIN,
                 'next_role' => 'kabin',
-                'return_status' => DtsenPermohonan::STATUS_VERIFIKASI_KELURAHAN,
-                'return_role' => 'kelurahan',
             ],
             DtsenPermohonan::STATUS_DIPROSES_KABIN => [
                 'allowed_role' => 'kabin',
                 'task_lanjut' => 'Disetujui Kabin, diteruskan ke Kadis',
                 'next' => DtsenPermohonan::STATUS_DISETUJUI_KADIS,
                 'next_role' => 'kadis',
-                'return_status' => DtsenPermohonan::STATUS_TTD_LURAH,
+                'return_status' => DtsenPermohonan::STATUS_VALIDASI_DINSOS,
                 'return_role' => 'operator_dinsos',
             ],
             DtsenPermohonan::STATUS_DISETUJUI_KADIS => [
@@ -185,6 +137,7 @@ class DtsenController extends Controller
      *
      * Daftar permohonan yang masih berjalan (belum Selesai / Ditolak).
      * Filter: tanggal, tahap saat ini, pencarian (termasuk tanggal).
+     * Urutan: yang terbaru di-insert tampil paling atas.
      */
     public function ajuan(Request $request)
     {
@@ -202,15 +155,6 @@ class DtsenController extends Controller
 
         if (! $isAdmin) {
             $query->whereHas('currentRole', fn ($q) => $q->where('slug', $roleSlug));
-
-            // Petugas Kelurahan hanya melihat ajuan dari kelurahannya sendiri.
-            if (strtolower(str_replace(['-', ' '], '_', (string) $roleSlug)) === 'kelurahan') {
-                $query->when(
-                    filled($user->kelurahan),
-                    fn ($q) => $q->where('kelurahan', $user->kelurahan),
-                    fn ($q) => $q->whereRaw('1 = 0') // wilayah belum diatur -> tidak tampil apa pun
-                );
-            }
         }
 
         if ($request->filled('tanggal_awal')) {
@@ -240,7 +184,14 @@ class DtsenController extends Controller
             $perPage = 10;
         }
 
-        $ajuanList = $query->orderBy('tanggal_insert')->paginate($perPage)->withQueryString();
+        // tanggal_insert bertipe date (tanpa jam), jadi created_at & id dipakai
+        // sebagai pembanding supaya ajuan di hari yang sama tetap urut dari yang terbaru.
+        $ajuanList = $query
+            ->orderByDesc('tanggal_insert')
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->paginate($perPage)
+            ->withQueryString();
 
         $statusLabels = DtsenPermohonan::statusLabels();
 
@@ -356,7 +307,6 @@ class DtsenController extends Controller
      */
     public function show(DtsenPermohonan $permohonan)
     {
-        $this->pastikanWilayah($permohonan);
 
         $permohonan->load([
             'detail',
@@ -422,7 +372,6 @@ class DtsenController extends Controller
      */
     public function updateDetail(Request $request, DtsenPermohonan $permohonan)
     {
-        $this->pastikanWilayah($permohonan);
         $this->authorizeCurrentStage($permohonan);
 
         $validated = $request->validate([
@@ -449,7 +398,6 @@ class DtsenController extends Controller
      */
     public function updateBansos(Request $request, DtsenPermohonan $permohonan)
     {
-        $this->pastikanWilayah($permohonan);
         $this->authorizeCurrentStage($permohonan);
 
         $validated = $request->validate([
@@ -478,7 +426,6 @@ class DtsenController extends Controller
      */
     public function updateLampiran(Request $request, DtsenPermohonan $permohonan)
     {
-        $this->pastikanWilayah($permohonan);
         $this->authorizeCurrentStage($permohonan);
 
         $request->validate([
@@ -555,7 +502,6 @@ class DtsenController extends Controller
      */
     public function proses(Request $request, DtsenPermohonan $permohonan)
     {
-        $this->pastikanWilayah($permohonan);
 
         $request->validate([
             'action' => 'required|in:lanjut,tolak,kembalikan,simpan_catatan',
@@ -610,6 +556,12 @@ class DtsenController extends Controller
                     ]);
                 });
 
+                DtsenNotifikasi::keWarga(
+                    $permohonan,
+                    'Pengajuan DTSEN ditolak',
+                    'Pengajuan ' . $permohonan->no_permohonan . ' ditolak. Catatan: ' . $request->catatan
+                );
+
                 return back()->with('success', 'Permohonan telah ditolak.');
 
             case 'simpan_catatan':
@@ -648,6 +600,13 @@ class DtsenController extends Controller
                     ]);
                 });
 
+                DtsenNotifikasi::keRole(
+                    $permohonan,
+                    $rule['return_role'],
+                    'Pengajuan DTSEN dikembalikan',
+                    'Pengajuan ' . $permohonan->no_permohonan . ' dikembalikan ke tahap ' . $this->roleLabel($rule['return_role']) . '. Catatan: ' . $request->catatan
+                );
+
                 return back()->with('success', 'Permohonan berhasil dikembalikan.');
 
             case 'lanjut':
@@ -683,6 +642,23 @@ class DtsenController extends Controller
                         'catatan' => $request->catatan,
                     ]);
                 });
+
+                if ($rule['next_role']) {
+                    DtsenNotifikasi::keRole(
+                        $permohonan,
+                        $rule['next_role'],
+                        'Pengajuan DTSEN menunggu tindakan Anda',
+                        'Pengajuan ' . $permohonan->no_permohonan . ' atas nama ' . $permohonan->nama_pemohon . ' masuk ke tahap ' . $this->roleLabel($rule['next_role']) . '.'
+                    );
+                }
+
+                if ($rule['next'] === DtsenPermohonan::STATUS_SELESAI) {
+                    DtsenNotifikasi::keWarga(
+                        $permohonan,
+                        'Pengajuan DTSEN selesai',
+                        'Pengajuan ' . $permohonan->no_permohonan . ' telah disetujui dan selesai diproses.'
+                    );
+                }
 
                 return back()->with('success', 'Permohonan berhasil diproses ke tahap berikutnya.');
         }

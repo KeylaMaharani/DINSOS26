@@ -244,6 +244,31 @@
             ? \App\Models\KesanPilihan::where('status', 'dipilih')->count()
             : 0;
 
+        // Badge DTSEN Ajuan: jumlah ajuan yang menunggu tindakan role ini.
+        // Super Admin = semua ajuan yang masih berjalan.
+        $notif['dtsen_ajuan'] = 0;
+        if ($currentRole && ($currentRole->isSuperAdmin() || $currentRole->hasModule('dtsen.ajuan'))) {
+            $tahapPerRole = [
+                'operator_dinsos' => \App\Models\DtsenPermohonan::STATUS_VALIDASI_DINSOS,
+                'kabin'           => \App\Models\DtsenPermohonan::STATUS_DIPROSES_KABIN,
+                'kadis'           => \App\Models\DtsenPermohonan::STATUS_DISETUJUI_KADIS,
+            ];
+            $slugRole = strtolower(str_replace(['-', ' '], '_', (string) ($currentRole->slug ?: $currentRole->name)));
+
+            $qDtsen = \App\Models\DtsenPermohonan::query()->whereNotIn('status', [
+                \App\Models\DtsenPermohonan::STATUS_SELESAI,
+                \App\Models\DtsenPermohonan::STATUS_DITOLAK,
+            ]);
+
+            if (! $currentRole->isSuperAdmin()) {
+                isset($tahapPerRole[$slugRole])
+                    ? $qDtsen->where('status', $tahapPerRole[$slugRole])
+                    : $qDtsen->whereRaw('1 = 0');
+            }
+
+            $notif['dtsen_ajuan'] = $qDtsen->count();
+        }
+
         // URL file PDF panduan penggunaan yang akan ditampilkan sebagai flipbook.
         // Taruh file PDF-nya di public/assets/help/panduan-penggunaan.pdf,
         // atau ganti path di bawah ini sesuai lokasi file kamu.
@@ -436,6 +461,7 @@
                                     'dtsen.proses',
                                 ],
                                 'module' => 'dtsen.ajuan',
+                                'badge' => 'dtsen_ajuan',
                             ],
                             ['label' => 'Arsip', 'route' => 'dtsen.arsip', 'module' => 'dtsen.arsip'],
                             ['label' => 'Monitoring', 'route' => 'dtsen.monitoring', 'module' => 'dtsen.monitoring'],

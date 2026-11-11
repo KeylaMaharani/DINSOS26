@@ -3,9 +3,11 @@
 namespace App\Support;
 
 use App\Models\DtsenPermohonan;
+use App\Models\GcPbiJawaban;
 use App\Models\MasyarakatDokumen;
 use App\Models\PbiApbd;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -75,11 +77,12 @@ class DokumenMasyarakat
      * Berkas DTSEN yang masih kosong, diisi dari dokumen terbaru. Mengembalikan [kolom => path baru];
      * penyimpanan ke database dilakukan pemanggil (di dalam transaksinya).
      */
-    public static function salinUntukDtsen(User $user, $lampiranLama = null): array
+    public static function salinUntukDtsen(User $user, $lampiranLama = null, array $paksa = []): array
     {
         $baru = [];
         foreach (self::TARGET as $jenis => $t) {
-            if (empty($t['dtsen']) || filled($lampiranLama->{$t['dtsen']} ?? null)) {
+            // $paksa = kolom yang harus diganti walau sudah terisi (warga baru saja mengunggah berkas pengganti)
+            if (empty($t['dtsen']) || (filled($lampiranLama->{$t['dtsen']} ?? null) && ! in_array($t['dtsen'], $paksa, true))) {
                 continue;
             }
             if ($dok = self::terbaru($user->id, $jenis)) {
@@ -113,8 +116,116 @@ class DokumenMasyarakat
     }
 
     /**
-     * "Pakai di pengajuan": pasang versi dokumen ini ke pengajuan PBI APBD & DTSEN terbaru milik user
-     * (hanya yang masih bisa diubah), MENGGANTI berkas yang sebelumnya melekat.
+     * Simpan berkas yang diunggah warga lewat formulir pengajuan sebagai dokumen di menu Dokumen.
+     * Tiap jenis hanya menyimpan MAKS_VERSI versi terbaru; yang lebih lama dihapus.
+     */
+    public static function tambahDariUnggahan(User $user, string $jenis, UploadedFile $file): MasyarakatDokumen
+    {
+        $ext = strtolower($file->getClientOriginalExtension() ?: $file->extension());
+
+        $path = $file->storeAs(
+            "masyarakat-dokumen/{$user->id}",
+            $jenis . '-' . now()->format('YmdHis') . '-' . Str::random(5) . '.' . $ext,
+            'public'
+        );
+
+        $dok = $user->dokumens()->create([
+            'jenis' => $jenis,
+            'path' => $path,
+            'nama_asli' => Str::limit($file->getClientOriginalName(), 200, ''),
+        ]);
+
+        $kelebihan = $user->dokumens()->where('jenis', $jenis)
+            ->orderByDesc('created_at')->orderByDesc('id')
+            ->skip(MasyarakatDokumen::MAKS_VERSI)->take(100)->get();
+
+        foreach ($kelebihan as $lama) {
+            Storage::disk('public')->delete($lama->path);
+            $lama->delete();
+        }
+
+        return $dok;
+    }
+
+    /**
+     * Impor berkas yang diunggah saat pengajuan PBI APBD (KTP, KK, dst) ke menu Dokumen milik pemohon.
+     * Berkas disalin (bukan dipindah), dan hanya jenis yang belum punya dokumen sama sekali yang diimpor,
+     * jadi dokumen yang sudah diunggah atau dihapus sendiri oleh warga tidak ditimpa.
+     * Mengembalikan jumlah dokumen yang berhasil diimpor.
+     */
+    public static function imporDariPbi(PbiApbd $pbi): int
+    {
+        if (! $pbi->user_id || ! ($user = User::find($pbi->user_id))) {
+            return 0;
+        }
+
+        $disk = Storage::disk('public');
+        $jumlah = 0;
+
+        // Foto yang dijawab warga di form Lengkapi Data (pertanyaan bertipe foto), dikenali dari nama pertanyaannya
+        $fotoGc = GcPbiJawaban::where('pbi_apbd_id', $pbi->id)
+            ->where('tipe_input', 'foto')
+            ->whereNotNull('jawaban')
+            ->get();
+
+        foreach (self::TARGET as $jenis => $t) {
+            if (empty($t['pbi'])) {
+                continue;
+            }
+
+            // Sumber 1: kolom lampiran di pengajuan; sumber 2: jawaban foto di form Lengkapi Data
+            $sumber = $pbi->{$t['pbi']};
+
+            if (blank($sumber)) {
+                $sumber = $fotoGc->first(fn ($j) => self::cocokJenis($jenis, (string) $j->nama_parameter))->jawaban ?? null;
+            }
+
+            if (blank($sumber) || ! $disk->exists($sumber)) {
+                continue;
+            }
+
+            if (MasyarakatDokumen::where('user_id', $user->id)->where('jenis', $jenis)->exists()) {
+                continue;
+            }
+
+            $ext = strtolower(pathinfo($sumber, PATHINFO_EXTENSION));
+            $dasar = basename($sumber);
+            // Berkas di pengajuan bernama "acak6__nama-asli.ext": ambil nama aslinya kembali
+            $namaAsli = str_contains($dasar, '__') ? Str::after($dasar, '__') : $dasar;
+
+            $tujuan = "masyarakat-dokumen/{$user->id}/{$jenis}-" . now()->format('YmdHis') . '-' . Str::random(5) . ($ext ? ".{$ext}" : '');
+
+            $disk->copy($sumber, $tujuan);
+
+            $user->dokumens()->create([
+                'jenis' => $jenis,
+                'path' => $tujuan,
+                'nama_asli' => Str::limit($namaAsli, 200, ''),
+            ]);
+
+            $jumlah++;
+        }
+
+        return $jumlah;
+    }
+
+    /** Apakah nama pertanyaan foto di form Lengkapi Data merujuk ke jenis dokumen ini. */
+    private static function cocokJenis(string $jenis, string $nama): bool
+    {
+        $n = Str::lower($nama);
+
+        return match ($jenis) {
+            'ktp' => str_contains($n, 'ktp') && ! str_contains($n, 'selfie'),
+            'kk' => (bool) preg_match('/\bkk\b|kartu keluarga/', $n),
+            'surat_rawat_inap' => str_contains($n, 'rawat inap'),
+            'screenshot_desil' => str_contains($n, 'desil'),
+            default => false,
+        };
+    }
+
+    /**
+     * Pasang versi dokumen ini ke pengajuan PBI APBD & DTSEN terbaru milik user
+     * (hanya yang masih bisa diubah warga), MENGGANTI berkas yang sebelumnya melekat.
      * Mengembalikan daftar nama layanan yang diperbarui.
      */
     public static function pakai(MasyarakatDokumen $dok): array
@@ -143,7 +254,8 @@ class DokumenMasyarakat
 
         if (! empty($t['dtsen'])) {
             $p = DtsenPermohonan::where('user_id', $dok->user_id)->latest()->first();
-            if ($p && $p->status !== DtsenPermohonan::STATUS_SELESAI) {
+            // Hanya saat masih di tahap awal / ditolak / dikembalikan; saat di meja Kabid / Kadis berkas tidak diganti
+            if ($p && $p->masyarakatBisaEdit()) {
                 $p->loadMissing('lampiran');
                 $lama = $p->lampiran->{$t['dtsen']} ?? null;
                 $p->lampiran()->updateOrCreate([], [$t['dtsen'] => self::salin($dok, 'dtsen/lampiran')]);

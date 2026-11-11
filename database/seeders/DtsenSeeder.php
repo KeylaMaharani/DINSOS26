@@ -17,33 +17,10 @@ use Illuminate\Support\Facades\Schema;
 class DtsenSeeder extends Seeder
 {
     /**
-     * Wilayah kelurahan untuk user demo role "kelurahan" (sama dengan
-     * KartuKksSeeder). Harus SAMA PERSIS dengan kolom `kelurahan` di data
-     * permohonan karena daftar Ajuan role Kelurahan dibatasi per wilayah.
-     */
-    private const KELURAHAN_DEMO = 'Sempur';
-
-    /**
-     * Urutan tahapan alur DTSEN, identik dengan alur Kartu KKS:
-     * Kelurahan -> Operator Dinsos -> Kabin -> Kadis -> Selesai.
+     * Urutan tahapan alur DTSEN: Operator Dinsos -> Kabin -> Kadis -> Selesai.
      * Dipakai untuk membangun riwayat log yang konsisten dengan status akhir tiap permohonan.
      */
     private array $stages = [
-        DtsenPermohonan::STATUS_DIAJUKAN => [
-            'task' => 'Permohonan Masuk',
-            'role' => 'Kelurahan',
-            'username' => 'kelurahan',
-        ],
-        DtsenPermohonan::STATUS_VERIFIKASI_KELURAHAN => [
-            'task' => 'Verifikasi Kelurahan',
-            'role' => 'Kelurahan',
-            'username' => 'kelurahan',
-        ],
-        DtsenPermohonan::STATUS_TTD_LURAH => [
-            'task' => 'TTD Lurah',
-            'role' => 'Kelurahan',
-            'username' => 'kelurahan',
-        ],
         DtsenPermohonan::STATUS_VALIDASI_DINSOS => [
             'task' => 'Validasi Dinsos',
             'role' => 'Operator Dinsos',
@@ -90,14 +67,9 @@ class DtsenSeeder extends Seeder
 
     private array $peringkatList = ['Desil 1', 'Desil 2', 'Desil 3', 'Desil 4', 'Desil 5'];
 
-    /**
-     * Nama tampilan (Title Case) untuk tiap slug role, dipakai saat firstOrCreate
-     * supaya konsisten dengan data yang dibuat RoleSeeder/KartuKksSeeder.
-     */
     private function roleDisplayName(string $slug): string
     {
         return match ($slug) {
-            'kelurahan' => 'Kelurahan',
             'operator_dinsos' => 'Operator Dinsos',
             'kabin' => 'Kabin (Kepala Bidang)',
             'kadis' => 'Kadis (Kepala Dinas)',
@@ -107,9 +79,6 @@ class DtsenSeeder extends Seeder
 
     public function run(): void
     {
-        // 1. KOSONGKAN TABEL KHUSUS DTSEN SAJA
-        // Ini memastikan tidak ada error duplikat data jika seeder dijalankan berulang kali,
-        // tanpa menghapus data di tabel lain (seperti users atau roles).
         Schema::disableForeignKeyConstraints();
         DtsenPermohonan::truncate();
         DtsenDetail::truncate();
@@ -119,8 +88,7 @@ class DtsenSeeder extends Seeder
         DtsenLog::truncate();
         Schema::enableForeignKeyConstraints();
 
-        // 2. PASTIKAN ROLE TERSEDIA
-        $roles = collect(['kelurahan', 'operator_dinsos', 'kabin', 'kadis'])
+        $roles = collect(['operator_dinsos', 'kabin', 'kadis'])
             ->mapWithKeys(fn (string $slug) => [
                 $slug => Role::firstOrCreate(
                     ['slug' => $slug],
@@ -128,58 +96,37 @@ class DtsenSeeder extends Seeder
                 )->id,
             ]);
 
-        // User demo "kelurahan" (dibuat KartuKksSeeder) harus punya wilayah,
-        // kalau tidak daftar Ajuan-nya kosong. Aman dijalankan berulang.
-        User::where('username', 'kelurahan')
-            ->whereNull('kelurahan')
-            ->update(['kelurahan' => self::KELURAHAN_DEMO]);
-
         $creatorId = User::query()->inRandomOrder()->value('id');
         $stageOrder = array_keys($this->stages);
 
         $activeStatuses = array_values(array_diff($stageOrder, [DtsenPermohonan::STATUS_SELESAI]));
 
-        // 3. RENCANA STATUS (5 Ajuan aktif, 3 Selesai, 2 Ditolak)
+        // 5 Ajuan aktif, 3 Selesai, 2 Ditolak
         $statusPlan = array_merge(
-            array_fill(0, 5, null), // null = diisi status aktif acak
+            array_fill(0, 5, null),
             array_fill(0, 3, DtsenPermohonan::STATUS_SELESAI),
             array_fill(0, 2, DtsenPermohonan::STATUS_DITOLAK)
         );
         shuffle($statusPlan);
 
-        foreach ($statusPlan as $i => $plannedStatus) {
+        foreach ($statusPlan as $plannedStatus) {
             $status = $plannedStatus ?? $activeStatuses[array_rand($activeStatuses)];
             $nik = fake()->numerify('################');
             $nama = fake('id_ID')->name();
             $alamat = fake('id_ID')->address();
-
-            // Setiap data ke-3 dipaksa di wilayah demo supaya user "kelurahan"
-            // kebagian data; sisanya acak.
-            $kelurahan = $i % 3 === 0
-                ? self::KELURAHAN_DEMO
-                : $this->kelurahanList[array_rand($this->kelurahanList)];
+            $kelurahan = $this->kelurahanList[array_rand($this->kelurahanList)];
 
             $tanggalInsert = Carbon::now()->subDays(random_int(2, 120));
 
-            // Cek apakah status sudah final (Selesai atau Ditolak)
             $isFinal = in_array($status, [DtsenPermohonan::STATUS_SELESAI, DtsenPermohonan::STATUS_DITOLAK]);
 
             // Pemegang berkas harus sama dengan transitions() di DtsenController:
-            //   diajukan, verifikasi_kelurahan -> kelurahan
-            //   ttd_lurah, validasi_dinsos     -> operator_dinsos
-            //   diproses_kabin                 -> kabin
-            //   disetujui_kadis                -> kadis
-            $currentRoleName = match (true) {
-                $isFinal => null,
-                default => match ($status) {
-                    DtsenPermohonan::STATUS_DIAJUKAN,
-                    DtsenPermohonan::STATUS_VERIFIKASI_KELURAHAN => 'kelurahan',
-                    DtsenPermohonan::STATUS_TTD_LURAH,
-                    DtsenPermohonan::STATUS_VALIDASI_DINSOS => 'operator_dinsos',
-                    DtsenPermohonan::STATUS_DIPROSES_KABIN => 'kabin',
-                    DtsenPermohonan::STATUS_DISETUJUI_KADIS => 'kadis',
-                    default => null,
-                },
+            //   validasi_dinsos -> operator_dinsos, diproses_kabin -> kabin, disetujui_kadis -> kadis
+            $currentRoleName = $isFinal ? null : match ($status) {
+                DtsenPermohonan::STATUS_VALIDASI_DINSOS => 'operator_dinsos',
+                DtsenPermohonan::STATUS_DIPROSES_KABIN => 'kabin',
+                DtsenPermohonan::STATUS_DISETUJUI_KADIS => 'kadis',
+                default => null,
             };
 
             $permohonan = DtsenPermohonan::create([
@@ -238,16 +185,15 @@ class DtsenSeeder extends Seeder
 
             DtsenSurat::create([
                 'permohonan_id' => $permohonan->id,
-                'surat_pengantar_dtsen_kelurahan_digital' => null,
                 'surat_keterangan_dtsen_digital' => null,
             ]);
 
-            // 4. BANGUN RIWAYAT LOG
+            // Riwayat log
             $logTime = $tanggalInsert->copy();
 
-            // Jika status ditolak, kita simulasikan penolakan terjadi di tahap 1, 2, atau 3 (secara acak)
             if ($status === DtsenPermohonan::STATUS_DITOLAK) {
-                $reachedIndex = random_int(1, 3);
+                // Ditolak di tahap Validasi Dinsos (1) atau Kabin (2)
+                $reachedIndex = random_int(1, 2);
                 $stagesToLog = array_slice($stageOrder, 0, $reachedIndex);
             } else {
                 $reachedIndex = array_search($status, $stageOrder, true);
@@ -266,17 +212,14 @@ class DtsenSeeder extends Seeder
                     'taskname' => $stage['task'],
                     'rolename' => $stage['role'],
                     'catatan' => $stageStatus === array_key_first($this->stages)
-                        ? 'Data awal masuk melalui pendaftaran online.'
+                        ? 'Data awal diinput oleh petugas Dinas Sosial.'
                         : null,
                 ]);
             }
 
-            // Tambahkan log khusus penolakan jika status akhirnya Ditolak
             if ($status === DtsenPermohonan::STATUS_DITOLAK) {
                 $logTime = $logTime->copy()->addHours(random_int(1, 5));
                 $alasanTolak = $this->alasanTolakList[array_rand($this->alasanTolakList)];
-
-                // Ambil data aktor terakhir yang memproses sebelum ditolak
                 $lastStage = $this->stages[$stageOrder[$reachedIndex - 1]];
 
                 DtsenLog::create([
