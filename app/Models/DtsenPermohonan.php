@@ -29,23 +29,17 @@ class DtsenPermohonan extends Model
         'tanggal_insert' => 'date',
     ];
 
-    // Daftar status resmi alur, dipakai controller & view supaya konsisten
-    // (identik dengan alur Kartu KKS: Kelurahan -> Operator Dinsos -> Kabin -> Kadis)
-    public const STATUS_DIAJUKAN = 'diajukan';
-    public const STATUS_VERIFIKASI_KELURAHAN = 'verifikasi_kelurahan';
-    public const STATUS_TTD_LURAH = 'ttd_lurah';
+    // Alur DTSEN: Validasi Dinsos (Operator) -> Diproses Kabin -> Disetujui Kadis -> Selesai
+    // (atau Ditolak di tahap manapun). Tahap Kelurahan & TTD Lurah sudah dihapus.
     public const STATUS_VALIDASI_DINSOS = 'validasi_dinsos';
     public const STATUS_DIPROSES_KABIN = 'diproses_kabin';
     public const STATUS_DISETUJUI_KADIS = 'disetujui_kadis';
     public const STATUS_SELESAI = 'selesai';
     public const STATUS_DITOLAK = 'ditolak';
 
-    /**
-     * Auto-generate no_permohonan (format: DTSEN-2026-0001) setiap kali
-     * data baru dibuat, KECUALI sudah diisi manual sebelumnya.
-     * Ini dipasang di sini (bukan di controller) supaya controller
-     * yang sudah ada (mis. DtsenAjuanController) TIDAK perlu diubah.
-     */
+    /** Tahap awal setiap permohonan baru (atau yang diajukan ulang setelah ditolak). */
+    public const STATUS_AWAL = self::STATUS_VALIDASI_DINSOS;
+
     protected static function booted(): void
     {
         static::creating(function (self $permohonan) {
@@ -57,12 +51,6 @@ class DtsenPermohonan extends Model
         });
     }
 
-    /**
-     * Pakai `no_permohonan` sebagai slug di URL (route model binding),
-     * bukan `id` numerik. Berlaku otomatis untuk semua route dengan
-     * parameter {permohonan}, selama route() di Blade/redirect pass
-     * objek model (bukan ->id) — sesuai pola yang sudah dipakai di modul PBI APBD.
-     */
     public function getRouteKeyName(): string
     {
         return 'no_permohonan';
@@ -71,15 +59,23 @@ class DtsenPermohonan extends Model
     public static function statusLabels(): array
     {
         return [
-            self::STATUS_DIAJUKAN => 'Diajukan',
-            self::STATUS_VERIFIKASI_KELURAHAN => 'Verifikasi Kelurahan',
-            self::STATUS_TTD_LURAH => 'TTD Lurah',
             self::STATUS_VALIDASI_DINSOS => 'Validasi Dinsos',
             self::STATUS_DIPROSES_KABIN => 'Diproses Kabin',
             self::STATUS_DISETUJUI_KADIS => 'Disetujui Kadis',
             self::STATUS_SELESAI => 'Selesai',
             self::STATUS_DITOLAK => 'Ditolak',
         ];
+    }
+
+    /**
+     * Masyarakat boleh mengubah data & lampiran hanya selama pengajuan masih di tahap awal (Validasi Dinsos),
+     * sedang ditolak, atau dikembalikan petugas. Saat di meja Kabid / Kadis atau sudah selesai, terkunci.
+     * Dipakai form warga (MasyarakatController) dan pemasangan lampiran otomatis (DokumenMasyarakat).
+     */
+    public function masyarakatBisaEdit(): bool
+    {
+        return in_array($this->status, [self::STATUS_VALIDASI_DINSOS, self::STATUS_DITOLAK], true)
+            || (bool) ($this->dikembalikan_ke_masyarakat ?? false);
     }
 
     public function detail(): HasOne

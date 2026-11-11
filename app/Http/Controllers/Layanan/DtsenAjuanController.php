@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DtsenPermohonan;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\DtsenNotifikasi;
 use App\Support\GroundCheckSinkron;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -20,7 +21,10 @@ class DtsenAjuanController extends Controller
         return view('layanan.dtsen.ajukan');
     }
 
-    /** POST /layanan/dtsen/ajukan */
+    /**
+     * POST /layanan/dtsen/ajukan
+     * Pengajuan diinput petugas (Operator Dinsos) dan langsung masuk ke tahap Validasi Dinsos.
+     */
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -42,27 +46,25 @@ class DtsenAjuanController extends Controller
             'scan_ktp' => 'required|file|mimes:jpg,jpeg,png,pdf|max:2048',
         ]);
 
-        $kelurahanRole = Role::firstOrCreate(
-            ['slug' => 'kelurahan'],
-            ['name' => 'Kelurahan', 'slug' => 'kelurahan']
+        $operatorRole = Role::firstOrCreate(
+            ['slug' => 'operator_dinsos'],
+            ['name' => 'Operator Dinsos', 'slug' => 'operator_dinsos']
         );
 
-        // Akun warga pemilik pengajuan: username warga = NIK (lihat RegistrasiController).
-        // Null kalau warganya belum punya akun; nanti ditautkan otomatis saat registrasi.
         $wargaId = User::where('username', $validated['nik'])->value('id');
 
-        $permohonan = DB::transaction(function () use ($validated, $request, $kelurahanRole, $wargaId) {
+        $permohonan = DB::transaction(function () use ($validated, $request, $operatorRole, $wargaId) {
             $permohonan = DtsenPermohonan::create([
-                'user_id' => $wargaId,          // pemilik (warga)
+                'user_id' => $wargaId,
                 'nik' => $validated['nik'],
                 'nama_pemohon' => $validated['nama'],
                 'alamat' => $validated['alamat'],
                 'alasan_cetak' => $validated['alasan_cetak'],
-                'status' => DtsenPermohonan::STATUS_DIAJUKAN,
-                'current_role_id' => $kelurahanRole->id,
+                'status' => DtsenPermohonan::STATUS_AWAL,
+                'current_role_id' => $operatorRole->id,
                 'kelurahan' => $validated['kelurahan'],
                 'tanggal_insert' => now(),
-                'created_by' => Auth::id(),     // pembuat (petugas)
+                'created_by' => Auth::id(),
             ]);
 
             $permohonan->detail()->create([
@@ -86,8 +88,8 @@ class DtsenAjuanController extends Controller
                 'user_id' => Auth::id(),
                 'username' => Auth::user()->name,
                 'taskname' => 'Permohonan Masuk',
-                'rolename' => 'Kelurahan',
-                'catatan' => 'Data awal masuk melalui pendaftaran online.',
+                'rolename' => 'Operator Dinsos',
+                'catatan' => 'Data awal diinput oleh petugas Dinas Sosial.',
             ]);
 
             return $permohonan;
@@ -102,8 +104,16 @@ class DtsenAjuanController extends Controller
             'kelurahan' => $validated['kelurahan'],
         ]);
 
+        // Beri tahu Operator Dinsos lewat lonceng bahwa ada ajuan DTSEN baru
+        DtsenNotifikasi::keRole(
+            $permohonan,
+            'operator_dinsos',
+            'Pengajuan DTSEN baru',
+            'Pengajuan ' . $permohonan->no_permohonan . ' atas nama ' . $validated['nama'] . ' menunggu validasi Anda.'
+        );
+
         return redirect()->route('layanan.dtsen.riwayat')
-            ->with('success', 'Pengajuan DTSEN berhasil dikirim, nomor permohonan #' . $permohonan->id);
+            ->with('success', 'Pengajuan DTSEN berhasil dikirim, nomor permohonan ' . $permohonan->no_permohonan);
     }
 
     /** GET /layanan/dtsen/riwayat — riwayat pengajuan yang DIBUAT petugas yang login */
@@ -111,6 +121,8 @@ class DtsenAjuanController extends Controller
     {
         $data = DtsenPermohonan::where('created_by', Auth::id())
             ->latest('tanggal_insert')
+            ->latest('created_at')
+            ->latest('id')
             ->get();
 
         return view('layanan.dtsen.riwayat', compact('data'));

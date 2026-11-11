@@ -14,6 +14,7 @@ use App\Models\GcPenyakitKronis;
 use App\Models\PbiApbdLog;
 use App\Models\PbiKriteriaParameter;
 use App\Support\DokumenMasyarakat;
+use App\Support\DtsenNotifikasi;
 use App\Support\GroundCheckSinkron;
 use App\Support\PbiGcForm;
 use Illuminate\Support\Str;
@@ -36,9 +37,6 @@ class MasyarakatController extends Controller
      * (urutan = progres; kunci = nilai kolom status yang sudah di-slug).
      */
     private const TAHAPAN_BAWAAN = [
-        'diajukan' => 'Diajukan',
-        'verifikasi_kelurahan' => 'Verifikasi Kelurahan',
-        'ttd_lurah' => 'TTD Lurah',
         'validasi_dinsos' => 'Validasi Dinsos',
         'diproses_kabin' => 'Diproses Kabin',
         'disetujui_kadis' => 'Disetujui Kadis',
@@ -1425,6 +1423,9 @@ class MasyarakatController extends Controller
             ]);
         }
 
+        // Foto KTP / KK dll yang diunggah di form ini ikut masuk ke menu Dokumen (jenis yang sudah ada tidak ditimpa)
+        DokumenMasyarakat::imporDariPbi($pbiApbd);
+
         // Berkas lampiran yang masih kosong diisi otomatis dari menu Dokumen (yang sudah terpasang tidak diubah)
         DokumenMasyarakat::isiBilaKosongPbi($pbiApbd);
 
@@ -1450,8 +1451,30 @@ class MasyarakatController extends Controller
             return redirect()->route('masyarakat.dtsen.lengkapi', $permohonan);
         }
 
-        return redirect()->route('masyarakat.dashboard')
-            ->with('error', 'Anda belum memiliki pengajuan DTSEN. Silakan hubungi petugas kelurahan untuk mengajukan.');
+        // Belum punya pengajuan -> langsung buka form kosong (diisi otomatis dari data yang sudah ada)
+        return redirect()->route('masyarakat.dtsen.baru');
+    }
+
+    /** GET /akun-saya/dtsen/baru — form DTSEN untuk warga yang belum punya pengajuan */
+    public function dtsenBaru(Request $request)
+    {
+        $ada = method_exists($request->user(), 'pengajuanDtsen')
+            ? $request->user()->pengajuanDtsen()->latest()->first()
+            : null;
+
+        if ($ada) {
+            return redirect()->route('masyarakat.dtsen.lengkapi', $ada);
+        }
+
+        $permohonan = new DtsenPermohonan();
+        [$prefill, $asal] = $this->prefillDtsen($request, $permohonan);
+
+        return view('masyarakat.dtsen.lengkapi', [
+            'dtsen' => $permohonan, // belum tersimpan; dibuat saat warga menyimpan
+            'bisaEdit' => true,
+            'prefill' => $prefill,
+            'asal' => $asal,
+        ]);
     }
 
     /** GET /akun-saya/dtsen/{permohonan}/lengkapi */
@@ -1461,42 +1484,66 @@ class MasyarakatController extends Controller
 
         $permohonan->loadMissing(['detail', 'lampiran', 'logs']);
 
+        // Lampiran yang masih kosong langsung dipasang dari menu Dokumen (yang sudah terpasang tidak diubah)
+        if ($this->dtsenBisaEdit($permohonan)) {
+            DokumenMasyarakat::isiBilaKosongDtsen($permohonan);
+            $permohonan->load('lampiran');
+        }
+
+        [$prefill, $asal] = $this->prefillDtsen($request, $permohonan);
+
         // Form TETAP ditampilkan walau sudah tidak bisa diubah (mode baca saja);
         // penyimpanan tetap ditolak di lengkapiDtsenStore().
         return view('masyarakat.dtsen.lengkapi', [
             'dtsen' => $permohonan,
             'bisaEdit' => $this->dtsenBisaEdit($permohonan),
+            'prefill' => $prefill, // [field => nilai]
+            'asal' => $asal,       // [field => label sumber]
         ]);
     }
 
     /** POST /akun-saya/dtsen/{permohonan}/lengkapi */
-    public function lengkapiDtsenStore(Request $request, DtsenPermohonan $permohonan)
+    public function lengkapiDtsenStore(Request $request, ?DtsenPermohonan $permohonan = null)
     {
-        $this->authorizePemilikDtsen($request, $permohonan);
+        // Tanpa {permohonan} di URL = warga mengajukan DTSEN untuk pertama kali (POST /dtsen/baru)
+        $baru = $permohonan === null;
 
-        if (! $this->dtsenBisaEdit($permohonan)) {
-            return redirect()->route('masyarakat.dashboard')
-                ->with('error', 'Pengajuan sudah selesai diproses, data tidak dapat diubah lagi.');
+        if ($baru) {
+            $ada = method_exists($request->user(), 'pengajuanDtsen')
+                ? $request->user()->pengajuanDtsen()->latest()->first()
+                : null;
+
+            if ($ada) {
+                return redirect()->route('masyarakat.dtsen.lengkapi', $ada);
+            }
+
+            $permohonan = new DtsenPermohonan();
+            $lampiranLama = $permohonan->lampiran()->getRelated(); // model kosong, belum tersimpan
+        } else {
+            $this->authorizePemilikDtsen($request, $permohonan);
+
+            if (! $this->dtsenBisaEdit($permohonan)) {
+                return redirect()->route('masyarakat.dashboard')
+                    ->with('error', 'Pengajuan sedang diproses petugas atau sudah selesai, data tidak dapat diubah lagi.');
+            }
+
+            $permohonan->loadMissing(['detail', 'lampiran']);
+            $lampiranLama = $permohonan->lampiran;
         }
 
-        $permohonan->loadMissing(['detail', 'lampiran']);
-        $lampiranLama = $permohonan->lampiran;
-
-        // Pengajuan yang ditolak lalu diperbaiki warga = diajukan ulang ke Kelurahan
+        // Pengajuan yang ditolak lalu diperbaiki warga = diajukan ulang ke Operator Dinsos
         $ajukanUlang = $permohonan->status === DtsenPermohonan::STATUS_DITOLAK;
 
+        // Lampiran: dipakai dari menu Dokumen bila sudah ada; kalau belum ada, diunggah lewat form ini.
         $rules = [
             'nik' => ['required', 'digits:16'],
             'nama' => ['required', 'string', 'max:255'],
             'no_kk' => ['required', 'digits:16'],
             'tanggal_lahir' => ['required', 'date', 'before:today'],
             'alamat' => ['required', 'string', 'max:1000'],
+            'alasan_keputusan_cetak' => ['required', 'string', 'max:1000'],
             'scan_ktp' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:2048'],
-            // Screenshot DTSEN wajib, kecuali sudah pernah diunggah
-            'screenshot_dtsen' => [
-                Rule::requiredIf(fn () => empty($lampiranLama->screenshot_dtsen ?? null)),
-                'nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:2048',
-            ],
+            'screenshot_dtsen' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:2048'],
         ];
         $messages = [
             'nik.required' => 'NIK wajib diisi.',
@@ -1508,35 +1555,84 @@ class MasyarakatController extends Controller
             'tanggal_lahir.date' => 'Tanggal lahir tidak valid.',
             'tanggal_lahir.before' => 'Tanggal lahir harus sebelum hari ini.',
             'alamat.required' => 'Alamat wajib diisi.',
+            'alasan_keputusan_cetak.required' => 'Alasan keputusan cetak wajib diisi.',
             'scan_ktp.mimes' => 'Scan KTP harus berformat JPG, PNG, atau PDF.',
             'scan_ktp.max' => 'Ukuran Scan KTP maksimal 2 MB.',
-            'screenshot_dtsen.required' => 'Screenshot DTSEN wajib diunggah.',
+            'scan_ktp.uploaded' => 'Scan KTP gagal diunggah. Coba lagi dengan berkas yang lebih kecil.',
             'screenshot_dtsen.mimes' => 'Screenshot DTSEN harus berformat JPG, PNG, atau PDF.',
             'screenshot_dtsen.max' => 'Ukuran Screenshot DTSEN maksimal 2 MB.',
+            'screenshot_dtsen.uploaded' => 'Screenshot DTSEN gagal diunggah. Coba lagi dengan berkas yang lebih kecil.',
         ];
 
         $validated = $request->validate($rules, $messages);
 
-        // Simpan berkas baru dulu; kalau transaksi gagal, berkas ini dihapus lagi.
-        // Screenshot DTSEN wajib: sudah terpasang di pengajuan, atau ada di menu Dokumen
+        // Field data diri yang terkunci di form dipaksa dari server (readonly di browser bisa dilewati).
+        // Tidak berlaku saat petugas meminta perbaikan (ditolak / dikembalikan): semua field terbuka.
+        if (! $ajukanUlang && ! ($permohonan->dikembalikan_ke_masyarakat ?? false)) {
+            [$prefillKunci] = $this->prefillDtsen($request, $permohonan);
+
+            foreach (['nik', 'nama', 'no_kk', 'tanggal_lahir', 'alamat'] as $f) {
+                $v = $prefillKunci[$f] ?? null;
+
+                if (! filled($v)) {
+                    continue;
+                }
+
+                // Sama seperti di tampilan: nilai angka 16 digit yang tidak valid tidak dikunci
+                if (in_array($f, ['nik', 'no_kk'], true) && ! preg_match('/^\d{16}$/', (string) $v)) {
+                    continue;
+                }
+
+                $validated[$f] = $v;
+            }
+        }
+
+        // Screenshot DTSEN wajib: sudah terpasang di pengajuan, ada di menu Dokumen, atau diunggah sekarang
         $user = $request->user();
-        if (blank($lampiranLama->screenshot_dtsen ?? null) && ! DokumenMasyarakat::ada($user, 'screenshot_dtsen')) {
+        if (blank($lampiranLama->screenshot_dtsen ?? null)
+            && ! $request->hasFile('screenshot_dtsen')
+            && ! DokumenMasyarakat::ada($user, 'screenshot_dtsen')) {
             throw ValidationException::withMessages([
-                'screenshot_dtsen' => 'Screenshot DTSEN belum ada. Unggah dulu di menu Dokumen.',
+                'screenshot_dtsen' => 'Screenshot DTSEN wajib diunggah.',
             ]);
         }
 
-        // Lampiran yang masih kosong disalin dari menu Dokumen; kalau transaksi gagal, berkas ini dihapus lagi (blok catch di bawah).
-        $berkasBaru = DokumenMasyarakat::salinUntukDtsen($user, $lampiranLama);
+        // Berkas yang diunggah lewat form ini disimpan juga di menu Dokumen, lalu menggantikan lampiran di pengajuan
+        $paksa = [];
+        foreach (['scan_ktp' => 'ktp', 'screenshot_dtsen' => 'screenshot_dtsen'] as $field => $jenis) {
+            if ($request->hasFile($field)) {
+                DokumenMasyarakat::tambahDariUnggahan($user, $jenis, $request->file($field));
+                $paksa[] = $field;
+            }
+        }
+
+        // Lampiran yang masih kosong (atau baru diganti) disalin dari menu Dokumen; kalau transaksi gagal, berkas ini dihapus lagi (blok catch di bawah).
+        $berkasBaru = DokumenMasyarakat::salinUntukDtsen($user, $lampiranLama, $paksa);
 
         try {
-            DB::transaction(function () use ($permohonan, $validated, $berkasBaru, $request, $ajukanUlang) {
-                $dataDetail = Arr::only($validated, ['nik', 'nama', 'no_kk', 'tanggal_lahir', 'alamat']);
+            DB::transaction(function () use (&$permohonan, $validated, $berkasBaru, $request, $ajukanUlang, $baru) {
+                // Pengajuan baru dibuat di sini, langsung masuk antrean Operator Dinsos
+                if ($baru) {
+                    $operatorRole = Role::firstOrCreate(
+                        ['slug' => 'operator_dinsos'],
+                        ['name' => 'Operator Dinsos', 'slug' => 'operator_dinsos']
+                    );
 
-                // Baris detail belum ada -> isi kolom wajib milik petugas supaya insert tidak gagal
-                if (! $permohonan->detail) {
-                    $dataDetail['alasan_keputusan_cetak'] = $permohonan->alasan_cetak ?? '';
+                    $permohonan = DtsenPermohonan::create([
+                        'user_id' => $request->user()->id,
+                        'nik' => $validated['nik'],
+                        'nama_pemohon' => $validated['nama'],
+                        'alamat' => $validated['alamat'],
+                        'alasan_cetak' => $validated['alasan_keputusan_cetak'],
+                        'status' => DtsenPermohonan::STATUS_AWAL,
+                        'current_role_id' => $operatorRole->id,
+                        'kelurahan' => optional($this->pbiTerbaru($request))->desa_kelurahan ?? '',
+                        'tanggal_insert' => now(),
+                        'created_by' => $request->user()->id,
+                    ]);
                 }
+
+                $dataDetail = Arr::only($validated, ['nik', 'nama', 'no_kk', 'tanggal_lahir', 'alamat', 'alasan_keputusan_cetak']);
 
                 $permohonan->detail()->updateOrCreate([], $dataDetail);
 
@@ -1544,11 +1640,11 @@ class MasyarakatController extends Controller
                     $permohonan->lampiran()->updateOrCreate([], $berkasBaru);
                 }
 
-                // Ditolak lalu diperbaiki -> kembali ke antrean Kelurahan (status awal alur)
+                // Ditolak lalu diperbaiki -> kembali ke antrean Operator Dinsos (status awal alur)
                 if ($ajukanUlang) {
                     $permohonan->update([
-                        'status' => DtsenPermohonan::STATUS_DIAJUKAN,
-                        'current_role_id' => Role::where('slug', 'kelurahan')->value('id'),
+                        'status' => DtsenPermohonan::STATUS_AWAL,
+                        'current_role_id' => Role::where('slug', 'operator_dinsos')->value('id'),
                     ]);
                 }
 
@@ -1562,9 +1658,11 @@ class MasyarakatController extends Controller
                     'user_id' => $request->user()->id,
                     'username' => $request->user()->username ?? $request->user()->name,
                     'rolename' => 'Masyarakat',
-                    'taskname' => $ajukanUlang
-                        ? 'Masyarakat memperbaiki data & mengajukan ulang setelah ditolak'
-                        : 'Masyarakat melengkapi data pengajuan',
+                    'taskname' => $baru
+                        ? 'Masyarakat mengajukan DTSEN'
+                        : ($ajukanUlang
+                            ? 'Masyarakat memperbaiki data & mengajukan ulang setelah ditolak'
+                            : 'Masyarakat melengkapi data pengajuan'),
                     'catatan' => null,
                 ]);
             });
@@ -1591,6 +1689,16 @@ class MasyarakatController extends Controller
             'alamat' => $validated['alamat'],
             'kelurahan' => $permohonan->kelurahan,
         ]);
+
+        // Pengajuan baru / diajukan ulang -> beri tahu Operator Dinsos lewat lonceng
+        if ($baru || $ajukanUlang) {
+            DtsenNotifikasi::keRole(
+                $permohonan,
+                'operator_dinsos',
+                $baru ? 'Pengajuan DTSEN baru dari warga' : 'Pengajuan DTSEN diajukan ulang',
+                'Pengajuan ' . $permohonan->no_permohonan . ' atas nama ' . $validated['nama'] . ' menunggu validasi Anda.'
+            );
+        }
 
         return redirect()->route('masyarakat.dashboard')
             ->with('success', 'Data DTSEN berhasil disimpan dan akan diperiksa oleh petugas.');
@@ -1619,19 +1727,91 @@ class MasyarakatController extends Controller
     }
 
     /**
-     * Aturan sementara (sama seperti PBI): terkunci hanya kalau sudah selesai.
-     * Kalau DtsenPermohonan punya masyarakatBisaEdit(), method itu yang dipakai.
+     * Form terbuka hanya selama pengajuan di tahap awal (Validasi Dinsos), ditolak, atau dikembalikan.
+     * Aturannya ada di DtsenPermohonan::masyarakatBisaEdit().
      */
     private function dtsenBisaEdit(DtsenPermohonan $dtsen): bool
     {
-        if (method_exists($dtsen, 'masyarakatBisaEdit')) {
-            return (bool) $dtsen->masyarakatBisaEdit();
-        }
-
-        return $dtsen->status !== DtsenPermohonan::STATUS_SELESAI;
+        return $dtsen->masyarakatBisaEdit();
     }
 
-    /** Kelengkapan DTSEN: 5 isian data diri + Screenshot DTSEN (Scan KTP opsional, tidak dihitung). */
+    /**
+     * Nilai awal field Data Detail DTSEN: nik, nama, no_kk, tanggal_lahir, alamat.
+     * @return array{0: array<string,string>, 1: array<string,string>} [nilai, label sumber]
+     */
+    private function prefillDtsen(Request $request, DtsenPermohonan $permohonan): array
+    {
+        $user = $request->user();
+        $detail = $permohonan->detail;
+
+        $sebelumnya = method_exists($user, 'pengajuanDtsen')
+            ? $user->pengajuanDtsen()->when($permohonan->exists, fn ($q) => $q->whereKeyNot($permohonan->getKey()))->with('detail')->latest()->get()
+            : collect();
+
+        $pbi = $this->pbiTerbaru($request);
+        $pemohonPbi = $pbi
+            ? $pbi->anggotaKeluarga()->where('nik', $pbi->nik_kepala_keluarga)->first()
+            : null;
+
+        $alamatPbi = $pbi
+            ? collect([
+                $pbi->alamat,
+                ($pbi->rt || $pbi->rw) ? 'RT ' . $pbi->rt . '/RW ' . $pbi->rw : null,
+                $pbi->desa_kelurahan,
+                $pbi->kecamatan,
+            ])->filter()->implode(', ')
+            : null;
+
+        $tgl = fn ($v) => filled($v) ? Carbon::parse($v)->format('Y-m-d') : null;
+
+        // Tiap field: daftar kandidat [label, nilai] dengan prioritas dari atas ke bawah
+        $kandidat = [
+            'nik' => array_merge(
+                [['pengajuan ini', $detail->nik ?? null], ['pengajuan ini', $permohonan->nik]],
+                $sebelumnya->map(fn ($d) => ['pengajuan DTSEN sebelumnya', $d->detail->nik ?? $d->nik])->all(),
+                [['data PBI APBD', $pbi->nik_kepala_keluarga ?? null], ['akun Anda', $user->username]],
+            ),
+            'nama' => array_merge(
+                [['pengajuan ini', $detail->nama ?? null], ['pengajuan ini', $permohonan->nama_pemohon]],
+                $sebelumnya->map(fn ($d) => ['pengajuan DTSEN sebelumnya', $d->detail->nama ?? $d->nama_pemohon])->all(),
+                [['data PBI APBD', $pbi->nama_kepala_keluarga ?? null], ['akun Anda', $user->name]],
+            ),
+            'no_kk' => array_merge(
+                [['pengajuan ini', $detail->no_kk ?? null]],
+                $sebelumnya->map(fn ($d) => ['pengajuan DTSEN sebelumnya', $d->detail->no_kk ?? null])->all(),
+                [['data PBI APBD', $pbi->no_kk ?? null]],
+            ),
+            'tanggal_lahir' => array_merge(
+                [['pengajuan ini', $tgl($detail->tanggal_lahir ?? null)]],
+                $sebelumnya->map(fn ($d) => ['pengajuan DTSEN sebelumnya', $tgl($d->detail->tanggal_lahir ?? null)])->all(),
+                [['data PBI APBD', $tgl($pemohonPbi->tanggal_lahir ?? null)]],
+            ),
+            'alamat' => array_merge(
+                [['pengajuan ini', $detail->alamat ?? null], ['pengajuan ini', $permohonan->alamat]],
+                $sebelumnya->map(fn ($d) => ['pengajuan DTSEN sebelumnya', $d->detail->alamat ?? $d->alamat])->all(),
+                [['data PBI APBD', $alamatPbi]],
+            ),
+            'alasan_keputusan_cetak' => array_merge(
+                [['pengajuan ini', $detail->alasan_keputusan_cetak ?? null], ['pengajuan ini', $permohonan->alasan_cetak]],
+                $sebelumnya->map(fn ($d) => ['pengajuan DTSEN sebelumnya', $d->detail->alasan_keputusan_cetak ?? $d->alasan_cetak])->all(),
+            ),
+        ];
+
+        $nilai = $asal = [];
+        foreach ($kandidat as $field => $daftar) {
+            foreach ($daftar as [$label, $v]) {
+                if (filled($v)) {
+                    $nilai[$field] = (string) $v;
+                    $asal[$field] = $label;
+                    break;
+                }
+            }
+        }
+
+        return [$nilai, $asal];
+    }
+
+    /** Kelengkapan DTSEN: 6 isian data diri + Screenshot DTSEN (Scan KTP opsional, tidak dihitung). */
     private function kelengkapanDtsen(DtsenPermohonan $dtsen): array
     {
         $detail = $dtsen->detail;
@@ -1643,6 +1823,7 @@ class MasyarakatController extends Controller
             filled($detail->no_kk ?? null),
             filled($detail->tanggal_lahir ?? null),
             filled($detail->alamat ?? null),
+            filled($detail->alasan_keputusan_cetak ?? null),
             filled($lampiran->screenshot_dtsen ?? null),
         ];
 

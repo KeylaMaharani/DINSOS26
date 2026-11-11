@@ -106,7 +106,9 @@
                                 <td class="px-3 py-3.5 whitespace-nowrap truncate text-center text-on-surface-variant">{{ $ajuanList->firstItem() + $loop->index }}</td>
                                 <td class="px-3 py-3.5 whitespace-nowrap text-center text-on-surface-variant">{{ $item->tanggal_insert->format('d-m-Y') }}</td>
                                 <td class="px-3 py-3.5 whitespace-nowrap truncate font-semibold text-brand text-center" title="{{ $item->nik }}">{{ $item->nik }}</td>
-                                <td class="px-3 py-3.5 whitespace-nowrap truncate font-medium" title="{{ $item->nama_pemohon }}">{{ $item->nama_pemohon }}</td>
+                                <td class="px-3 py-3.5 whitespace-nowrap truncate font-medium" title="{{ $item->nama_pemohon }}">
+                                    {{ $item->nama_pemohon }}
+                                </td>
                                 <td class="px-3 py-3.5 whitespace-nowrap truncate text-center">
                                     @if ($desil)
                                         <span class="px-2.5 py-1 rounded-full bg-brand/10 text-brand font-semibold">{{ $desil }}</span>

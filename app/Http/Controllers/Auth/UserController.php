@@ -194,7 +194,8 @@ class UserController
     {
         return [
             "permissions" => ["nullable", "array"],
-            "permissions.*" => ["string", Rule::in(array_keys(Role::MODULES))],
+            // Kunci sah = modul, modul.submenu, dan modul.submenu.aksi (lihat Role::semuaKunci())
+            "permissions.*" => ["string", Rule::in(Role::semuaKunci())],
         ];
     }
 
@@ -207,7 +208,8 @@ class UserController
         ], $this->roleMessages());
 
         $validated["slug"] = $this->generateUniqueSlug($validated["name"]);
-        $validated["permissions"] = $validated["permissions"] ?? [];
+        // Rapikan: buang duplikat, aksi tanpa submenu, dan tambahkan kunci modul otomatis
+        $validated["permissions"] = Role::normalisasi($validated["permissions"] ?? []);
 
         Role::create($validated);
 
@@ -237,7 +239,8 @@ class UserController
             $validated["slug"] = $this->generateUniqueSlug($validated["name"], $role->id);
         }
 
-        $validated["permissions"] = $validated["permissions"] ?? [];
+        // Rapikan: buang duplikat, aksi tanpa submenu, dan tambahkan kunci modul otomatis
+        $validated["permissions"] = Role::normalisasi($validated["permissions"] ?? []);
 
         $role->update($validated);
 
@@ -280,4 +283,4 @@ class UserController
 
         return $slug;
     }
-}
+}   

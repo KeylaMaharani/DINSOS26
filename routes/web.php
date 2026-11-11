@@ -31,12 +31,7 @@ use App\Http\Controllers\Admin\SigapBencanaController;
 use App\Http\Controllers\Admin\GcLapanganUsahaController;
 use App\Http\Controllers\Admin\GcKeterampilanController;
 use App\Http\Controllers\Admin\GcPenyakitKronisController;
-use App\Http\Controllers\Kesan\AuthController as KesanAuthController;
-use App\Http\Controllers\Kesan\AppController as KesanAppController;
-use App\Http\Controllers\Admin\KesanPilihanController;
-use App\Http\Controllers\Admin\KesanPenerimaController;
-use App\Http\Controllers\Admin\KesanKategoriController;
-use App\Http\Controllers\Admin\KesanFilantropiController;
+// --- Ngopi Pagi ---
 use App\Http\Controllers\Admin\NgopiPagiController as NgopiPagiAdminController;
 use App\Http\Controllers\Admin\NgopiPagiKonselorController;
 use App\Http\Controllers\Admin\NgopiPagiSpesialisasiController;
@@ -68,26 +63,6 @@ Route::get('/kontak', [PageController::class, 'kontak'])->name('kontak');
 Route::post('/kontak', [PageController::class, 'kontakStore'])->name('kontak.store')->middleware('throttle:5,1');
 Route::get('/ppks-psks', [PageController::class, 'ppksPsks'])->name('ppks-psks');
 Route::get('/regulasi', [PageController::class, 'regulasi'])->name('regulasi');
-
-
-Route::prefix('kesan')->name('kesan.')->group(function () {
-    Route::get('/masuk', [KesanAuthController::class, 'create'])->name('masuk');
-    Route::post('/masuk', [KesanAuthController::class, 'store'])->middleware('throttle:10,1')->name('masuk.store');
-    Route::post('/keluar', [KesanAuthController::class, 'destroy'])->middleware('auth')->name('keluar');
-
-    Route::middleware(['auth', 'role:filantropi'])->prefix('app')->name('app.')->group(function () {
-        Route::get('/', [KesanAppController::class, 'beranda'])->name('beranda');
-        Route::get('/penerima', [KesanAppController::class, 'penerima'])->name('penerima');
-        Route::get('/penerima/{penerima}', [KesanAppController::class, 'detail'])->whereNumber('penerima')->name('detail');
-        Route::post('/penerima/{penerima}/pilih', [KesanAppController::class, 'pilih'])->whereNumber('penerima')->name('pilih');
-        Route::get('/pilihan', [KesanAppController::class, 'pilihan'])->name('pilihan');
-        Route::post('/pilihan/konfirmasi', [KesanAppController::class, 'konfirmasi'])->name('konfirmasi');
-        Route::delete('/pilihan/{pilihan}', [KesanAppController::class, 'hapus'])->whereNumber('pilihan')->name('hapus');
-        Route::get('/riwayat', [KesanAppController::class, 'riwayat'])->name('riwayat');
-        Route::get('/riwayat/{pilihan}', [KesanAppController::class, 'tracking'])->whereNumber('pilihan')->name('tracking');
-        Route::post('/riwayat/{pilihan}/batal', [KesanAppController::class, 'batal'])->whereNumber('pilihan')->name('batal');
-    });
-});
 
 // ==========================================
 // NGOPI PAGI (publik, tanpa login) -- pilih spesialisasi -> pilih konselor -> isi data -> chat
@@ -248,7 +223,18 @@ Route::middleware(['auth', 'staff'])->group(function () {
         Route::post('/{pbiApbd}/aksi', [PbiKelurahanController::class, 'aksi'])->middleware('module:pbi-kelurahan.daftar.proses')->name('aksi');
     });
 
-
+    // ==========================================
+    // BAGIAN APPROVAL PBI APBD (halaman kerja tiap user)
+    //   Operator Dinsos, Kabid, Kadis, Dinkes, BPJS -- masing-masing modul sendiri.
+    //   URL berdiri sendiri per bagian, sama seperti pbi-kelurahan:
+    //     /pbi-operator, /pbi-kabid, /pbi-kadis, /pbi-dinkes, /pbi-bpjs
+    //   Nama route TETAP pbi-approval.{tahap}.* (dipakai sidebar & controller
+    //   untuk membaca tahap), view-nya ada di admin/pbi-{tahap}/.
+    //   Rute statis (/aksi) didaftarkan SEBELUM rute wildcard {pbiApbd}.
+    //   PUT edit hanya ada untuk Operator (isi Desil Nasional); diagnosa hanya untuk Dinkes (ubah diagnosa).
+    //   Kabid / Kadis / BPJS tidak punya rute edit sama sekali.
+    //   Hak akses: {modul}.daftar = buka halaman, .daftar.proses = aksi, .daftar.ubah = ubah data.
+    // ==========================================
     foreach (\App\Models\PbiApbd::TAHAP as $tahapKey => $tahapCfg) {
         $modulTahap = $tahapCfg['module'];
 
@@ -503,33 +489,6 @@ Route::middleware(['auth', 'staff'])->group(function () {
     };
     $daftarkanDayasos(config('dayasos', []));
 
-    Route::prefix('kesan-admin')->name('kesan-admin.')->middleware('module:kesan')->group(function () {
-    $k = 'module:kesan.';
-
-    Route::get('/pilihan', [KesanPilihanController::class, 'index'])->middleware($k . 'pilihan')->name('pilihan.index');
-    Route::get('/pilihan/{pilihan}', [KesanPilihanController::class, 'show'])->whereNumber('pilihan')->middleware($k . 'pilihan')->name('pilihan.show');
-    Route::post('/pilihan/{pilihan}/aksi', [KesanPilihanController::class, 'aksi'])->whereNumber('pilihan')->middleware($k . 'pilihan.proses')->name('pilihan.aksi');
-
-    Route::get('/penerima', [KesanPenerimaController::class, 'index'])->middleware($k . 'penerima')->name('penerima.index');
-    Route::get('/penerima/tambah', [KesanPenerimaController::class, 'create'])->middleware($k . 'penerima.tambah')->name('penerima.create');
-    Route::post('/penerima', [KesanPenerimaController::class, 'store'])->middleware($k . 'penerima.tambah')->name('penerima.store');
-    Route::get('/penerima/{penerima}/edit', [KesanPenerimaController::class, 'edit'])->whereNumber('penerima')->middleware($k . 'penerima.ubah')->name('penerima.edit');
-    Route::put('/penerima/{penerima}', [KesanPenerimaController::class, 'update'])->whereNumber('penerima')->middleware($k . 'penerima.ubah')->name('penerima.update');
-    Route::delete('/penerima/{penerima}', [KesanPenerimaController::class, 'destroy'])->whereNumber('penerima')->middleware($k . 'penerima.hapus')->name('penerima.destroy');
-
-    Route::get('/kategori', [KesanKategoriController::class, 'index'])->middleware($k . 'kategori')->name('kategori.index');
-    Route::post('/kategori', [KesanKategoriController::class, 'store'])->middleware($k . 'kategori.tambah')->name('kategori.store');
-    Route::put('/kategori/{kategori}', [KesanKategoriController::class, 'update'])->whereNumber('kategori')->middleware($k . 'kategori.ubah')->name('kategori.update');
-    Route::delete('/kategori/{kategori}', [KesanKategoriController::class, 'destroy'])->whereNumber('kategori')->middleware($k . 'kategori.hapus')->name('kategori.destroy');
-
-    Route::get('/filantropi', [KesanFilantropiController::class, 'index'])->middleware($k . 'filantropi')->name('filantropi.index');
-    Route::get('/filantropi/tambah', [KesanFilantropiController::class, 'create'])->middleware($k . 'filantropi.tambah')->name('filantropi.create');
-    Route::post('/filantropi', [KesanFilantropiController::class, 'store'])->middleware($k . 'filantropi.tambah')->name('filantropi.store');
-    Route::get('/filantropi/{akun}/edit', [KesanFilantropiController::class, 'edit'])->whereNumber('akun')->middleware($k . 'filantropi.ubah')->name('filantropi.edit');
-    Route::put('/filantropi/{akun}', [KesanFilantropiController::class, 'update'])->whereNumber('akun')->middleware($k . 'filantropi.ubah')->name('filantropi.update');
-    Route::delete('/filantropi/{akun}', [KesanFilantropiController::class, 'destroy'])->whereNumber('akun')->middleware($k . 'filantropi.hapus')->name('filantropi.destroy');
-});
-
     // ==========================================
     // PORTAL (dulu "Menu Frontend") -- kerangka menu (config/portal.php)
     // ==========================================
@@ -623,6 +582,9 @@ Route::middleware(['auth', 'role:masyarakat'])->prefix('akun-saya')->name('masya
     });
 
     Route::get('/dtsen', [MasyarakatController::class, 'dtsen'])->name('dtsen');
+    // Form DTSEN pertama kali (warga belum punya pengajuan); pengajuan dibuat saat disimpan
+    Route::get('/dtsen/baru', [MasyarakatController::class, 'dtsenBaru'])->name('dtsen.baru');
+    Route::post('/dtsen/baru', [MasyarakatController::class, 'lengkapiDtsenStore'])->name('dtsen.baru.store');
 
     Route::prefix('dtsen/{permohonan}')->name('dtsen.')->group(function () {
         Route::get('/lengkapi', [MasyarakatController::class, 'lengkapiDtsen'])->name('lengkapi');
@@ -634,4 +596,3 @@ Route::middleware(['auth', 'role:masyarakat'])->prefix('akun-saya')->name('masya
     Route::post('/dokumen/{dokumen}/pakai', [MasyarakatDokumenController::class, 'pakai'])->whereNumber('dokumen')->name('dokumen.pakai');
     Route::delete('/dokumen/{dokumen}', [MasyarakatDokumenController::class, 'destroy'])->whereNumber('dokumen')->name('dokumen.destroy');
 });
-
