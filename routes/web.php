@@ -42,6 +42,7 @@ use App\Http\Controllers\Admin\NgopiPagiController as NgopiPagiAdminController;
 use App\Http\Controllers\Admin\NgopiPagiKonselorController;
 use App\Http\Controllers\Admin\NgopiPagiSpesialisasiController;
 use App\Http\Controllers\NgopiPagiPublikController;
+use App\Http\Controllers\Admin\PfmDashboardController;
 use App\Models\NgopiPagiKonsultasi;
 use Illuminate\Support\Facades\Route;
 
@@ -211,10 +212,10 @@ Route::middleware(['auth', 'staff'])->group(function () {
     // ==========================================
     // Layanan Kelurahan — Ajukan & Riwayat Kartu KKS
     // ==========================================
-    Route::prefix('layanan/kartu-kks')->name('layanan.kartu-kks.')->middleware('module:layanan-kartu-kks')->group(function () {
-        Route::get('/ajukan', [KartuKksAjuanController::class, 'create'])->middleware('module:layanan-kartu-kks.ajukan')->name('ajukan');
-        Route::post('/ajukan', [KartuKksAjuanController::class, 'store'])->middleware('module:layanan-kartu-kks.ajukan.tambah')->name('ajukan.store');
-        Route::get('/riwayat', [KartuKksAjuanController::class, 'riwayat'])->middleware('module:layanan-kartu-kks.riwayat')->name('riwayat');
+    Route::prefix('layanan/kartu-kks')->name('layanan.kartu-kks.')->middleware('module:kartu-kks')->group(function () {
+        Route::get('/ajukan', [KartuKksAjuanController::class, 'create'])->middleware('module:kartu-kks.ajuan.tambah')->name('ajukan');
+        Route::post('/ajukan', [KartuKksAjuanController::class, 'store'])->middleware('module:kartu-kks.ajuan.tambah')->name('ajukan.store');
+        Route::get('/riwayat', [KartuKksAjuanController::class, 'riwayat'])->middleware('module:kartu-kks.ajuan')->name('riwayat');
     });
 
     // ==========================================
@@ -343,11 +344,13 @@ Route::middleware(['auth', 'staff'])->group(function () {
         Route::get('/arsip', [KartuKksController::class, 'arsip'])->middleware('module:kartu-kks.arsip')->name('arsip');
         Route::get('/monitoring', [KartuKksController::class, 'monitoring'])->middleware('module:kartu-kks.monitoring')->name('monitoring');
         Route::get('/log', [KartuKksController::class, 'logIndex'])->middleware('module:kartu-kks.log')->name('log');
-
+        
         Route::get('/{permohonan}', [KartuKksController::class, 'show'])->middleware('module:kartu-kks.ajuan')->name('show');
         Route::get('/{permohonan}/detail', [KartuKksController::class, 'detail'])->middleware('module:kartu-kks.ajuan')->name('detail');
         Route::put('/{permohonan}/detail', [KartuKksController::class, 'updateDetail'])->middleware('module:kartu-kks.ajuan.ubah')->name('detail.update');
         Route::post('/{permohonan}/proses', [KartuKksController::class, 'proses'])->middleware('module:kartu-kks.ajuan.proses')->name('proses');
+
+        Route::post('/{permohonan}/surat', [KartuKksController::class, 'buatSurat'])->middleware('module:kartu-kks.ajuan.ubah')->name('surat.buat');
     });
 
     // ==========================================
@@ -416,9 +419,8 @@ Route::middleware(['auth', 'staff'])->group(function () {
     // ==========================================
     // PFM -- Beranda monitoring PFM (kerangka)
     // ==========================================
-    Route::get('/pfm/beranda', [MenuPlaceholderController::class, 'show'])
+    Route::get('/pfm/beranda', [PfmDashboardController::class, 'index'])
         ->middleware('module:pbi-apbd,kartu-kks,dtsen')
-        ->defaults('judul', 'PFM')->defaults('label', 'Beranda')
         ->name('pfm.beranda');
 
     // ==========================================

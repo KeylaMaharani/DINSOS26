@@ -19,7 +19,7 @@ return [
         'log'        => ['label' => 'Log'],
     ],
     'kartu-kks' => [
-        'ajuan'      => ['label' => 'Ajuan', 'aksi' => $pilih('ubah', 'proses')],
+        'ajuan'      => ['label' => 'Ajuan', 'aksi' => $pilih('tambah', 'ubah', 'proses')],
         'arsip'      => ['label' => 'Arsip'],
         'monitoring' => ['label' => 'Monitoring'],
         'log'        => ['label' => 'Log'],

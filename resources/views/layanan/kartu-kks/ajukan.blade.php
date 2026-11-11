@@ -1,244 +1,213 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ajukan Kartu KKS - SOLID v4 Dinas Sosial Kota Bogor</title>
-  <link rel="icon" type="image/png" href="{{ asset('assets/img/logo/logo.png') }}" />
-  <link href="https://fonts.googleapis.com" rel="preconnect" />
-  <link crossorigin href="https://fonts.gstatic.com" rel="preconnect" />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            primary: "#003b62",
-            secondary: "#136299",
-            surface: "#f7f9ff",
-            error: "#ba1a1a",
-            "error-container": "#ffdad6",
-            "on-error-container": "#93000a",
-            success: "#2e7d32",
-            "success-container": "#d0f8d0",
-            "on-success-container": "#0a5e0a",
-          },
-          fontFamily: { sans: ["Plus Jakarta Sans", "sans-serif"] },
-        },
-      },
-    };
-  </script>
-  <style>
-    body { font-family: "Plus Jakarta Sans", sans-serif; background: #eef2f7; }
-    .lay-input {
-      width: 100%; border: 1.5px solid #e4e9f0; background: #f7f9ff;
-      border-radius: 0.6rem; padding: 0.55rem 0.9rem; font-size: 13.5px; color: #121d26;
-    }
-    .lay-input:focus { outline: none; border-color: #136299; background: #fff; box-shadow: 0 0 0 3px rgba(19,98,153,0.12); }
-    .lay-label { display:block; font-size: 12.5px; font-weight: 600; color: #121d26; margin-bottom: 0.3rem; }
-    .lay-error { margin-top: 0.3rem; font-size: 11.5px; font-weight: 600; color: #ba1a1a; }
-  </style>
-</head>
-<body>
+@extends('layouts.admin')
 
-  <nav class="bg-primary text-white px-6 py-3 flex items-center justify-between shadow">
-    <div class="flex items-center gap-2">
-      <img src="{{ asset('assets/img/logo/bogor.png') }}" alt="Logo" class="w-7 h-7 object-contain" />
-      <span class="text-sm font-semibold">Dinas Sosial Kota Bogor</span>
-    </div>
-    <div class="flex items-center gap-4 text-sm">
-      <a href="{{ route('dashboard') }}" class="hover:underline flex items-center gap-1">
-        <span class="material-symbols-outlined text-[18px]">dashboard</span> Dashboard
-      </a>
-      <form method="POST" action="{{ route('logout') }}">
-        @csrf
-        <button type="submit" class="hover:underline flex items-center gap-1">
-          <span class="material-symbols-outlined text-[18px]">logout</span> Keluar
-        </button>
-      </form>
-    </div>
-  </nav>
+@section('title', 'Tambah Ajuan Kartu KKS - SOLID Dinas Sosial Kota Bogor')
+@section('page_title', 'Kartu KKS — Tambah Ajuan')
 
-  <main class="max-w-5xl mx-auto px-4 py-8">
-    <div class="bg-white rounded-xl shadow-sm p-6 md:p-8">
+@php
+    $inputClass = 'w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand';
+    $fileClass = 'block w-full text-xs text-on-surface-variant file:mr-3 file:rounded file:border-0 file:bg-brand/10 file:px-3 file:py-1.5 file:text-brand file:font-semibold';
+    $labelClass = 'block text-xs font-medium text-on-surface-variant mb-1';
+    $errClass = 'text-xs text-error mt-1';
+    $isHilang = old('masalah_kartu') === 'hilang';
+@endphp
 
-      <div class="flex items-center justify-between mb-1">
-        <h1 class="text-lg font-bold text-[#121d26]">Ajukan Permohonan Kartu KKS</h1>
-        <a href="{{ route('layanan.kartu-kks.riwayat') }}" class="text-secondary text-sm font-semibold hover:underline">
-          Lihat Riwayat Pengajuan &rarr;
+@section('content')
+    <div class="space-y-5 max-w-5xl">
+
+        <a href="{{ route('kartu-kks.ajuan') }}"
+            class="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-brand">
+            <span class="material-symbols-outlined text-[18px]">arrow_back</span> Kembali ke daftar Ajuan
         </a>
-      </div>
-      <p class="text-sm text-gray-500 mb-6">
-        Isi data sesuai KTP/KK. Semua lampiran wajib berupa file JPG/PNG/PDF, maksimal 2 MB.
-      </p>
 
-      @if ($errors->any())
-        <div class="mb-5 rounded-lg border border-red-200 bg-error-container text-on-error-container text-sm px-4 py-3">
-          Periksa kembali kolom yang ditandai merah di bawah.
-        </div>
-      @endif
+        @if ($errors->any())
+            <div class="flex items-center gap-3 px-4 py-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700">
+                <span class="material-symbols-outlined text-[20px]">error</span>
+                <span>Periksa kembali kolom yang ditandai merah di bawah.</span>
+            </div>
+        @endif
 
-      <form method="POST" action="{{ route('layanan.kartu-kks.ajukan.store') }}" enctype="multipart/form-data" class="space-y-5">
-        @csrf
+        <form method="POST" action="{{ route('layanan.kartu-kks.ajukan.store') }}" enctype="multipart/form-data"
+            class="space-y-5">
+            @csrf
 
-        <div class="grid md:grid-cols-2 gap-5">
-          <div>
-            <label class="lay-label">NIK</label>
-            <input type="text" name="nik" maxlength="20" value="{{ old('nik') }}" class="lay-input" />
-            @error('nik') <p class="lay-error">{{ $message }}</p> @enderror
-          </div>
-          <div>
-            <label class="lay-label">Nama Lengkap</label>
-            <input type="text" name="nama" value="{{ old('nama') }}" class="lay-input" />
-            @error('nama') <p class="lay-error">{{ $message }}</p> @enderror
-          </div>
+            {{-- Data Pemohon --}}
+            <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden">
+                <div class="px-5 py-4 border-b border-outline-variant/40 flex flex-wrap items-center justify-between gap-2">
+                    <h3 class="text-sm font-bold flex items-center gap-2">
+                        <span class="material-symbols-outlined text-[20px] text-brand">badge</span>
+                        Data Pemohon
+                    </h3>
+                    <a href="{{ route('layanan.kartu-kks.riwayat') }}"
+                        class="text-xs font-semibold text-brand hover:underline">Lihat Riwayat Pengajuan &rarr;</a>
+                </div>
 
-          <div>
-            <label class="lay-label">Jenis Kelamin</label>
-            <select name="jenis_kelamin" class="lay-input">
-              <option value="">-Pilih-</option>
-              <option value="L" @selected(old('jenis_kelamin')=='L')>Laki-laki</option>
-              <option value="P" @selected(old('jenis_kelamin')=='P')>Perempuan</option>
-            </select>
-            @error('jenis_kelamin') <p class="lay-error">{{ $message }}</p> @enderror
-          </div>
-          <div>
-            <label class="lay-label">Status Perkawinan</label>
-            <select name="status_perkawinan" class="lay-input">
-              <option value="">-Pilih-</option>
-              @foreach (['Kawin','Belum Kawin','Cerai Hidup','Cerai Mati'] as $opt)
-                <option value="{{ $opt }}" @selected(old('status_perkawinan')==$opt)>{{ $opt }}</option>
-              @endforeach
-            </select>
-            @error('status_perkawinan') <p class="lay-error">{{ $message }}</p> @enderror
-          </div>
+                <div class="p-5 grid grid-cols-1 gap-y-4 max-w-2xl">
+                    <div>
+                        <label class="{{ $labelClass }}">NIK <span class="text-error">*</span></label>
+                        <input type="text" name="nik" maxlength="20" value="{{ old('nik') }}" class="{{ $inputClass }}" />
+                        @error('nik') <p class="{{ $errClass }}">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="{{ $labelClass }}">Nama Lengkap <span class="text-error">*</span></label>
+                        <input type="text" name="nama" value="{{ old('nama') }}" class="{{ $inputClass }}" />
+                        @error('nama') <p class="{{ $errClass }}">{{ $message }}</p> @enderror
+                    </div>
 
-          <div>
-            <label class="lay-label">Tempat Lahir</label>
-            <input type="text" name="tempat_lahir" value="{{ old('tempat_lahir') }}" class="lay-input" />
-            @error('tempat_lahir') <p class="lay-error">{{ $message }}</p> @enderror
-          </div>
-          <div>
-            <label class="lay-label">Tanggal Lahir</label>
-            <input type="date" name="tanggal_lahir" value="{{ old('tanggal_lahir') }}" class="lay-input" />
-            @error('tanggal_lahir') <p class="lay-error">{{ $message }}</p> @enderror
-          </div>
+                    <div>
+                        <label class="{{ $labelClass }}">Jenis Kelamin <span class="text-error">*</span></label>
+                        <select name="jenis_kelamin" class="{{ $inputClass }}">
+                            <option value="">-Pilih-</option>
+                            <option value="L" @selected(old('jenis_kelamin') == 'L')>Laki-laki</option>
+                            <option value="P" @selected(old('jenis_kelamin') == 'P')>Perempuan</option>
+                        </select>
+                        @error('jenis_kelamin') <p class="{{ $errClass }}">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="{{ $labelClass }}">Status Perkawinan <span class="text-error">*</span></label>
+                        <select name="status_perkawinan" class="{{ $inputClass }}">
+                            <option value="">-Pilih-</option>
+                            @foreach (['Kawin', 'Belum Kawin', 'Cerai Hidup', 'Cerai Mati'] as $opt)
+                                <option value="{{ $opt }}" @selected(old('status_perkawinan') == $opt)>{{ $opt }}</option>
+                            @endforeach
+                        </select>
+                        @error('status_perkawinan') <p class="{{ $errClass }}">{{ $message }}</p> @enderror
+                    </div>
 
-          <div>
-            <label class="lay-label">Agama</label>
-            <select name="agama" class="lay-input">
-              <option value="">-Pilih-</option>
-              @foreach (['Islam','Kristen','Katolik','Hindu','Buddha','Konghuchu'] as $opt)
-                <option value="{{ $opt }}" @selected(old('agama')==$opt)>{{ $opt }}</option>
-              @endforeach
-            </select>
-            @error('agama') <p class="lay-error">{{ $message }}</p> @enderror
-          </div>
-          <div>
-            <label class="lay-label">Pekerjaan</label>
-            <input type="text" name="pekerjaan" value="{{ old('pekerjaan') }}" class="lay-input" />
-            @error('pekerjaan') <p class="lay-error">{{ $message }}</p> @enderror
-          </div>
+                    <div>
+                        <label class="{{ $labelClass }}">Tempat Lahir <span class="text-error">*</span></label>
+                        <input type="text" name="tempat_lahir" value="{{ old('tempat_lahir') }}" class="{{ $inputClass }}" />
+                        @error('tempat_lahir') <p class="{{ $errClass }}">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="{{ $labelClass }}">Tanggal Lahir <span class="text-error">*</span></label>
+                        <input type="date" name="tanggal_lahir" value="{{ old('tanggal_lahir') }}" class="{{ $inputClass }}" />
+                        @error('tanggal_lahir') <p class="{{ $errClass }}">{{ $message }}</p> @enderror
+                    </div>
 
-          <div>
-            <label class="lay-label">No. PKH</label>
-            <input type="text" name="no_pkh" value="{{ old('no_pkh') }}" class="lay-input" />
-            @error('no_pkh') <p class="lay-error">{{ $message }}</p> @enderror
-          </div>
-          <div>
-            <label class="lay-label">No. KK</label>
-            <input type="text" name="no_kk" maxlength="20" value="{{ old('no_kk') }}" class="lay-input" />
-            @error('no_kk') <p class="lay-error">{{ $message }}</p> @enderror
-          </div>
+                    <div>
+                        <label class="{{ $labelClass }}">Agama <span class="text-error">*</span></label>
+                        <select name="agama" class="{{ $inputClass }}">
+                            <option value="">-Pilih-</option>
+                            @foreach (['Islam', 'Kristen', 'Katolik', 'Hindu', 'Buddha', 'Konghuchu'] as $opt)
+                                <option value="{{ $opt }}" @selected(old('agama') == $opt)>{{ $opt }}</option>
+                            @endforeach
+                        </select>
+                        @error('agama') <p class="{{ $errClass }}">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="{{ $labelClass }}">Pekerjaan <span class="text-error">*</span></label>
+                        <input type="text" name="pekerjaan" value="{{ old('pekerjaan') }}" class="{{ $inputClass }}" />
+                        @error('pekerjaan') <p class="{{ $errClass }}">{{ $message }}</p> @enderror
+                    </div>
 
-          <div>
-            <label class="lay-label">No. Kartu KKS</label>
-            <input type="text" name="no_kartu_kks" value="{{ old('no_kartu_kks') }}" class="lay-input" />
-            @error('no_kartu_kks') <p class="lay-error">{{ $message }}</p> @enderror
-          </div>
-          <div>
-            <label class="lay-label">No. Rekening</label>
-            <input type="text" name="no_rekening" maxlength="30" value="{{ old('no_rekening') }}" class="lay-input" />
-            @error('no_rekening') <p class="lay-error">{{ $message }}</p> @enderror
-          </div>
+                    <div>
+                        <label class="{{ $labelClass }}">No. PKH <span class="text-error">*</span></label>
+                        <input type="text" name="no_pkh" value="{{ old('no_pkh') }}" class="{{ $inputClass }}" />
+                        @error('no_pkh') <p class="{{ $errClass }}">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="{{ $labelClass }}">No. KK <span class="text-error">*</span></label>
+                        <input type="text" name="no_kk" maxlength="20" value="{{ old('no_kk') }}" class="{{ $inputClass }}" />
+                        @error('no_kk') <p class="{{ $errClass }}">{{ $message }}</p> @enderror
+                    </div>
 
-          <div class="md:col-span-2">
-            <label class="lay-label">Alamat</label>
-            <textarea name="alamat" rows="2" class="lay-input">{{ old('alamat') }}</textarea>
-            @error('alamat') <p class="lay-error">{{ $message }}</p> @enderror
-          </div>
-          <div>
-            <label class="lay-label">Kelurahan</label>
-            <input type="text" name="kelurahan" value="{{ old('kelurahan') }}" class="lay-input" />
-            @error('kelurahan') <p class="lay-error">{{ $message }}</p> @enderror
-          </div>
+                    <div>
+                        <label class="{{ $labelClass }}">No. Kartu KKS <span class="text-error">*</span></label>
+                        <input type="text" name="no_kartu_kks" value="{{ old('no_kartu_kks') }}" class="{{ $inputClass }}" />
+                        @error('no_kartu_kks') <p class="{{ $errClass }}">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="{{ $labelClass }}">No. Rekening <span class="text-error">*</span></label>
+                        <input type="text" name="no_rekening" maxlength="30" value="{{ old('no_rekening') }}" class="{{ $inputClass }}" />
+                        @error('no_rekening') <p class="{{ $errClass }}">{{ $message }}</p> @enderror
+                    </div>
 
-          <div>
-            <label class="lay-label">Masalah Kartu</label>
-            <select name="masalah_kartu" id="masalah_kartu" class="lay-input">
-              <option value="">-Pilih-</option>
-              @foreach (['terblokir','rusak','hilang','masa berlaku habis','nama tidak sesuai','keterangan lainnya'] as $opt)
-                <option value="{{ $opt }}" @selected(old('masalah_kartu')==$opt)>{{ ucfirst($opt) }}</option>
-              @endforeach
-            </select>
-            @error('masalah_kartu') <p class="lay-error">{{ $message }}</p> @enderror
-          </div>
+                    <div>
+                        <label class="{{ $labelClass }}">Alamat <span class="text-error">*</span></label>
+                        <textarea name="alamat" rows="2" class="{{ $inputClass }}">{{ old('alamat') }}</textarea>
+                        @error('alamat') <p class="{{ $errClass }}">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="{{ $labelClass }}">Kelurahan <span class="text-error">*</span></label>
+                        <input type="text" name="kelurahan" value="{{ old('kelurahan') }}" class="{{ $inputClass }}" />
+                        @error('kelurahan') <p class="{{ $errClass }}">{{ $message }}</p> @enderror
+                    </div>
 
-          <div id="wrap-nomor-kehilangan" style="{{ old('masalah_kartu') === 'hilang' ? '' : 'display:none' }}">
-            <label class="lay-label">Nomor Laporan Kehilangan Polisi</label>
-            <input type="text" name="nomor_kehilangan_polisi" value="{{ old('nomor_kehilangan_polisi') }}" class="lay-input" />
-            @error('nomor_kehilangan_polisi') <p class="lay-error">{{ $message }}</p> @enderror
-          </div>
-        </div>
+                    <div>
+                        <label class="{{ $labelClass }}">Masalah Kartu <span class="text-error">*</span></label>
+                        <select name="masalah_kartu" id="masalah_kartu" class="{{ $inputClass }}">
+                            <option value="">-Pilih-</option>
+                            @foreach (['terblokir', 'rusak', 'hilang', 'masa berlaku habis', 'nama tidak sesuai', 'keterangan lainnya'] as $opt)
+                                <option value="{{ $opt }}" @selected(old('masalah_kartu') == $opt)>{{ ucfirst($opt) }}</option>
+                            @endforeach
+                        </select>
+                        @error('masalah_kartu') <p class="{{ $errClass }}">{{ $message }}</p> @enderror
+                    </div>
 
-        <hr class="border-gray-200" />
-        <h2 class="text-sm font-bold text-secondary uppercase">Lampiran</h2>
+                    <div id="wrap-nomor-kehilangan" class="{{ $isHilang ? '' : 'hidden' }}">
+                        <label class="{{ $labelClass }}">Nomor Laporan Kehilangan Polisi <span class="text-error">*</span></label>
+                        <input type="text" name="nomor_kehilangan_polisi" value="{{ old('nomor_kehilangan_polisi') }}" class="{{ $inputClass }}" />
+                        @error('nomor_kehilangan_polisi') <p class="{{ $errClass }}">{{ $message }}</p> @enderror
+                    </div>
+                </div>
+            </div>
 
-        <div class="grid md:grid-cols-2 gap-5">
-          <div>
-            <label class="lay-label">Scan KTP</label>
-            <input type="file" name="scan_ktp" accept=".jpg,.jpeg,.png,.pdf" class="lay-input" />
-            @error('scan_ktp') <p class="lay-error">{{ $message }}</p> @enderror
-          </div>
-          <div>
-            <label class="lay-label">Scan Kartu Keluarga</label>
-            <input type="file" name="scan_kartu_keluarga" accept=".jpg,.jpeg,.png,.pdf" class="lay-input" />
-            @error('scan_kartu_keluarga') <p class="lay-error">{{ $message }}</p> @enderror
-          </div>
-          <div>
-            <label class="lay-label">Scan Kartu KKS</label>
-            <input type="file" name="scan_kartu_kks" accept=".jpg,.jpeg,.png,.pdf" class="lay-input" />
-            @error('scan_kartu_kks') <p class="lay-error">{{ $message }}</p> @enderror
-          </div>
-          <div>
-            <label class="lay-label">Screenshot DTSEN</label>
-            <input type="file" name="screenshot_dtsen" accept=".jpg,.jpeg,.png,.pdf" class="lay-input" />
-            @error('screenshot_dtsen') <p class="lay-error">{{ $message }}</p> @enderror
-          </div>
-          <div id="wrap-surat-kehilangan" style="{{ old('masalah_kartu') === 'hilang' ? '' : 'display:none' }}">
-            <label class="lay-label">Surat Kehilangan (Kepolisian)</label>
-            <input type="file" name="surat_kehilangan_polisi" accept=".jpg,.jpeg,.png,.pdf" class="lay-input" />
-            @error('surat_kehilangan_polisi') <p class="lay-error">{{ $message }}</p> @enderror
-          </div>
-        </div>
+            {{-- Lampiran --}}
+            <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden">
+                <div class="px-5 py-4 border-b border-outline-variant/40 flex flex-wrap items-center justify-between gap-2">
+                    <h3 class="text-sm font-bold flex items-center gap-2">
+                        <span class="material-symbols-outlined text-[20px] text-brand">attach_file</span>
+                        Lampiran
+                    </h3>
+                    <span class="text-[11px] text-on-surface-variant">JPG, PNG, PDF, maks. 2 MB per file</span>
+                </div>
 
-        <div class="pt-2">
-          <button type="submit" class="bg-primary text-white font-bold text-sm rounded-full px-6 py-2.5 hover:bg-secondary transition">
-            Kirim Pengajuan
-          </button>
-        </div>
-      </form>
+                <div class="p-5 grid grid-cols-1 gap-y-4 max-w-2xl">
+                    <div>
+                        <label class="{{ $labelClass }}">Scan KTP <span class="text-error">*</span></label>
+                        <input type="file" name="scan_ktp" accept=".jpg,.jpeg,.png,.pdf" class="{{ $fileClass }}" />
+                        @error('scan_ktp') <p class="{{ $errClass }}">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="{{ $labelClass }}">Scan Kartu Keluarga <span class="text-error">*</span></label>
+                        <input type="file" name="scan_kartu_keluarga" accept=".jpg,.jpeg,.png,.pdf" class="{{ $fileClass }}" />
+                        @error('scan_kartu_keluarga') <p class="{{ $errClass }}">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="{{ $labelClass }}">Scan Kartu KKS <span class="text-error">*</span></label>
+                        <input type="file" name="scan_kartu_kks" accept=".jpg,.jpeg,.png,.pdf" class="{{ $fileClass }}" />
+                        @error('scan_kartu_kks') <p class="{{ $errClass }}">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="{{ $labelClass }}">Screenshot DTSEN <span class="text-error">*</span></label>
+                        <input type="file" name="screenshot_dtsen" accept=".jpg,.jpeg,.png,.pdf" class="{{ $fileClass }}" />
+                        @error('screenshot_dtsen') <p class="{{ $errClass }}">{{ $message }}</p> @enderror
+                    </div>
+                    <div id="wrap-surat-kehilangan" class="{{ $isHilang ? '' : 'hidden' }}">
+                        <label class="{{ $labelClass }}">Surat Kehilangan (Kepolisian) <span class="text-error">*</span></label>
+                        <input type="file" name="surat_kehilangan_polisi" accept=".jpg,.jpeg,.png,.pdf" class="{{ $fileClass }}" />
+                        @error('surat_kehilangan_polisi') <p class="{{ $errClass }}">{{ $message }}</p> @enderror
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-10">
+                <button type="submit"
+                    class="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-brand text-white hover:opacity-90 text-sm font-bold shadow-md transition-all">
+                    <span class="material-symbols-outlined text-[18px]">send</span>
+                    Kirim Pengajuan
+                </button>
+            </div>
+        </form>
     </div>
-  </main>
 
-  <script>
-    document.getElementById('masalah_kartu').addEventListener('change', function () {
-      var isHilang = this.value === 'hilang';
-      document.getElementById('wrap-nomor-kehilangan').style.display = isHilang ? '' : 'none';
-      document.getElementById('wrap-surat-kehilangan').style.display = isHilang ? '' : 'none';
-    });
-  </script>
-</body>
-</html>
+    @push('scripts')
+        <script>
+            document.getElementById('masalah_kartu').addEventListener('change', function () {
+                var hilang = this.value === 'hilang';
+                document.getElementById('wrap-nomor-kehilangan').classList.toggle('hidden', !hilang);
+                document.getElementById('wrap-surat-kehilangan').classList.toggle('hidden', !hilang);
+            });
+        </script>
+    @endpush
+@endsection

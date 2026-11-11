@@ -44,6 +44,10 @@
         <div
             class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] p-5 flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div>
+                <h3 class="text-sm font-semibold flex items-center gap-2 mb-3">
+                    <span class="material-symbols-outlined text-[18px] text-brand">assignment</span>
+                    Data Permohonan
+                </h3>
                 <p class="text-xs text-on-surface-variant">NIK</p>
                 <h2 class="text-lg font-extrabold text-brand">{{ $data->nik }}</h2>
                 <p class="text-sm text-on-surface-variant mt-1">{{ $data->nama_pemohon }}</p>
@@ -53,34 +57,18 @@
             </span>
         </div>
 
-        {{-- 1. Data Permohonan --}}
-        <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden">
-            <div class="px-4 py-3 border-b border-outline-variant/40">
-                <h3 class="text-sm font-semibold flex items-center gap-2">
-                    <span class="material-symbols-outlined text-[18px] text-brand">assignment</span>
-                    Data Permohonan
-                </h3>
-            </div>
-            <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 p-4 text-sm">
-                <div>
-                    <dt class="text-xs text-on-surface-variant">NIK</dt>
-                    <dd class="font-medium">{{ $data->nik ?: '-' }}</dd>
-                </div>
-            </dl>
-        </div>
-
         <form method="POST" action="{{ route('kartu-kks.detail.update', $data) }}" enctype="multipart/form-data">
             @csrf
             @method('PUT')
 
-            {{-- 2. Data Detail (editable) --}}
+            {{-- 2. Data Detail (editable oleh Operator Dinsos / Super Admin) --}}
             <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden mb-5">
                 <div class="px-4 py-3 border-b border-outline-variant/40 flex items-center justify-between">
                     <h3 class="text-sm font-semibold flex items-center gap-2">
                         <span class="material-symbols-outlined text-[18px] text-brand">badge</span>
                         Data Detail
                     </h3>
-                    @if ($canAct)
+                    @if ($canEdit)
                         <span class="text-xs text-brand">Dapat diedit</span>
                     @endif
                 </div>
@@ -137,9 +125,10 @@
                         ];
                     @endphp
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                    <div class="grid grid-cols-1 gap-y-4 max-w-2xl">
                         @foreach ($fields as $field => $config)
-                            <div class="{{ $config['type'] === 'textarea' ? 'sm:col-span-2' : '' }}">
+                            <div @if ($field === 'nomor_kehilangan_polisi') id="wrap-nomor-kehilangan" @endif
+                                class="{{ $field === 'nomor_kehilangan_polisi' && ($detail->masalah_kartu ?? null) !== 'hilang' ? 'hidden' : '' }}">
                                 <label class="block text-xs text-on-surface-variant mb-1">
                                     {{ $config['label'] }}
                                     @if ($config['wajib'])
@@ -147,7 +136,7 @@
                                     @endif
                                 </label>
 
-                                @if (!$canAct)
+                                @if (!$canEdit)
                                     <p class="font-medium text-sm px-1 py-1.5">
                                         {{ $detail->$field ?? null
                                             ? ($config['type'] === 'date'
@@ -159,7 +148,7 @@
                                     <textarea name="{{ $field }}" rows="2"
                                         class="w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30">{{ old($field, $detail->$field ?? '') }}</textarea>
                                 @elseif ($config['type'] === 'select')
-                                    <select name="{{ $field }}"
+                                    <select name="{{ $field }}" @if ($field === 'masalah_kartu') id="masalah_kartu" @endif
                                         class="w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30">
                                         <option value="">-Pilih-</option>
                                         @foreach ($config['options'] as $opt)
@@ -199,7 +188,8 @@
                             $file = $data->lampiran->$field ?? null;
                             $isPdf = $file && strtolower(pathinfo($file, PATHINFO_EXTENSION)) === 'pdf';
                         @endphp
-                        <div class="group border border-outline-variant/40 rounded-lg overflow-hidden hover:border-brand transition-all">
+                        <div @if ($field === 'surat_kehilangan_polisi') id="wrap-surat-kehilangan" @endif
+                            class="group border border-outline-variant/40 rounded-lg overflow-hidden hover:border-brand transition-all {{ $field === 'surat_kehilangan_polisi' && ($detail->masalah_kartu ?? null) !== 'hilang' ? 'hidden' : '' }}">
                             <a @if ($file) href="{{ asset('storage/' . $file) }}" target="_blank" @endif
                                 class="block">
                                 <div class="aspect-square bg-surface-container/50 flex items-center justify-center p-2">
@@ -235,28 +225,7 @@
                 </div>
             </div>
 
-            {{-- 4. Surat Keterangan KKS Dinas Sosial --}}
-            <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden mb-5">
-                <div class="px-4 py-3 border-b border-outline-variant/40">
-                    <h3 class="text-sm font-semibold flex items-center gap-2">
-                        <span class="material-symbols-outlined text-[18px] text-brand">verified</span>
-                        Surat Keterangan KKS Dinas Sosial
-                    </h3>
-                </div>
-                <div class="p-4 space-y-2">
-                    @php $suratDinsos = $data->surat->surat_keterangan_dinsos ?? null; @endphp
-                    <a @if ($suratDinsos) href="{{ asset('storage/' . $suratDinsos) }}" target="_blank" @endif
-                        class="flex items-center gap-2 border border-outline-variant/40 rounded-lg px-3 py-2 text-sm hover:border-brand transition-colors w-fit">
-                        <span class="material-symbols-outlined text-[18px] text-on-surface-variant">description</span>
-                        Surat Keterangan KKS Digital
-                        @unless ($suratDinsos)
-                            <span class="text-xs text-on-surface-variant">(belum ada)</span>
-                        @endunless
-                    </a>
-                </div>
-            </div>
-
-            @if ($canAct)
+            @if ($canEdit)
                 <div class="mb-5">
                     <button type="submit"
                         class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand text-white hover:bg-brand text-sm font-medium transition-colors">
@@ -267,7 +236,125 @@
             @endif
         </form>
 
-        {{-- 5. Log Proses --}}
+        {{-- 4. Surat Keterangan KKS Dinas Sosial --}}
+        <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden mb-5">
+                <div class="px-4 py-3 border-b border-outline-variant/40">
+                    <h3 class="text-sm font-semibold flex items-center gap-2">
+                        <span class="material-symbols-outlined text-[18px] text-brand">verified</span>
+                        Surat Keterangan KKS Dinas Sosial
+                    </h3>
+                </div>
+                @php
+                    $suratDinsos = $data->surat->surat_keterangan_dinsos ?? null;
+                    $suratAda = $suratDinsos && \Illuminate\Support\Facades\Storage::disk('public')->exists($suratDinsos);
+                @endphp
+                <div class="p-4" x-data="{ preview: false }">
+                    @if ($suratAda)
+                        <div class="flex flex-wrap items-center gap-3 border border-outline-variant/40 rounded-xl px-4 py-3 w-fit">
+                            <span class="material-symbols-outlined text-[28px] text-error/70">picture_as_pdf</span>
+                            <div class="mr-2">
+                                <p class="text-sm font-semibold">Surat Keterangan KKS Digital</p>
+                                <p class="text-[11px] text-on-surface-variant">
+                                    Ditandatangani secara elektronik
+                                    @if ($data->surat?->surat_keterangan_dinsos_at)
+                                        &middot; {{ $data->surat->surat_keterangan_dinsos_at->format('d M Y - H:i') }}
+                                    @endif
+                                </p>
+                            </div>
+                            <button type="button" @click="preview = true" title="Lihat surat"
+                                class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-brand/10 text-brand hover:bg-brand hover:text-white text-xs font-semibold transition-colors">
+                                <span class="material-symbols-outlined text-[16px]">visibility</span> Lihat
+                            </button>
+                            <a href="{{ asset('storage/' . $suratDinsos) }}" download="Surat-Keterangan-KKS-{{ $data->no_permohonan }}.pdf"
+                                title="Unduh PDF"
+                                class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-brand/10 text-brand hover:bg-brand hover:text-white transition-colors">
+                                <span class="material-symbols-outlined text-[18px]">download</span>
+                            </a>
+                        </div>
+
+                        <div x-show="preview" x-cloak @keydown.escape.window="preview = false"
+                            class="fixed inset-0 z-[9000] flex items-center justify-center bg-black/50 p-4">
+                            <div @click.outside="preview = false"
+                                class="bg-white w-full max-w-4xl h-[90vh] rounded-2xl shadow-xl flex flex-col overflow-hidden">
+                                <div class="shrink-0 flex items-center justify-between px-5 py-3 border-b border-outline-variant/40">
+                                    <h4 class="text-sm font-bold">Surat Keterangan KKS</h4>
+                                    <div class="flex items-center gap-1">
+                                        <a href="{{ asset('storage/' . $suratDinsos) }}"
+                                            download="Surat-Keterangan-KKS-{{ $data->no_permohonan }}.pdf" title="Unduh PDF"
+                                            class="w-9 h-9 rounded-full flex items-center justify-center text-brand hover:bg-brand/10 transition-colors">
+                                            <span class="material-symbols-outlined text-[22px]">download</span>
+                                        </a>
+                                        <button type="button" @click="preview = false" title="Tutup"
+                                            class="w-9 h-9 rounded-full flex items-center justify-center text-error hover:bg-error-container/50 transition-colors">
+                                            <span class="material-symbols-outlined text-[22px]">close</span>
+                                        </button>
+                                    </div>
+                                </div>
+                                <iframe x-show="preview" src="{{ asset('storage/' . $suratDinsos) }}"
+                                    class="flex-1 w-full" title="Preview Surat Keterangan KKS"></iframe>
+                            </div>
+                        </div>
+                    @else
+                        <div class="flex flex-wrap items-center gap-3">
+                            <div class="flex items-center gap-2 border border-dashed border-outline-variant/60 rounded-xl px-4 py-3 w-fit text-sm text-on-surface-variant">
+                                <span class="material-symbols-outlined text-[20px] opacity-50">description</span>
+                                @if ($bisaBuatSurat)
+                                    Surat belum tersedia untuk ajuan ini.
+                                @else
+                                    Surat dibuat otomatis setelah Kepala Dinas menandatangani.
+                                @endif
+                            </div>
+
+                            @if ($bisaBuatSurat)
+                                {{-- Tombol ini memakai form terpisah di bawah (atribut form=...) karena
+                                     blok ini berada di dalam form Simpan Data -- form tidak boleh bersarang. --}}
+                                <button type="submit" form="form-buat-surat"
+                                    class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand text-white hover:opacity-90 text-xs font-bold shadow-md transition-all">
+                                    <span class="material-symbols-outlined text-[16px]">description</span>
+                                    Buat Surat Sekarang
+                                </button>
+                            @endif
+                        </div>
+                    @endif
+                </div>
+            </div>
+
+        @if ($bisaBuatSurat)
+            <form id="form-buat-surat" method="POST" action="{{ route('kartu-kks.surat.buat', $data) }}" class="hidden">
+                @csrf
+            </form>
+        @endif
+
+                {{-- 5. Tanda Tangan Digital Kepala Dinas (muncul setelah disetujui) --}}
+        @if ($ttdKadis)
+            <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden">
+                <div class="px-5 py-4 border-b border-outline-variant/40">
+                    <h3 class="text-sm font-bold flex items-center gap-2">
+                        <span class="material-symbols-outlined text-[20px] text-brand">draw</span>
+                        Tanda Tangan Digital Kepala Dinas
+                    </h3>
+                </div>
+                <div class="p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+                    @if ($ttdKadis['path'])
+                        <img src="{{ asset('storage/' . $ttdKadis['path']) }}" alt="Tanda tangan Kepala Dinas"
+                            class="h-20 max-w-[12rem] object-contain rounded border border-outline-variant/40 bg-white p-2">
+                    @else
+                        <div class="h-20 w-48 flex items-center justify-center rounded border border-dashed border-outline-variant/60 text-xs text-on-surface-variant">
+                            Gambar TTD tidak tersedia
+                        </div>
+                    @endif
+                    <div class="text-sm">
+                        <p class="font-semibold">{{ $ttdKadis['nama'] }}</p>
+                        <p class="text-xs text-on-surface-variant">
+                            Disetujui pada
+                            {{ \Carbon\Carbon::parse($ttdKadis['tanggal'])->format('d M Y - H:i') }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        @endif
+
+        {{-- 6. Log Proses --}}
         <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden">
             <div class="px-5 py-4 border-b border-outline-variant/40">
                 <h3 class="text-sm font-bold flex items-center gap-2">
@@ -306,7 +393,7 @@
             </div>
         </div>
 
-        {{-- 6. Aksi & Catatan --}}
+        {{-- 7. Aksi & Catatan --}}
         <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden mb-10">
             <div class="px-5 py-4 border-b border-outline-variant/40 bg-[#eef4fd]">
                 <h3 class="text-sm font-bold flex items-center gap-2">
@@ -342,6 +429,38 @@
                 <form method="POST" action="{{ route('kartu-kks.proses', $data) }}" class="p-5">
                     @csrf
 
+                    {{-- Pratinjau TTD digital: hanya di tahap Kepala Dinas --}}
+                    @if ($butuhTtd)
+                        <div class="mb-5 rounded-xl border border-outline-variant/40 bg-slate-50 p-4">
+                            <p class="text-sm font-bold text-on-surface mb-1 flex items-center gap-2">
+                                <span class="material-symbols-outlined text-[18px] text-brand">draw</span>
+                                Tanda Tangan Digital Anda
+                            </p>
+                            @if ($ttdSaatIni)
+                                <p class="text-xs text-on-surface-variant mb-3">
+                                    Tanda tangan ini akan otomatis dibubuhkan saat Anda menekan tombol
+                                    "Setujui &amp; Tanda Tangani".
+                                </p>
+                                <img src="{{ asset('storage/' . $ttdSaatIni) }}" alt="Tanda tangan Anda"
+                                    class="h-16 max-w-[10rem] object-contain rounded border border-outline-variant/40 bg-white p-1">
+                            @else
+                                <p class="text-xs text-error font-medium">
+                                    Tanda tangan digital belum tersedia. Unggah dulu lewat menu
+                                    <b>Edit Profil</b> (klik nama Anda di pojok kanan atas), lalu muat ulang halaman ini.
+                                </p>
+                            @endif
+
+                             @if ($tteAktif)
+                                <div class="mt-4">
+                                    <label class="block text-xs font-bold text-on-surface mb-1">Password TTE <span class="text-error">*</span></label>
+                                    <input type="password" name="password" autocomplete="new-password"
+                                        class="w-full max-w-xs px-3 py-2 rounded-xl border border-outline-variant/40 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand/30">
+                                    <p class="text-[11px] text-on-surface-variant mt-1">Dipakai sekali untuk menandatangani dokumen dan tidak disimpan.</p>
+                                </div>
+                            @endif
+                        </div>
+                    @endif
+
                     <div class="mb-5">
                         <label class="block text-sm font-bold text-on-surface mb-2">Catatan Proses <span class="text-error">*</span></label>
                         <textarea name="catatan" rows="3" required placeholder="Tulis catatan (wajib diisi untuk semua aksi)..."
@@ -367,15 +486,11 @@
                         </button>
 
                         <button type="submit" name="action" value="lanjut"
-                            data-confirm="Teruskan permohonan ini ke tahap berikutnya{{ $nextTaskLabel ? ' (' . $nextTaskLabel . ')' : '' }}?"
+                            data-confirm="{{ $lanjutLabel }}?"
                             data-confirm-variant="primary"
                             class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-6 py-2.5 rounded-xl bg-brand text-white hover:bg-brand text-sm font-bold shadow-md transition-all sm:ml-auto">
-                            <span class="material-symbols-outlined text-[18px]">redo</span>
-                            @if ($nextTaskLabel)
-                                Teruskan ke {{ $nextTaskLabel }}
-                            @else
-                                Teruskan
-                            @endif
+                            <span class="material-symbols-outlined text-[18px]">{{ $butuhTtd ? 'draw' : 'redo' }}</span>
+                            {{ $lanjutLabel }}
                         </button>
 
                         <button type="submit" name="action" value="tolak"
@@ -395,4 +510,20 @@
         </div>
 
     </div>
+
+    @push('scripts')
+        <script>
+            (function () {
+                var sel = document.getElementById('masalah_kartu');
+                if (!sel) return;
+                var wrapNomor = document.getElementById('wrap-nomor-kehilangan');
+                var wrapSurat = document.getElementById('wrap-surat-kehilangan');
+                sel.addEventListener('change', function () {
+                    var hilang = this.value === 'hilang';
+                    if (wrapNomor) wrapNomor.classList.toggle('hidden', !hilang);
+                    if (wrapSurat) wrapSurat.classList.toggle('hidden', !hilang);
+                });
+            })();
+        </script>
+    @endpush
 @endsection

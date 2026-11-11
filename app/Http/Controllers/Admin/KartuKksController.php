@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\KartuKksPermohonan;
 use App\Models\KartuKksLog;
 use App\Models\Role;
+use App\Support\KartuKksSurat;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +15,11 @@ use Illuminate\Support\Facades\Storage;
 
 class KartuKksController extends Controller
 {
+    /**
+     * Nama aktivitas di log saat Kepala Dinas menyetujui + menandatangani.
+     * Dipakai juga untuk mencari "siapa yang TTD" di show().
+     */
+    public const TASK_TTD_KADIS = 'Disetujui Kadis (TTD Digital)';
 
     /**
      * GET /kartu-kks/log
@@ -62,11 +68,9 @@ class KartuKksController extends Controller
      * data tanpa terikat tahap/role manapun (dipakai untuk visibilitas
      * daftar Ajuan, lihat ajuan()).
      *
-     * PENTING: method ini TIDAK dipakai lagi untuk menentukan siapa yang
-     * boleh menjalankan alur Proses Permohonan (Teruskan/Tolak/
-     * Kembalikan/Simpan Catatan) maupun mengedit Data Detail. Untuk itu
-     * pakai isSuperAdmin() di bawah, supaya role "admin" biasa tidak ikut
-     * mendapat hak proses — hanya super admin.
+     * PENTING: method ini TIDAK dipakai untuk menentukan siapa yang boleh
+     * menjalankan alur Proses Permohonan maupun mengedit Data Detail.
+     * Untuk itu pakai isSuperAdmin() di bawah.
      */
     private function isAdmin($role): bool
     {
@@ -81,12 +85,8 @@ class KartuKksController extends Controller
     }
 
     /**
-     * Role yang benar-benar berwenang menjalankan alur Proses Permohonan
-     * (Teruskan/Tolak/Kembalikan/Simpan Catatan) serta mengedit Data
-     * Detail, tanpa terikat role pada tahap manapun. HANYA super admin —
-     * role "admin" biasa TIDAK termasuk di sini, meskipun tetap bisa
-     * melihat semua data lewat isAdmin() di tempat lain (mis. daftar
-     * Ajuan). Disamakan dengan userCanActOn() di PbiApbdController.
+     * Role yang berwenang menjalankan alur Proses Permohonan di tahap
+     * manapun. HANYA super admin — role "admin" biasa tidak termasuk.
      */
     private function isSuperAdmin($role): bool
     {
@@ -100,9 +100,9 @@ class KartuKksController extends Controller
     }
 
     /**
-     * Pastikan petugas Kelurahan hanya bisa membuka / mengubah / memproses
-     * permohonan dari wilayah kelurahannya sendiri. Admin & role Dinsos
-     * lainnya tidak dibatasi wilayah (mereka dibatasi oleh tahap/role).
+     * Pastikan petugas Kelurahan (akun lama) hanya bisa membuka / mengubah /
+     * memproses permohonan dari wilayah kelurahannya sendiri. Admin & role
+     * Dinsos lainnya tidak dibatasi wilayah (mereka dibatasi oleh tahap/role).
      */
     private function pastikanWilayah(KartuKksPermohonan $permohonan): void
     {
@@ -130,61 +130,74 @@ class KartuKksController extends Controller
         return match ($slug) {
             'kelurahan' => 'Kelurahan',
             'operator_dinsos' => 'Operator Dinsos',
-            'kabin' => 'Kabin',
+            'kabin' => 'Kepala Bidang',
             'kadis' => 'Kepala Dinas',
             default => ucfirst(str_replace('_', ' ', $slug)),
         };
     }
 
     /**
+     * Urutan tahap alur yang AKTIF (dipakai dropdown filter di daftar Ajuan).
+     * Status lama (verifikasi_kelurahan, ttd_lurah) sengaja tidak dimasukkan.
+     */
+    private function statusAlur(): array
+    {
+        return [
+            KartuKksPermohonan::STATUS_DIAJUKAN,
+            KartuKksPermohonan::STATUS_DIPROSES_KABIN,
+            KartuKksPermohonan::STATUS_DISETUJUI_KADIS,
+            KartuKksPermohonan::STATUS_VALIDASI_DINSOS,
+        ];
+    }
+
+    /**
      * Peta alur status -> aksi berikutnya & aksi kembali.
+     *
+     * ALUR BARU:
+     *   1. diajukan         (Operator Dinsos)  : input & lengkapi data ajuan
+     *   2. diproses_kabin   (Kepala Bidang)    : cek data, teruskan ke Kadis / kembalikan ke operator
+     *   3. disetujui_kadis  (Kepala Dinas)     : approve + TTD digital / kembalikan ke Kabid
+     *   4. validasi_dinsos  (Operator Dinsos)  : hasil kembali ke operator, memberitahu pemohon
+     *   5. selesai
+     *
+     * Nilai status memakai konstanta yang sudah ada (tidak perlu ubah kolom
+     * database); yang berubah hanya urutan & labelnya (lihat statusLabels()).
      */
     private function transitions(): array
     {
         return [
             KartuKksPermohonan::STATUS_DIAJUKAN => [
-                'allowed_role' => 'kelurahan',
-                'task_lanjut' => 'Verifikasi Kelurahan',
-                'next' => KartuKksPermohonan::STATUS_VERIFIKASI_KELURAHAN,
-                'next_role' => 'kelurahan',
-            ],
-            KartuKksPermohonan::STATUS_VERIFIKASI_KELURAHAN => [
-                'allowed_role' => 'kelurahan',
-                'task_lanjut' => 'TTD Lurah',
-                'next' => KartuKksPermohonan::STATUS_TTD_LURAH,
-                'next_role' => 'operator_dinsos',
-            ],
-            KartuKksPermohonan::STATUS_TTD_LURAH => [
                 'allowed_role' => 'operator_dinsos',
-                'task_lanjut' => 'Validasi Dinsos',
-                'next' => KartuKksPermohonan::STATUS_VALIDASI_DINSOS,
-                'next_role' => 'operator_dinsos',
-                'return_status' => KartuKksPermohonan::STATUS_VERIFIKASI_KELURAHAN,
-                'return_role' => 'kelurahan',
-            ],
-            KartuKksPermohonan::STATUS_VALIDASI_DINSOS => [
-                'allowed_role' => 'operator_dinsos',
-                'task_lanjut' => 'Diteruskan ke Kabin',
+                'task_lanjut' => 'Diteruskan ke Kabid',
+                'tombol_lanjut' => 'Teruskan ke Kepala Bidang',
                 'next' => KartuKksPermohonan::STATUS_DIPROSES_KABIN,
                 'next_role' => 'kabin',
-                'return_status' => KartuKksPermohonan::STATUS_VERIFIKASI_KELURAHAN,
-                'return_role' => 'kelurahan',
             ],
             KartuKksPermohonan::STATUS_DIPROSES_KABIN => [
                 'allowed_role' => 'kabin',
-                'task_lanjut' => 'Disetujui Kabin, diteruskan ke Kadis',
+                'task_lanjut' => 'Disetujui Kabid, diteruskan ke Kadis',
+                'tombol_lanjut' => 'Setujui & Teruskan ke Kepala Dinas',
                 'next' => KartuKksPermohonan::STATUS_DISETUJUI_KADIS,
                 'next_role' => 'kadis',
-                'return_status' => KartuKksPermohonan::STATUS_TTD_LURAH,
+                'return_status' => KartuKksPermohonan::STATUS_DIAJUKAN,
                 'return_role' => 'operator_dinsos',
             ],
             KartuKksPermohonan::STATUS_DISETUJUI_KADIS => [
                 'allowed_role' => 'kadis',
-                'task_lanjut' => 'Disetujui Kadis',
-                'next' => KartuKksPermohonan::STATUS_SELESAI,
-                'next_role' => null,
+                'task_lanjut' => self::TASK_TTD_KADIS,
+                'tombol_lanjut' => 'Setujui & Tanda Tangani (TTD Digital)',
+                'next' => KartuKksPermohonan::STATUS_VALIDASI_DINSOS,
+                'next_role' => 'operator_dinsos',
                 'return_status' => KartuKksPermohonan::STATUS_DIPROSES_KABIN,
                 'return_role' => 'kabin',
+                'butuh_ttd' => true,
+            ],
+            KartuKksPermohonan::STATUS_VALIDASI_DINSOS => [
+                'allowed_role' => 'operator_dinsos',
+                'task_lanjut' => 'Hasil Diberitahukan ke Pemohon',
+                'tombol_lanjut' => 'Tandai Selesai (Pemohon Sudah Diberitahu)',
+                'next' => KartuKksPermohonan::STATUS_SELESAI,
+                'next_role' => null,
             ],
         ];
     }
@@ -215,7 +228,6 @@ class KartuKksController extends Controller
      *
      * Daftar permohonan yang masih berjalan (belum Selesai / Ditolak).
      * Filter: tanggal, tahap saat ini, pencarian (termasuk tanggal).
-     * Disamakan dengan DtsenController::ajuan().
      */
     public function ajuan(Request $request)
     {
@@ -235,7 +247,7 @@ class KartuKksController extends Controller
         if (! $isAdmin) {
             $query->whereHas('currentRole', fn($q) => $q->where('slug', $roleSlug));
 
-            // Petugas Kelurahan hanya melihat ajuan dari kelurahannya sendiri.
+            // Petugas Kelurahan (akun lama) hanya melihat ajuan dari kelurahannya sendiri.
             if ($roleSlug === 'kelurahan') {
                 $query->when(
                     filled($user->kelurahan),
@@ -272,15 +284,19 @@ class KartuKksController extends Controller
             $perPage = 10;
         }
 
-        $ajuanList = $query->orderBy('tanggal_insert')->paginate($perPage)->withQueryString();
+        $ajuanList = $query->orderByDesc('tanggal_insert')->orderByDesc('id')->paginate($perPage)->withQueryString();
 
         $statusLabels = KartuKksPermohonan::statusLabels();
+
+        // Dropdown tahap hanya berisi tahap alur baru yang masih berjalan, berurutan.
+        $statusOptions = collect($this->statusAlur())
+            ->mapWithKeys(fn($s) => [$s => $statusLabels[$s] ?? $s])
+            ->all();
 
         return view('admin.kartu-kks.ajuan.index', [
             'ajuanList' => $ajuanList,
             'statusLabels' => $statusLabels,
-            // Dropdown tahap hanya berisi tahap yang masih berjalan
-            'statusOptions' => collect($statusLabels)->except($statusFinal)->all(),
+            'statusOptions' => $statusOptions,
         ]);
     }
 
@@ -289,7 +305,6 @@ class KartuKksController extends Controller
      *
      * Arsip berisi permohonan yang sudah final: Selesai + Ditolak.
      * Bisa difilter per status lewat query string ?status=selesai|ditolak.
-     * Disamakan dengan DtsenController::arsip().
      */
     public function arsip(Request $request)
     {
@@ -329,7 +344,7 @@ class KartuKksController extends Controller
             $perPage = 10;
         }
 
-        $arsipList = $query->orderByDesc('tanggal_insert')->paginate($perPage)->withQueryString();
+        $arsipList = $query->orderByDesc('tanggal_insert')->orderByDesc('id')->paginate($perPage)->withQueryString();
 
         $statusLabels = KartuKksPermohonan::statusLabels();
 
@@ -371,7 +386,7 @@ class KartuKksController extends Controller
 
         $perPage = (int) $request->query('display', 10);
 
-        $monitoringList = $query->orderByDesc('tanggal_insert')->paginate($perPage)->withQueryString();
+        $monitoringList = $query->orderByDesc('tanggal_insert')->orderByDesc('id')->paginate($perPage)->withQueryString();
 
         return view('admin.kartu-kks.monitoring.index', [
             'monitoringList' => $monitoringList,
@@ -391,6 +406,7 @@ class KartuKksController extends Controller
             'lampiran',
             'surat',
             'logs' => fn($q) => $q->orderBy('tanggal_proses'),
+            'logs.user',
             'currentRole',
         ]);
 
@@ -408,28 +424,59 @@ class KartuKksController extends Controller
         $rule = $transitions[$permohonan->status] ?? null;
 
         // Hanya super admin yang selalu bisa bertindak di tahap manapun
-        // selama permohonan belum final. Role "admin" biasa tetap harus
-        // sesuai dengan role yang berwenang pada tahap saat ini — sama
-        // seperti alur PBI APBD.
+        // selama permohonan belum final. Role lain harus sesuai dengan role
+        // yang berwenang pada tahap saat ini.
         $canAct = ! $isFinal
             && $rule
             && ($isSuperAdmin || $roleSlug === $rule['allowed_role']);
 
+        // Data Detail, lampiran & surat HANYA boleh diinput / diubah oleh
+        // Operator Dinsos (dan Super Admin). Kabid & Kadis hanya memeriksa;
+        // kalau ada yang kurang, mereka mengembalikan ajuan ke tahap sebelumnya.
+        $canEdit = $canAct && ($isSuperAdmin || $roleSlug === 'operator_dinsos');
+
         $returnLabel = ($canAct && isset($rule['return_role']))
             ? 'Kembalikan ke ' . $this->roleLabel($rule['return_role'])
             : null;
+
+        // ---- TTD digital Kepala Dinas ----
+        // Tahap Kadis: tampilkan TTD milik user yang sedang login sebagai pratinjau.
+        $butuhTtd = $canAct && ! empty($rule['butuh_ttd']);
+        $ttdSaatIni = ($butuhTtd && filled($user->ttd_path) && Storage::disk('public')->exists($user->ttd_path))
+            ? $user->ttd_path
+            : null;
+
+        // Setelah disetujui: ambil TTD dari user yang tercatat di log persetujuan Kadis.
+        $logTtd = $permohonan->logs->first(fn($l) => $l->taskname === self::TASK_TTD_KADIS);
+        $ttdKadis = $logTtd ? [
+            'path' => $logTtd->user?->ttd_path,
+            'nama' => $logTtd->user?->name ?? $logTtd->username,
+            'tanggal' => $logTtd->tanggal_proses,
+        ] : null;
 
         return view('admin.kartu-kks.ajuan.show', [
             'data' => $permohonan,
             'statusLabels' => KartuKksPermohonan::statusLabels(),
             'isFinal' => $isFinal,
             'canAct' => $canAct,
+            'canEdit' => $canEdit,
             // Lampiran (foto/dokumen) hanya boleh diunggah / diganti oleh
             // Super Admin dan Operator Dinsos, pada tahap yang menjadi gilirannya.
-            'canUploadLampiran' => $canAct && ($isSuperAdmin || $roleSlug === 'operator_dinsos'),
+            'canUploadLampiran' => $canEdit,
             'isAdmin' => $isAdmin,
             'nextTaskLabel' => $rule['task_lanjut'] ?? null,
+            'lanjutLabel' => $rule['tombol_lanjut'] ?? 'Teruskan',
             'returnLabel' => $returnLabel,
+            'butuhTtd' => $butuhTtd,
+            'ttdSaatIni' => $ttdSaatIni,
+            'ttdKadis' => $ttdKadis,
+            'tteAktif' => \App\Support\TteSigner::aktif(),
+            'bisaBuatSurat' => ! \App\Support\TteSigner::aktif()
+                && in_array($permohonan->status, [
+                    KartuKksPermohonan::STATUS_VALIDASI_DINSOS,
+                    KartuKksPermohonan::STATUS_SELESAI,
+                ], true)
+                && ($isSuperAdmin || $roleSlug === 'operator_dinsos'),
         ]);
     }
 
@@ -462,25 +509,16 @@ class KartuKksController extends Controller
 
         $rule = $transitions[$permohonan->status] ?? null;
 
-        // Hanya super admin yang selalu boleh mengedit data selama belum
-        // final. Role "admin" biasa tetap harus sesuai role yang
-        // berwenang pada tahap saat ini.
         $canAct = ! $isFinal
             && $rule
             && ($isSuperAdmin || $roleSlug === $rule['allowed_role']);
 
-        if (! $canAct) {
-            abort(403, 'Anda tidak berwenang mengedit data ini.');
-        }
-
-        // Lampiran (foto/dokumen) HANYA boleh diunggah / diganti oleh
-        // Super Admin dan Operator Dinsos. Role lain (mis. Kelurahan)
-        // tetap bisa mengedit Data Detail, tapi tidak boleh menyentuh lampiran.
+        // Hanya Operator Dinsos (dan Super Admin) yang boleh mengisi / mengubah
+        // Data Detail, Lampiran & Surat. Kabid & Kadis hanya memeriksa.
         $bolehUnggahLampiran = $isSuperAdmin || $roleSlug === 'operator_dinsos';
-        foreach (['scan_ktp', 'scan_kartu_keluarga', 'surat_kehilangan_polisi', 'scan_kartu_kks', 'screenshot_dtsen'] as $fieldLampiran) {
-            if ($request->hasFile($fieldLampiran) && ! $bolehUnggahLampiran) {
-                abort(403, 'Hanya Super Admin dan Operator Dinsos yang dapat mengunggah atau mengganti lampiran.');
-            }
+
+        if (! $canAct || ! $bolehUnggahLampiran) {
+            abort(403, 'Anda tidak berwenang mengedit data ini.');
         }
 
         $permohonan->loadMissing('lampiran', 'surat');
@@ -594,6 +632,7 @@ class KartuKksController extends Controller
         $request->validate([
             'action' => 'required|in:lanjut,tolak,kembalikan,simpan_catatan',
             'catatan' => 'required|string|max:1000',
+            'password' => 'nullable|string|max:255',
         ], [
             'catatan.required' => 'Catatan wajib diisi untuk aksi ini.',
         ]);
@@ -614,10 +653,8 @@ class KartuKksController extends Controller
 
         $rule = $transitions[$permohonan->status] ?? null;
 
-        // Hanya super admin yang selalu boleh memproses (lanjut/tolak/
-        // kembalikan/simpan catatan) pada tahap apapun. Role "admin"
-        // biasa tetap harus sesuai role yang berwenang pada tahap ini —
-        // sama seperti alur PBI APBD (userCanActOn()).
+        // Hanya super admin yang selalu boleh memproses pada tahap apapun.
+        // Role lain harus sesuai role yang berwenang pada tahap ini.
         $canAct = $rule
             && ($isSuperAdmin || $roleSlug === $rule['allowed_role']);
 
@@ -684,15 +721,13 @@ class KartuKksController extends Controller
 
                 return back()->with('success', 'Permohonan berhasil dikembalikan.');
 
-            case 'lanjut':
+                        case 'lanjut':
             default:
                 if (! $rule) {
                     return back()->with('error', 'Permohonan ini sudah pada tahap akhir dan tidak bisa diproses lagi.');
                 }
 
-                // Operator Dinsos wajib melampirkan Screenshot DTSEN sebelum
-                // meneruskan berkas dari Validasi Dinsos ke Kabin.
-                if ($permohonan->status === KartuKksPermohonan::STATUS_VALIDASI_DINSOS) {
+                if ($permohonan->status === KartuKksPermohonan::STATUS_DIAJUKAN) {
                     $permohonan->loadMissing('lampiran');
 
                     if (! optional($permohonan->lampiran)->screenshot_dtsen) {
@@ -700,25 +735,103 @@ class KartuKksController extends Controller
                     }
                 }
 
-                DB::transaction(function () use ($permohonan, $rule, $user, $request) {
-                    $nextRole = $rule['next_role'] ? Role::where('slug', $rule['next_role'])->first() : null;
+                $passphrase = null;
 
-                    $permohonan->update([
-                        'status' => $rule['next'],
-                        'current_role_id' => $nextRole?->id,
-                    ]);
+                if (! empty($rule['butuh_ttd'])) {
+                    if (! filled($user->ttd_path) || ! Storage::disk('public')->exists($user->ttd_path)) {
+                        return back()->with('error', 'Tanda tangan digital belum tersedia. Unggah dulu lewat menu Edit Profil (pojok kanan atas), lalu coba lagi.');
+                    }
 
-                    $permohonan->logs()->create([
-                        'tanggal_proses' => now(),
-                        'user_id' => $user->id,
-                        'username' => $user->username ?? $user->name,
-                        'taskname' => $rule['task_lanjut'],
-                        'rolename' => $this->roleLabel($rule['allowed_role']),
-                        'catatan' => $request->catatan,
-                    ]);
-                });
+                    if (\App\Support\TteSigner::aktif()) {
+                        $passphrase = $request->input('password');
+                        if (blank($passphrase)) {
+                            return back()->with('error', 'Password TTE wajib diisi untuk menandatangani.');
+                        }
+                    }
+                }
+
+                try {
+                    DB::transaction(function () use ($permohonan, $rule, $user, $request, $passphrase) {
+                        $nextRole = $rule['next_role'] ? Role::where('slug', $rule['next_role'])->first() : null;
+
+                        $permohonan->update([
+                            'status' => $rule['next'],
+                            'current_role_id' => $nextRole?->id,
+                        ]);
+
+                        $permohonan->logs()->create([
+                            'tanggal_proses' => now(),
+                            'user_id' => $user->id,
+                            'username' => $user->username ?? $user->name,
+                            'taskname' => $rule['task_lanjut'],
+                            'rolename' => $this->roleLabel($rule['allowed_role']),
+                            'catatan' => $request->catatan,
+                        ]);
+
+                        if (! empty($rule['butuh_ttd'])) {
+                            KartuKksSurat::buatDanSimpan($permohonan, $user, $passphrase);
+                        }
+                    });
+                } catch (\Throwable $e) {
+                    report($e);
+
+                    return back()->with('error', 'Gagal memproses permohonan: ' . $e->getMessage());
+                }
 
                 return back()->with('success', 'Permohonan berhasil diproses ke tahap berikutnya.');
         }
+    }
+
+    public function buatSurat(Request $request, KartuKksPermohonan $permohonan)
+    {
+        $this->pastikanWilayah($permohonan);
+
+        $user = Auth::user();
+        abort_unless(
+            $this->isSuperAdmin($user->role) || $this->roleSlug($user->role) === 'operator_dinsos',
+            403,
+            'Anda tidak berwenang membuat surat.'
+        );
+
+        if (\App\Support\TteSigner::aktif()) {
+            return back()->with('error', 'TTE aktif: surat hanya dibuat saat Kepala Dinas menandatangani.');
+        }
+
+        if (! in_array($permohonan->status, [
+            KartuKksPermohonan::STATUS_VALIDASI_DINSOS,
+            KartuKksPermohonan::STATUS_SELESAI,
+        ], true)) {
+            return back()->with('error', 'Surat baru bisa dibuat setelah Kepala Dinas menyetujui.');
+        }
+
+        $permohonan->loadMissing('logs.user');
+        $logTtd = $permohonan->logs->first(fn($l) => $l->taskname === self::TASK_TTD_KADIS);
+
+        // Penandatangan = user yang tercatat di log persetujuan; fallback ke user ber-role kadis.
+        $kadis = $logTtd?->user
+            ?? \App\Models\User::whereHas('role', fn($q) => $q->where('slug', 'kadis'))->first();
+
+        if (! $kadis) {
+            return back()->with('error', 'Data Kepala Dinas penandatangan tidak ditemukan.');
+        }
+
+        try {
+            KartuKksSurat::buatDanSimpan($permohonan, $kadis);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return back()->with('error', 'Gagal membuat surat: ' . $e->getMessage());
+        }
+
+        $permohonan->logs()->create([
+            'tanggal_proses' => now(),
+            'user_id' => $user->id,
+            'username' => $user->username ?? $user->name,
+            'taskname' => 'Surat Keterangan Dibuat Ulang',
+            'rolename' => $this->roleLabel($this->roleSlug($user->role) ?? 'operator_dinsos'),
+            'catatan' => null,
+        ]);
+
+        return back()->with('success', 'Surat Keterangan berhasil dibuat.');
     }
 }

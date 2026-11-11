@@ -9,9 +9,17 @@ use App\Support\GroundCheckSinkron;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
+/**
+ * Input ajuan Kartu KKS.
+ *
+ * ALUR BARU: masyarakat datang ke Dinas Sosial -> OPERATOR DINSOS menginput
+ * ajuan lewat halaman ini -> berkas langsung dipegang Operator (status
+ * "diajukan") untuk dicek/dilengkapi, lalu diteruskan ke Kepala Bidang
+ * -> Kepala Dinas (TTD digital) -> kembali ke Operator untuk memberitahu pemohon.
+ * (Lihat KartuKksController::transitions().)
+ */
 class KartuKksAjuanController extends Controller
 {
     /** GET /layanan/kartu-kks/ajukan */
@@ -51,27 +59,34 @@ class KartuKksAjuanController extends Controller
             'surat_kehilangan_polisi.required_if' => 'Surat kehilangan dari kepolisian wajib diunggah jika masalah kartu adalah "hilang".',
         ]);
 
-        $kelurahanRole = Role::firstOrCreate(
-            ['slug' => 'kelurahan'],
-            ['name' => 'Kelurahan', 'slug' => 'kelurahan']
+        // Berkas yang baru diinput dipegang Operator Dinsos (tahap 1 alur baru).
+        $operatorRole = Role::firstOrCreate(
+            ['slug' => 'operator_dinsos'],
+            ['name' => 'Operator Dinsos', 'slug' => 'operator_dinsos']
         );
 
-        $permohonan = DB::transaction(function () use ($validated, $request, $kelurahanRole) {
+        $user = Auth::user();
+
+        $permohonan = DB::transaction(function () use ($validated, $request, $operatorRole, $user) {
             $permohonan = KartuKksPermohonan::create([
-                'user_id' => Auth::id(),
+                // user_id / created_by = operator yang menginput ajuan atas nama pemohon
+                'user_id' => $user->id,
                 'nik' => $validated['nik'],
                 'nama_pemohon' => $validated['nama'],
                 'alamat' => $validated['alamat'],
                 'masalah_kartu' => $validated['masalah_kartu'],
                 'nomor_kehilangan_polisi' => $validated['nomor_kehilangan_polisi'] ?? null,
                 'status' => KartuKksPermohonan::STATUS_DIAJUKAN,
-                'current_role_id' => $kelurahanRole->id,
+                'current_role_id' => $operatorRole->id,
                 'kelurahan' => $validated['kelurahan'],
                 'tanggal_insert' => now(),
-                'created_by' => Auth::id(),
+                'created_by' => $user->id,
             ]);
 
-            $permohonan->detail()->create(collect($validated)->only([
+            // Form detail di halaman Ajuan (KartuKksController) memakai opsi
+            // "Laki-laki" / "Perempuan", jadi simpan dalam bentuk itu supaya
+            // dropdown-nya langsung terpilih saat Operator membuka detail.
+            $detailData = collect($validated)->only([
                 'nik',
                 'nama',
                 'jenis_kelamin',
@@ -87,7 +102,10 @@ class KartuKksAjuanController extends Controller
                 'alamat',
                 'masalah_kartu',
                 'nomor_kehilangan_polisi',
-            ])->toArray());
+            ])->toArray();
+            $detailData['jenis_kelamin'] = $detailData['jenis_kelamin'] === 'L' ? 'Laki-laki' : 'Perempuan';
+
+            $permohonan->detail()->create($detailData);
 
             $lampiranData = [];
             foreach (['scan_ktp', 'scan_kartu_keluarga', 'surat_kehilangan_polisi', 'scan_kartu_kks', 'screenshot_dtsen'] as $field) {
@@ -99,11 +117,11 @@ class KartuKksAjuanController extends Controller
 
             $permohonan->logs()->create([
                 'tanggal_proses' => now(),
-                'user_id' => Auth::id(),
-                'username' => Auth::user()->name,
-                'taskname' => 'Permohonan Masuk',
-                'rolename' => 'Kelurahan',
-                'catatan' => 'Data awal masuk melalui pendaftaran online.',
+                'user_id' => $user->id,
+                'username' => $user->username ?? $user->name,
+                'taskname' => 'Ajuan Diinput Operator',
+                'rolename' => 'Operator Dinsos',
+                'catatan' => 'Data awal diinput operator dari pemohon yang datang langsung ke Dinas Sosial.',
             ]);
 
             return $permohonan;
@@ -118,11 +136,11 @@ class KartuKksAjuanController extends Controller
             'kelurahan' => $validated['kelurahan'],
         ]);
 
-        return redirect()->route('layanan.kartu-kks.riwayat')
-            ->with('success', 'Pengajuan Kartu KKS berhasil dikirim, nomor permohonan #' . $permohonan->id);
+        return redirect()->route('kartu-kks.ajuan')
+            ->with('success', 'Ajuan Kartu KKS berhasil diinput, nomor permohonan ' . $permohonan->no_permohonan . '. Silakan cek kelengkapan data lalu teruskan ke Kepala Bidang.');
     }
 
-    /** GET /layanan/kartu-kks/riwayat */
+    /** GET /layanan/kartu-kks/riwayat — ajuan yang diinput oleh user (operator) yang login */
     public function riwayat()
     {
         $data = KartuKksPermohonan::where('user_id', Auth::id())

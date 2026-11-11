@@ -118,7 +118,10 @@
                                     </span>
                                 </td>
                                 <td class="px-3 py-3.5 whitespace-nowrap text-center">
-                                    <button @click="openDetail({{ $item->id }})"
+                                    {{-- Pakai route key (sama seperti URL halaman detail), BUKAN id,
+                                         karena route model binding /kartu-kks/{permohonan}/detail
+                                         mencari berdasarkan route key model. --}}
+                                    <button @click="openDetail(@js($item->getRouteKey()))"
                                         class="inline-flex items-center justify-center gap-1.5 w-full max-w-[80px] px-3 py-1.5 rounded-xl bg-brand/10 text-brand hover:bg-brand hover:text-white text-[11px] font-semibold transition-all duration-200">
                                         <span class="material-symbols-outlined text-[14px]">visibility</span>
                                         Lihat
@@ -171,6 +174,14 @@
 
                 <!-- Modal Body -->
                 <div class="p-6 overflow-y-auto" x-show="!loading">
+
+                    <!-- Pesan error jika data gagal dimuat -->
+                    <div x-show="errorMsg" x-cloak
+                        class="mb-4 flex items-center gap-2 px-4 py-3 rounded-xl text-xs bg-red-50 border border-red-200 text-red-700">
+                        <span class="material-symbols-outlined text-[18px]">error</span>
+                        <span x-text="errorMsg"></span>
+                    </div>
+
                     <div class="space-y-8 text-xs">
 
                         <!-- Data Detail -->
@@ -180,7 +191,7 @@
                                 <template x-for="f in detailFields" :key="f.key">
                                     <div class="flex flex-col sm:flex-row sm:justify-between sm:items-baseline gap-1 border-b border-outline-variant/10 pb-2">
                                         <span class="text-on-surface-variant font-medium" x-text="f.label"></span>
-                                        <span class="font-semibold text-on-surface text-left sm:text-right" x-text="(data.detail && data.detail[f.key]) ? data.detail[f.key] : '-'"></span>
+                                        <span class="font-semibold text-on-surface text-left sm:text-right" x-text="displayValue(f.key)"></span>
                                     </div>
                                 </template>
                             </div>
@@ -274,6 +285,7 @@
                 return {
                     detailOpen: false,
                     loading: false,
+                    errorMsg: '',
                     data: {},
                     detailFields: [
                         { key: 'nama', label: 'Nama' },
@@ -303,19 +315,33 @@
                         { key: 'surat_pengantar_kelurahan', label: 'Surat Pengantar Kelurahan' },
                         { key: 'surat_keterangan_dinsos', label: 'Surat Keterangan Dinsos' },
                     ],
-                    async openDetail(id) {
+                    async openDetail(key) {
                         this.detailOpen = true;
                         this.loading = true;
+                        this.errorMsg = '';
                         this.data = {};
                         try {
-                            const res = await fetch(`{{ url('kartu-kks') }}/${id}/detail`, {
+                            const res = await fetch(`{{ url('kartu-kks') }}/${encodeURIComponent(key)}/detail`, {
                                 headers: { 'Accept': 'application/json' }
                             });
+                            if (!res.ok) {
+                                throw new Error('HTTP ' + res.status);
+                            }
                             this.data = await res.json();
                         } catch (e) {
                             console.error('Gagal memuat detail', e);
+                            this.errorMsg = 'Gagal memuat detail arsip (' + e.message + '). Coba lagi.';
                         }
                         this.loading = false;
+                    },
+                    displayValue(key) {
+                        const v = this.data.detail ? this.data.detail[key] : null;
+                        if (v === null || v === undefined || v === '') return '-';
+                        if (key === 'tanggal_lahir') {
+                            const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
+                            if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+                        }
+                        return v;
                     },
                     lampiranUrl(key) {
                         const path = this.data.lampiran ? this.data.lampiran[key] : null;
