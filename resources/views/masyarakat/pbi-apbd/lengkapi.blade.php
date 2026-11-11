@@ -134,7 +134,8 @@
                     <div class="mb-4"></div>
                 @endif
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-x-5">
+                {{-- Satu kolom: setiap pertanyaan satu baris, lebar dibatasi supaya input tidak terlalu panjang --}}
+                <div class="grid grid-cols-1 gap-5 max-w-xl">
                     @foreach ($isi as $p)
                         @include('masyarakat.pbi-apbd._gc_field', ['p' => $p, 'nomor' => ++$no])
                     @endforeach
@@ -354,9 +355,9 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 
-{{-- Alamat domisili: terisi dari KK & terkunci bila "Apakah wilayah sama?" = Ya (atau belum dijawab); dijawab "Tidak" -> input manual,
-     Kecamatan -> Desa/Kelurahan berantai. Server tetap memaksa nilai KK saat terkunci.
-     ("Alamat sesuai KK" dirender terkunci langsung oleh server, tidak lewat skrip ini.) --}}
+{{-- Alamat domisili: SELALU terisi dari alamat KK & terkunci (tidak bergantung jawaban "Apakah wilayah sama?").
+     Bila wilayah berbeda, warga mengisi field "Kabupaten/Kecamatan/Kelurahan baru" (disimpan terpisah).
+     Server tetap memaksa nilai KK saat disimpan. ("Alamat sesuai KK" tampil sebagai teks oleh server.) --}}
 <script>
 window.gcAlamat = @json(['ada' => ! empty($petaAlamat), 'kk' => $kk, 'wilayah' => $wilayah]);
 
@@ -365,10 +366,8 @@ document.addEventListener('DOMContentLoaded', function () {
     var form = document.getElementById('form-lengkapi');
     if (!cfg || !cfg.ada || !form) { return; }
 
-    var bisaEdit = !!document.getElementById('btn-submit');
     var f = {};
     form.querySelectorAll('[data-gc-alamat]').forEach(function (el) { f[el.dataset.gcAlamat] = el; });
-    var sesuai = form.querySelector('[data-gc-sesuai]');
 
     function isiKel(kec, pilih) {
         var el = f.kelurahan;
@@ -380,36 +379,15 @@ document.addEventListener('DOMContentLoaded', function () {
         el.value = daftar.indexOf(pilih) >= 0 ? pilih : '';
     }
 
-    function kunci(el, ya) {
-        if (el.tagName === 'SELECT') { el.style.pointerEvents = ya ? 'none' : ''; el.tabIndex = ya ? -1 : 0; }
-        else { el.readOnly = ya; }
-        el.classList.toggle('bg-surface-container', ya);
-        el.classList.toggle('opacity-70', ya);
+    function kunci(el) {
+        if (el.tagName === 'SELECT') { el.style.pointerEvents = 'none'; el.tabIndex = -1; }
+        else { el.readOnly = true; }
+        el.classList.add('bg-surface-container', 'opacity-70');
     }
 
-    function terapkan(awal) {
-        var ya = !sesuai || sesuai.value !== 'Tidak';
-
-        if (ya) {
-            Object.keys(f).forEach(function (k) { if (k !== 'kelurahan') { f[k].value = cfg.kk[k] || ''; } });
-            isiKel(f.kecamatan ? f.kecamatan.value : cfg.kk.kecamatan, cfg.kk.kelurahan);
-        } else if (awal) {
-            // Dibuka kembali dengan jawaban "Tidak": pertahankan isian tersimpan
-            isiKel(f.kecamatan ? f.kecamatan.value : '', f.kelurahan ? f.kelurahan.dataset.nilai : '');
-        } else {
-            Object.keys(f).forEach(function (k) { if (k !== 'kelurahan') { f[k].value = ''; } });
-            isiKel(f.kecamatan ? f.kecamatan.value : '', '');
-        }
-
-        Object.keys(f).forEach(function (k) { kunci(f[k], ya && bisaEdit); });
-    }
-
-    form.addEventListener('change', function (e) {
-        if (sesuai && e.target === sesuai) { terapkan(false); }
-        if (f.kecamatan && e.target === f.kecamatan) { isiKel(f.kecamatan.value, ''); }
-    });
-
-    terapkan(true);
+    Object.keys(f).forEach(function (k) { if (k !== 'kelurahan') { f[k].value = cfg.kk[k] || ''; } });
+    isiKel(f.kecamatan ? f.kecamatan.value : cfg.kk.kecamatan, cfg.kk.kelurahan);
+    Object.keys(f).forEach(function (k) { kunci(f[k]); });
 });
 </script>
 
@@ -439,46 +417,6 @@ document.addEventListener('DOMContentLoaded', function () {
         tgt.value = ya;
         tgt.dispatchEvent(new Event('change', { bubbles: true }));
     });
-});
-</script>
-
-{{-- Nama / No KK: terisi dari registrasi & terkunci selama pertanyaan "sama?"-nya bukan "Tidak".
-     Dijawab "Tidak" -> kosong & bisa diisi sendiri. Server tetap memaksa nilai registrasi saat terkunci. --}}
-<script>
-window.gcIdentitas = @json($identitas ?? []);
-
-document.addEventListener('DOMContentLoaded', function () {
-    var cfg = window.gcIdentitas;
-    var form = document.getElementById('form-lengkapi');
-    if (!cfg || !form) { return; }
-
-    var bisaEdit = !!document.getElementById('btn-submit');
-
-    function ambil(id) { return form.querySelector('[name="jawaban[' + id + ']"]'); }
-
-    function terapkan(id, awal) {
-        var c = cfg[id], fld = ambil(id), gate = ambil(c.gate);
-        if (!fld || !gate) { return; }
-
-        var ya = gate.value !== 'Tidak';
-
-        // Ya -> isi dari registrasi & kunci. Tidak -> hanya buka kunci, isian sebelumnya dibiarkan (tidak dikosongkan).
-        if (ya) {
-            fld.value = c.nilai;
-        }
-
-        fld.readOnly = ya || !bisaEdit;
-        fld.classList.toggle('bg-surface-container', ya);
-        fld.classList.toggle('opacity-70', ya);
-    }
-
-    form.addEventListener('change', function (e) {
-        Object.keys(cfg).forEach(function (id) {
-            if (e.target.name === 'jawaban[' + cfg[id].gate + ']') { terapkan(id, false); }
-        });
-    });
-
-    Object.keys(cfg).forEach(function (id) { terapkan(id, true); });
 });
 </script>
 

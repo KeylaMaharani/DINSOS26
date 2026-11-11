@@ -7,16 +7,19 @@ use App\Models\GcPbiJawaban;
 use App\Models\PbiApbd;
 use Illuminate\Support\Str;
 
-/**
- * Aturan form "Lengkapi Data Pengajuan" milik masyarakat yang bersumber dari
- * Master Kriteria Ground Check. Dipakai bersama oleh halaman masyarakat,
- * validasi kelurahan, dan penghapusan parameter di master.
- */
+
 class PbiGcForm
 {
-    /** Semua parameter GC yang aktif (beserta opsi), urut mengikuti master. */
-    public static function parameters()
+    /**
+     * Parameter GC yang tampil di form masyarakat, urut mengikuti master.
+     * Tanpa $pbi = daftar penuh (dipakai pemanggil lama yang belum tahu pengajuannya).
+     */
+    public static function parameters(?PbiApbd $pbi = null)
     {
+        if ($pbi && $pbi->form_lama) {
+            return GcKriteriaParameter::daftarMasyarakat();
+        }
+
         return GcKriteriaParameter::aktif()->with('opsis')->get();
     }
 
@@ -40,6 +43,13 @@ class PbiGcForm
     public static function lintangBujur(GcKriteriaParameter $p): bool
     {
         return Str::contains(Str::lower($p->nama), ['lintang', 'bujur']);
+    }
+
+    /** Parameter foto "Foto kartu keluarga": memakai Scan KK yang sudah diunggah di pengajuan PBI. */
+    public static function isFotoKk(GcKriteriaParameter $p): bool
+    {
+        return $p->tipe_input === 'foto'
+            && Str::contains(Str::lower((string) $p->nama), 'kartu keluarga');
     }
 
     /**
@@ -67,9 +77,9 @@ class PbiGcForm
     }
 
     /** id yang selalu wajib (bukan opsional, bukan turunan "bekerja") — untuk hitungan di daftar. */
-    public static function idTetap(): array
+    public static function idTetap(?PbiApbd $pbi = null): array
     {
-        $params = self::parameters();
+        $params = self::parameters($pbi);
         $dependen = self::dependenIds($params);
 
         return $params
@@ -77,14 +87,87 @@ class PbiGcForm
             ->pluck('id')->all();
     }
 
+    /**
+     * Isi jawaban yang masih kosong dari jawaban PBI (pbi_apbd_jawabans) yang padanannya sama.
+     * Hanya parameter 'pilihan' bertautan PBI, dan hanya bila labelnya ada di opsi parameter GC.
+     * Mengembalikan peta id parameter GC => jawaban.
+     */
+    public static function isiDariJawabanPbi(PbiApbd $pbi, $params, array $nilai): array
+    {
+        $jawabanPbi = $pbi->jawabans()
+            ->whereNotNull('parameter_id')
+            ->pluck('jawaban_label', 'parameter_id')
+            ->all();
+
+        if (! $jawabanPbi) {
+            return $nilai;
+        }
+
+        foreach ($params as $p) {
+            if (! $p->pbi_parameter_id || $p->tipe_input !== 'pilihan' || filled($nilai[$p->id] ?? null)) {
+                continue;
+            }
+
+            $label = $jawabanPbi[$p->pbi_parameter_id] ?? null;
+
+            if ($label !== null && $p->opsis->contains('label', $label)) {
+                $nilai[$p->id] = $label;
+            }
+        }
+
+        return $nilai;
+    }
+
+    /**
+     * Nilai tampilan form masyarakat: lengkapi isian awal dengan
+     *  - jawaban PBI yang padanannya sama (akun lama), dan
+     *  - Scan KK pengajuan untuk "Foto kartu keluarga" (supaya tidak unggah dua kali).
+     */
+    public static function lengkapiNilai(PbiApbd $pbi, $params, array $nilai): array
+    {
+        $nilai = self::isiDariJawabanPbi($pbi, $params, $nilai);
+
+        if (filled($pbi->scan_kk)) {
+            foreach ($params as $p) {
+                if (self::isFotoKk($p) && blank($nilai[$p->id] ?? null)) {
+                    $nilai[$p->id] = $pbi->scan_kk;
+                }
+            }
+        }
+
+        return $nilai;
+    }
+
+    /** Jawaban yang dihitung "terisi": jawaban GC + (akun lama) jawaban PBI + Scan KK. */
+    private static function jawabanEfektif(PbiApbd $pbi, $params, array $jawaban): array
+    {
+        if ($pbi->form_lama) {
+            $jawaban = self::isiDariJawabanPbi($pbi, $params, $jawaban);
+        }
+
+        if (filled($pbi->scan_kk)) {
+            foreach ($params as $p) {
+                if (self::isFotoKk($p) && blank($jawaban[$p->id] ?? null)) {
+                    $jawaban[$p->id] = $pbi->scan_kk;
+                }
+            }
+        }
+
+        return $jawaban;
+    }
+
     /** ['total' => jumlah isian wajib, 'terjawab' => yang sudah terisi] untuk satu pengajuan. */
     public static function kelengkapan(?PbiApbd $pbi): array
     {
-        $params = self::parameters();
+        $params = self::parameters($pbi);
 
         $jawaban = $pbi
             ? GcPbiJawaban::where('pbi_apbd_id', $pbi->id)->whereNotNull('jawaban')->pluck('jawaban', 'parameter_id')->all()
             : [];
+
+        if ($pbi) {
+            $jawaban = self::jawabanEfektif($pbi, $params, $jawaban);
+        }
 
         $wajib = self::wajibIds($params, $jawaban);
 

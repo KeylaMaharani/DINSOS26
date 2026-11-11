@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\PbiApbd;
 use App\Models\PbiApbdLog;
+use App\Models\User;
 use App\Support\PbiSuratPengantar;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -171,6 +172,12 @@ class PbiApprovalController extends Controller
         }
 
         $canAct = $pbiApbd->status === $cfg['status'];
+
+        // Lurah: surat pengantar otomatis tampil (lengkap dengan TTD) begitu TTD Lurah sudah tersimpan.
+        // Dibuat ulang bila belum ada, atau bila TTD Lurah lebih baru daripada surat yang tersimpan.
+        if ($tahap === 'lurah' && $canAct) {
+            $this->siapkanSuratLurah($pbiApbd, Auth::user());
+        }
         $canEdit = $canAct && $cfg['edit'];
         $canDiagnosa = $canAct && $cfg['diagnosa'];
 
@@ -194,7 +201,42 @@ class PbiApprovalController extends Controller
             'canEdit' => $canEdit,
             'canDiagnosa' => $canDiagnosa,
             'faskesOptions' => $faskesOptions,
+            // Jawaban Ground Check masyarakat (isian + foto), ditampilkan juga di halaman tahap lanjut
+            'gcJawabans' => $pbiApbd->gcJawabans()->get(),
         ]);
+    }
+
+    /** Buat / perbarui surat pengantar untuk tampilan Lurah memakai TTD Lurah yang sedang login. */
+    private function siapkanSuratLurah(PbiApbd $pbiApbd, User $user): void
+    {
+        if (blank($user->ttd_path)) {
+            return; // TTD belum diunggah: surat dibuat saat berkas diteruskan
+        }
+
+        $disk = Storage::disk('public');
+        if (! $disk->exists($user->ttd_path)) {
+            return;
+        }
+
+        $surat = $pbiApbd->scan_surat_pengantar;
+        $perluBuat = blank($surat)
+            || ! $disk->exists($surat)
+            || $disk->lastModified($user->ttd_path) > $disk->lastModified($surat);
+
+        if (! $perluBuat) {
+            return;
+        }
+
+        try {
+            $info = PbiSuratPengantar::generate($pbiApbd, $user, $user->ttd_path);
+            $pbiApbd->refresh();
+            if (filled($info)) {
+                session()->now('error', $info);
+            }
+        } catch (\Throwable $e) {
+            report($e);
+            session()->now('error', 'Surat pengantar belum bisa dibuat (cek storage/logs/laravel.log).');
+        }
     }
 
     /**

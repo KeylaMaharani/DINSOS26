@@ -21,6 +21,7 @@ use App\Http\Controllers\Layanan\KartuKksAjuanController;
 use App\Http\Controllers\Layanan\DtsenAjuanController;
 use App\Http\Controllers\Masyarakat\MasyarakatController;
 use App\Http\Controllers\Masyarakat\MasyarakatDokumenController;
+use App\Http\Controllers\Masyarakat\PbiKeluargaController;
 use App\Http\Controllers\Admin\KriteriaController;
 use App\Http\Controllers\Admin\GcKriteriaController;
 use App\Http\Controllers\Admin\GroundCheckController;
@@ -618,6 +619,10 @@ Route::middleware(['auth', 'role:masyarakat'])->prefix('akun-saya')->name('masya
     Route::put('/password', [MasyarakatController::class, 'akunUpdate'])->name('password.update');
 
     Route::prefix('pbi-apbd/{pbiApbd}')->name('pbi-apbd.')->group(function () {
+        // Langkah pemilihan: anggota keluarga mana yang didaftarkan ke Ground Check
+        Route::get('/keluarga', [PbiKeluargaController::class, 'index'])->name('keluarga');
+        Route::post('/keluarga', [PbiKeluargaController::class, 'store'])->name('keluarga.store');
+
         Route::get('/lengkapi', [MasyarakatController::class, 'lengkapiData'])->name('lengkapi');
         Route::post('/lengkapi', [MasyarakatController::class, 'lengkapiDataStore'])->name('lengkapi.store');
     });
@@ -634,4 +639,3 @@ Route::middleware(['auth', 'role:masyarakat'])->prefix('akun-saya')->name('masya
     Route::post('/dokumen/{dokumen}/pakai', [MasyarakatDokumenController::class, 'pakai'])->whereNumber('dokumen')->name('dokumen.pakai');
     Route::delete('/dokumen/{dokumen}', [MasyarakatDokumenController::class, 'destroy'])->whereNumber('dokumen')->name('dokumen.destroy');
 });
-
