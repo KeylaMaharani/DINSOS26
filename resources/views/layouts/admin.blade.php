@@ -410,7 +410,7 @@
                             [
                                 'label' => 'Ajuan',
                                 'route' => 'kartu-kks.ajuan',
-                                'match' => ['kartu-kks.show', 'kartu-kks.detail*', 'kartu-kks.proses'],
+                                'match' => ['kartu-kks.show', 'kartu-kks.detail*', 'kartu-kks.proses', 'layanan.kartu-kks.*'],
                                 'module' => 'kartu-kks.ajuan',
                             ],
                             ['label' => 'Arsip', 'route' => 'kartu-kks.arsip', 'module' => 'kartu-kks.arsip'],
