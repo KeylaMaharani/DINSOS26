@@ -7,18 +7,20 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 
-/** Tanda tangan tersimpan milik user yang sedang login. Hanya role Lurah dan Kadis. */
+/** Tanda tangan tersimpan milik user yang sedang login. Role Lurah dan Kadis, serta Super Admin. */
 class ProfilTtdController extends Controller
 {
-    /** Role yang boleh menyimpan tanda tangan. */
+    /** Role yang boleh menyimpan tanda tangan (Super Admin selalu boleh). */
     private const ROLE_BOLEH = ['lurah', 'kadis'];
 
     private function pastikanLurah(): void
     {
+        $role = Auth::user()->loadMissing('role')->role;
+
         abort_unless(
-            in_array(Auth::user()->loadMissing('role')->role?->normalizedSlug(), self::ROLE_BOLEH, true),
+            $role && ($role->isSuperAdmin() || in_array($role->normalizedSlug(), self::ROLE_BOLEH, true)),
             403,
-            'Fitur tanda tangan hanya untuk akun Lurah dan Kadis.'
+            'Fitur tanda tangan hanya untuk akun Lurah, Kadis, dan Super Admin.'
         );
     }
 

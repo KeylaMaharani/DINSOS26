@@ -2,13 +2,15 @@
     $key = "jawaban.{$p->id}";
     $nm = "jawaban[{$p->id}]";
     $cur = old($key, $nilai[$p->id] ?? null);
-    $kelas = 'w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30';
+    $kelas = 'w-full rounded-lg border border-outline-variant/50 px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary/30';
 @endphp
 
-<div class="col-span-1 py-2 px-1 space-y-1.5" data-wajib="pilihan">
-    <label class="block text-xs font-medium text-on-surface">{{ $p->nama }} <span class="text-error">*</span></label>
+<div class="py-1.5 sm:flex sm:items-start sm:gap-4" data-wajib="pilihan">
+    <label class="block sm:w-64 shrink-0 text-xs font-medium text-on-surface sm:pt-2 mb-1 sm:mb-0">
+        {{ $p->nama }} <span class="text-error">*</span>
+    </label>
 
-    <div>
+    <div class="flex-1 min-w-0 max-w-md">
         @if ($p->sumber === 'lapangan_usaha')
             <select name="{{ $nm }}" data-gc-lapangan class="{{ $kelas }}">
                 <option value="">-- Pilih --</option>
@@ -18,9 +20,9 @@
                 @endforeach
             </select>
 
-            <div data-gc-info hidden class="mt-2 px-4 py-3 rounded-lg bg-brand-soft/60 border border-brand/15 text-[11.5px] leading-relaxed text-on-surface space-y-1.5">
-                <p class="flex items-center gap-1.5 font-semibold text-[13px]">
-                    <span data-i="ikon" class="text-lg leading-none"></span>
+            <div data-gc-info hidden class="mt-2 px-3 py-2.5 rounded-lg bg-brand-soft/60 border border-brand/15 text-[11px] leading-relaxed text-on-surface space-y-1">
+                <p class="flex items-center gap-1.5 font-semibold text-[12px]">
+                    <span data-i="ikon" class="text-base leading-none"></span>
                     <span data-i="nama"></span>
                 </p>
                 <p><span class="font-semibold">Contoh pekerjaan:</span> <span data-i="penjelasan"></span></p>
@@ -30,7 +32,8 @@
 
         @elseif ($p->sumber === 'pekerjaan')
             @php
-                $peta = $master['lapangan']->mapWithKeys(fn ($l) => [$l->nama => $l->pekerjaans->pluck('nama')->all()])->all();                $semua = collect($peta)->flatten()->unique()->values();
+                $peta = $master['lapangan']->mapWithKeys(fn ($l) => [$l->nama => $l->pekerjaans->pluck('nama')->all()])->all();
+                $semua = collect($peta)->flatten()->unique()->values();
             @endphp
             <select name="{{ $nm }}" data-gc-pekerjaan data-nilai="{{ $cur }}" data-peta="{{ json_encode($peta, JSON_UNESCAPED_UNICODE) }}" class="{{ $kelas }}">
                 <option value="">-- Pilih --</option>

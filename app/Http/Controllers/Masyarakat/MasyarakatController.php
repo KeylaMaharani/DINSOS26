@@ -82,7 +82,8 @@ class MasyarakatController extends Controller
             ->latest()
             ->first();
 
-        // Pertanyaan yang tampil ke warga = semua parameter aktif di Master Kriteria Ground Check.
+        // Pertanyaan yang tampil ke warga = parameter aktif di Master Kriteria Ground Check
+        // (akun lama: hanya yang bertaut ke 18 parameter PBI).
         // Yang dihitung hanya isian wajib (foto & koordinat opsional, field "bekerja" bersyarat).
         $kelengkapanGc = PbiGcForm::kelengkapan($pbiApbd);
         $totalParameter = $kelengkapanGc['total'];
@@ -139,7 +140,8 @@ class MasyarakatController extends Controller
                 'dikembalikan' => (bool) ($pbiApbd
                     && ($pbiApbd->dikembalikan_ke_masyarakat || $pbiApbd->status === 'ditolak')
                     && $bisaEdit),
-                'lengkapi_url' => $pbiApbd ? route('masyarakat.pbi-apbd.lengkapi', $pbiApbd) : null,
+                // Semua jalur PBI APBD lewat daftar keluarga dulu
+                'lengkapi_url' => $pbiApbd ? route('masyarakat.pbi-apbd.keluarga', $pbiApbd) : null,
                 'lokasi' => $pbiApbd ? (bool) ($pbiApbd->latitude && $pbiApbd->longitude) : null,
             ]),
             'dtsen' => $this->ringkas('DTSEN', 'groups', $dtsen, $this->urlRoute('masyarakat.dtsen'), [
@@ -183,7 +185,8 @@ class MasyarakatController extends Controller
                 $r->desa_kelurahan,
                 $r->kecamatan,
             ])->filter()->implode(', '),
-            route('masyarakat.pbi-apbd.lengkapi', $r)
+            // Lewat daftar keluarga dulu
+            route('masyarakat.pbi-apbd.keluarga', $r)
         ));
 
         $dtsen = $user->pengajuanDtsen()->with('detail')->latest()->get()->map(fn ($r) => $this->barisPermohonan(
@@ -300,7 +303,8 @@ class MasyarakatController extends Controller
                         'peran' => $l->role_name,
                         'catatan' => $l->catatan,
                     ]),
-                    route('masyarakat.pbi-apbd.lengkapi', $pbi)
+                    // Lewat daftar keluarga dulu
+                    route('masyarakat.pbi-apbd.keluarga', $pbi)
                 );
             } else {
                 $dtsen = $user->pengajuanDtsen()->with(['detail', 'logs'])->where('no_permohonan', $no)->first();
@@ -444,9 +448,7 @@ class MasyarakatController extends Controller
 
         $data = $this->validasiKeluarga($request, $pbi);
 
-        $pbi->anggotaKeluarga()->create($data + ['keanggotaan_bpjs' => 'Belum Terdaftar']);
-
-        $pbi->sinkronGroundCheck();
+        $pbi->tambahAnggotaKeluarga($data);
 
         return redirect()->route('masyarakat.keluarga')
             ->with('success', 'Anggota keluarga berhasil ditambahkan.');
@@ -468,9 +470,8 @@ class MasyarakatController extends Controller
 
         $data = $this->validasiKeluarga($request, $pbi, $baris->id);
 
-        $baris->update($data);
-
-        $pbi->sinkronGroundCheck();
+        // Ubah data anggota + samakan baris Daftar Sasaran Ground Check-nya
+        $pbi->perbaruiAnggotaKeluarga($baris, $data);
 
         return redirect()->route('masyarakat.keluarga')
             ->with('success', 'Data anggota keluarga berhasil diperbarui.');
@@ -797,12 +798,14 @@ class MasyarakatController extends Controller
     // ==========================================================
 
     /**
-     * Pertanyaan di form warga = SEMUA parameter Master Kriteria Ground Check yang AKTIF,
-     * urut mengikuti master. Hapus/nonaktifkan di Master GC -> otomatis hilang dari halaman warga.
+     * Pertanyaan di form warga = parameter Master Kriteria Ground Check yang AKTIF, urut mengikuti master.
+     *  - Pendaftar baru (form_lama = false) -> semua parameter aktif (39 variabel).
+     *  - Akun lama (form_lama = true)       -> hanya yang bertaut ke 18 parameter PBI.
+     * Hapus/nonaktifkan di Master GC -> otomatis hilang dari halaman warga.
      */
-    private function parameterUntukWarga()
+    private function parameterUntukWarga(?PbiApbd $pbi = null)
     {
-        return PbiGcForm::parameters();
+        return PbiGcForm::parameters($pbi);
     }
 
     /** Data master ketenagakerjaan/kesehatan (hanya yang aktif), sama seperti form petugas. */
@@ -816,8 +819,13 @@ class MasyarakatController extends Controller
     }
 
     /** Daftar jawaban yang sah untuk sebuah parameter (dari master atau dari opsi). */
-    private function labelOpsi(GcKriteriaParameter $p, array $master): array
+    private function labelOpsi(GcKriteriaParameter $p, array $master, ?PbiApbd $pbi = null): array
     {
+        // Faskes / Puskesmas: pilihannya mengikuti kelurahan (kecamatan) tempat tinggal pemohon
+        if ($p->tipe_input === 'pilihan' && ! in_array($p->sumber, ['lapangan_usaha', 'pekerjaan', 'keterampilan', 'penyakit_kronis'], true) && Str::contains(Str::lower((string) $p->nama), ['faskes', 'puskesmas'])) {
+            return $this->opsiFaskes($pbi);
+        }
+
         return match ($p->sumber) {
             'lapangan_usaha' => $master['lapangan']->pluck('nama')->all(),
             'pekerjaan' => $master['lapangan']->flatMap(fn ($l) => $l->pekerjaansAktif->pluck('nama'))->unique()->values()->all(),
@@ -825,6 +833,39 @@ class MasyarakatController extends Controller
             'penyakit_kronis' => $master['penyakit']->pluck('nama')->all(),
             default => $p->opsis->pluck('label')->all(),
         };
+    }
+
+    /**
+     * Daftar Puskesmas (config/faskes.php) untuk kecamatan tempat kelurahan pemohon berada.
+     * Kecamatan dicari dari kelurahan di config/wilayah.php; kalau tidak ketemu dipakai kolom kecamatan PBI.
+     * Kalau kecamatan tetap tidak dikenali, semua puskesmas ditampilkan.
+     */
+    private function opsiFaskes(?PbiApbd $pbi): array
+    {
+        $puskesmas = config('faskes.puskesmas', []);
+        $semua = collect($puskesmas)->flatten()->unique()->values()->all();
+
+        if (! $pbi) {
+            return $semua;
+        }
+
+        $kel = Str::lower(trim((string) $pbi->desa_kelurahan));
+        $kec = null;
+        foreach (config('wilayah.kecamatan', []) as $namaKec => $daftarKel) {
+            if ($kel !== '' && collect($daftarKel)->contains(fn ($k) => Str::lower(trim((string) $k)) === $kel)) {
+                $kec = $namaKec;
+                break;
+            }
+        }
+        $kec = Str::lower(trim((string) ($kec ?: $pbi->kecamatan)));
+
+        foreach ($puskesmas as $namaKec => $daftar) {
+            if (Str::lower(trim((string) $namaKec)) === $kec) {
+                return array_values($daftar);
+            }
+        }
+
+        return $semua;
     }
 
     /**
@@ -963,6 +1004,11 @@ class MasyarakatController extends Controller
             );
         }
 
+        // Akun lama (form 18 parameter): jawaban PBI yang tidak punya padanan di GC jangan dihapus.
+        if ($pbi->form_lama) {
+            return;
+        }
+
         // Padanan PBI dari parameter GC yang hanya disembunyikan (aktif = false) tetap dipertahankan.
         $padananMaster = GcKriteriaParameter::whereNotNull('pbi_parameter_id')->pluck('pbi_parameter_id')->all();
 
@@ -983,24 +1029,26 @@ class MasyarakatController extends Controller
         // Draft otomatis hanya selama pengajuan belum pernah diajukan
         $bisaDraft = $bisaEdit && $pbiApbd->masyarakatMasihDraft();
 
-        $parameters = $this->parameterUntukWarga();
+        $parameters = $this->parameterUntukWarga($pbiApbd);
         $master = $this->masterGc();
-        $opsiLabels = $parameters->mapWithKeys(fn ($p) => [$p->id => $this->labelOpsi($p, $master)])->all();
+        $opsiLabels = $parameters->mapWithKeys(fn ($p) => [$p->id => $this->labelOpsi($p, $master, $pbiApbd)])->all();
         $nilai = $this->nilaiAwal($pbiApbd, $parameters, $opsiLabels);
+        // Akun lama: isi dari jawaban 18 parameter PBI. Foto kartu keluarga: pakai Scan KK pengajuan.
+        $nilai = PbiGcForm::lengkapiNilai($pbiApbd, $parameters, $nilai);
         $perKelompok = $parameters->groupBy('kelompok');
 
         $gate = PbiGcForm::gate($parameters);
         $kerja = $gate ? ['gate' => $gate->id, 'dependen' => PbiGcForm::dependenIds($parameters)] : null;
 
-        // ---- Alamat domisili: terisi dari KK, terkunci bila "Apakah wilayah sama?" = Ya (atau belum dijawab) ----
+        // ---- Alamat domisili: SELALU dari alamat KK & terkunci. ----
+        // Bila wilayah berbeda, warga mengisinya di field koreksi (disimpan terpisah), bukan di sini.
         $petaAlamat = $this->petaAlamat($parameters);
         $sesuai = $parameters->first(fn ($p) => $this->isSesuaiKkParam($p));
         $kk = $this->nilaiKk($pbiApbd);
         $wilayah = $this->wilayahOpsi($pbiApbd);
 
-        // Pertama kali dibuka: langsung terisi dari alamat KK
         foreach ($petaAlamat as $id => $peran) {
-            if (blank($nilai[$id] ?? null) && filled($kk[$peran] ?? null)) {
+            if (filled($kk[$peran] ?? null)) {
                 $nilai[$id] = $kk[$peran];
             }
         }
@@ -1029,17 +1077,27 @@ class MasyarakatController extends Controller
         // ---- "Apakah No KK sama?" Ya -> "Apakah nama sama?" ikut Ya ----
         $sama = $this->pasanganSama($parameters);
 
-        // ---- Nama & No KK: terisi dari registrasi selama jawaban "sama?"-nya bukan "Tidak" ----
+        // ---- Nama & No KK: SELALU dari registrasi (tampil sebagai teks). ----
         $identitas = $this->petaIdentitas($pbiApbd, $parameters);
         foreach ($identitas as $id => $cfg) {
-            if (($nilai[$cfg['gate']] ?? null) !== 'Tidak') {
-                $nilai[$id] = $cfg['nilai'];
-            }
+            $nilai[$id] = $cfg['nilai'];
         }
+
+        // ---- Pemicu field baru bila jawaban "Tidak": id pertanyaan => jenis field koreksi ----
+        $koreksiGate = [];
+        if ($sama) {
+            $koreksiGate[$sama['sumber']] = 'no_kk';
+            $koreksiGate[$sama['target']] = 'nama';
+        }
+        if ($sesuai) {
+            $koreksiGate[$sesuai->id] = 'wilayah';
+        }
+        $koreksi = $pbiApbd->gcKoreksi;
 
         return view('masyarakat.pbi-apbd.lengkapi', compact(
             'pbiApbd', 'parameters', 'perKelompok', 'opsiLabels', 'nilai', 'master', 'kerja', 'bisaEdit', 'bisaDraft',
-            'petaAlamat', 'sesuai', 'kk', 'wilayah', 'petaKk', 'terkunci', 'sama', 'identitas', 'isiAwal'
+            'petaAlamat', 'sesuai', 'kk', 'wilayah', 'petaKk', 'terkunci', 'sama', 'identitas', 'isiAwal',
+            'koreksiGate', 'koreksi'
         ));
     }
 
@@ -1067,7 +1125,7 @@ class MasyarakatController extends Controller
         // Pengajuan yang ditolak lalu diperbaiki warga = diajukan ulang ke kelurahan
         $ajukanUlang = ! $draft && $pbiApbd->status === 'ditolak';
 
-        $parameters = $this->parameterUntukWarga();
+        $parameters = $this->parameterUntukWarga($pbiApbd);
 
         $rules = [
             'latitude' => ['required', 'numeric', 'between:-90,90'],
@@ -1089,26 +1147,21 @@ class MasyarakatController extends Controller
         $dependen = PbiGcForm::dependenIds($parameters);
         $lapParam = $parameters->firstWhere('sumber', 'lapangan_usaha');
 
-        // ---- Alamat domisili ----
+        // ---- Alamat domisili: SELALU dipaksa dari KK. ----
         $petaAlamat = $this->petaAlamat($parameters);
         $sesuaiParam = $parameters->first(fn ($p) => $this->isSesuaiKkParam($p));
         $kk = $this->nilaiKk($pbiApbd);
         $wilayah = $this->wilayahOpsi($pbiApbd);
-        // Terkunci (dipaksa dari KK) kecuali warga menjawab "Tidak"
-        $kunciAlamat = ! $sesuaiParam || $request->input("jawaban.{$sesuaiParam->id}") !== 'Tidak';
-        $kecParamId = array_search('kecamatan', $petaAlamat, true) ?: null;
 
         // Alamat sesuai KK + data terkunci dari registrasi: nilainya dipaksa dari server
         $petaKk = $this->petaAlamatKk($parameters);
-        $opsiLabelsKunci = $parameters->mapWithKeys(fn ($x) => [$x->id => $this->labelOpsi($x, $master)])->all();
+        $opsiLabelsKunci = $parameters->mapWithKeys(fn ($x) => [$x->id => $this->labelOpsi($x, $master, $pbiApbd)])->all();
         $terkunci = $this->nilaiTerkunciRegistrasi($pbiApbd, $parameters, $opsiLabelsKunci, $master);
 
-        // Nama / No KK: dipaksa dari registrasi kecuali pertanyaan pasangannya dijawab "Tidak"
+        // Nama / No KK: SELALU dipaksa dari registrasi.
         $kunciIdentitas = [];
         foreach ($this->petaIdentitas($pbiApbd, $parameters) as $id => $cfg) {
-            if ($request->input("jawaban.{$cfg['gate']}") !== 'Tidak') {
-                $kunciIdentitas[$id] = $cfg['nilai'];
-            }
+            $kunciIdentitas[$id] = $cfg['nilai'];
         }
 
         foreach ($parameters as $p) {
@@ -1142,37 +1195,14 @@ class MasyarakatController extends Controller
                 continue;
             }
 
-            // Field alamat: sesuai KK -> nilai dipaksa dari KK; "Tidak" -> input manual dengan wilayah berantai.
+            // Field alamat domisili: nilai dipaksa dari KK, tidak divalidasi dari kiriman browser.
             if (isset($petaAlamat[$p->id])) {
-                if ($kunciAlamat) {
-                    $rules[$key] = ['nullable'];
-                    continue;
-                }
-
-                $reqAlamat = PbiGcForm::opsional($p) ? 'nullable' : 'required';
-
-                if ($petaAlamat[$p->id] === 'kecamatan') {
-                    $rules[$key] = [$reqAlamat, 'string', Rule::in(array_keys($wilayah))];
-                    continue;
-                }
-
-                if ($petaAlamat[$p->id] === 'kelurahan') {
-                    $rules[$key] = [$reqAlamat, 'string', function ($attr, $value, $fail) use ($request, $kecParamId, $wilayah) {
-                        if ($value === null || $value === '') {
-                            return;
-                        }
-                        $kec = $kecParamId ? (string) $request->input("jawaban.{$kecParamId}") : '';
-                        if (! in_array($value, $wilayah[$kec] ?? [], true)) {
-                            $fail('Desa/Kelurahan tidak sesuai dengan kecamatan yang dipilih.');
-                        }
-                    }];
-                    continue;
-                }
-                // alamat / rt / rw: lanjut memakai aturan teks bawaan di bawah
+                $rules[$key] = ['nullable'];
+                continue;
             }
 
             $req = PbiGcForm::opsional($p) ? 'nullable' : 'required';
-            $labels = $this->labelOpsi($p, $master);
+            $labels = $this->labelOpsi($p, $master, $pbiApbd);
 
             switch ($p->tipe_input) {
                 case 'pilihan':
@@ -1222,9 +1252,11 @@ class MasyarakatController extends Controller
                     break;
 
                 case 'foto':
-                    // Foto wajib (bila "Wajib diisi" aktif di master) kecuali sudah pernah diunggah
+                    // Foto wajib (bila "Wajib diisi" aktif di master) kecuali sudah pernah diunggah.
+                    // Foto kartu keluarga dianggap ada bila Scan KK pengajuan sudah terunggah.
                     $sudahAda = filled(GcPbiJawaban::where('pbi_apbd_id', $pbiApbd->id)
-                        ->where('parameter_id', $p->id)->value('jawaban'));
+                            ->where('parameter_id', $p->id)->value('jawaban'))
+                        || (PbiGcForm::isFotoKk($p) && filled($pbiApbd->scan_kk));
                     $rules[$key] = [($req === 'required' && ! $sudahAda) ? 'required' : 'nullable', 'image', 'max:5120'];
                     break;
 
@@ -1260,6 +1292,43 @@ class MasyarakatController extends Controller
             }
         }
 
+        // ---- Field baru bila jawaban "Tidak" (disimpan terpisah, tidak mengubah data awal) ----
+        $pasangan = $this->pasanganSama($parameters);
+        $tidak = fn ($id) => $id && $request->input("jawaban.{$id}") === 'Tidak';
+        $kkTidak = $tidak($pasangan['sumber'] ?? null);
+        $namaTidak = $tidak($pasangan['target'] ?? null);
+        $wilTidak = $tidak($sesuaiParam->id ?? null);
+
+        $rules['koreksi'] = ['nullable', 'array'];
+        $rules['koreksi.no_kk_baru'] = $kkTidak ? ['required', 'digits:16'] : ['nullable'];
+        $rules['koreksi.nama_baru'] = $namaTidak ? ['required', 'string', 'max:150'] : ['nullable'];
+        // Kabupaten selalu KOTA BOGOR (dipaksa server), jadi tidak divalidasi dari kiriman browser.
+        $rules['koreksi.kecamatan_baru'] = $wilTidak ? ['required', 'string', Rule::in(array_keys($wilayah))] : ['nullable'];
+        $rules['koreksi.kelurahan_baru'] = $wilTidak
+            ? ['required', 'string', function ($attr, $value, $fail) use ($request, $wilayah) {
+                if (! in_array($value, $wilayah[(string) $request->input('koreksi.kecamatan_baru')] ?? [], true)) {
+                    $fail('Desa/Kelurahan tidak sesuai dengan kecamatan yang dipilih.');
+                }
+            }]
+            : ['nullable'];
+
+        $messages += [
+            'koreksi.no_kk_baru.required' => 'No KK baru wajib diisi.',
+            'koreksi.no_kk_baru.digits' => 'No KK baru harus 16 digit angka.',
+            'koreksi.nama_baru.required' => 'Nama baru wajib diisi.',
+            'koreksi.kecamatan_baru.required' => 'Kecamatan wajib dipilih.',
+            'koreksi.kecamatan_baru.in' => 'Kecamatan tidak valid.',
+            'koreksi.kelurahan_baru.required' => 'Kelurahan/Desa wajib dipilih.',
+        ];
+
+        $koreksiData = [
+            'no_kk_baru' => $kkTidak ? trim((string) $request->input('koreksi.no_kk_baru')) : null,
+            'nama_baru' => $namaTidak ? trim((string) $request->input('koreksi.nama_baru')) : null,
+            'kabupaten_baru' => $wilTidak ? config('wilayah.kab_kota') : null,
+            'kecamatan_baru' => $wilTidak ? $request->input('koreksi.kecamatan_baru') : null,
+            'kelurahan_baru' => $wilTidak ? $request->input('koreksi.kelurahan_baru') : null,
+        ];
+
         $messages += [
             'in' => 'Pilihan pada :attribute tidak valid.',
             'numeric' => ':attribute harus berupa angka.',
@@ -1293,7 +1362,12 @@ class MasyarakatController extends Controller
             }
         }
 
-        DB::transaction(function () use ($pbiApbd, $parameters, $validated, $request, $ajukanUlang, $dependen, $bekerja, $draft, $petaAlamat, $kunciAlamat, $kk, $petaKk, $terkunci, $kunciIdentitas) {
+        DB::transaction(function () use ($pbiApbd, $parameters, $validated, $request, $ajukanUlang, $dependen, $bekerja, $draft, $petaAlamat, $kk, $petaKk, $terkunci, $kunciIdentitas, $koreksiData) {
+            // Simpan data koreksi di tabel terpisah. Memilih "Ya" lagi -> kolom dikosongkan.
+            if ($pbiApbd->gcKoreksi()->exists() || collect($koreksiData)->filter()->isNotEmpty()) {
+                $pbiApbd->gcKoreksi()->updateOrCreate([], $koreksiData);
+            }
+
             $lama = GcPbiJawaban::where('pbi_apbd_id', $pbiApbd->id)->get()->keyBy('parameter_id');
             $final = [];
 
@@ -1323,8 +1397,8 @@ class MasyarakatController extends Controller
                     $input = $kunciIdentitas[$p->id];
                 }
 
-                // Alamat sesuai KK: nilai dipaksa dari data registrasi, abaikan kiriman browser.
-                if ($kunciAlamat && isset($petaAlamat[$p->id])) {
+                // Alamat domisili: nilai dipaksa dari data registrasi, abaikan kiriman browser.
+                if (isset($petaAlamat[$p->id])) {
                     $input = $kk[$petaAlamat[$p->id]] ?? null;
                 }
 
@@ -1344,6 +1418,8 @@ class MasyarakatController extends Controller
                         break;
 
                     case 'foto':
+                        // Foto kartu keluarga tanpa unggahan baru dibiarkan kosong: tampilannya otomatis
+                        // memakai Scan KK pengajuan (tidak disalin, jadi tidak ikut terhapus bila Scan KK diganti).
                         $jawaban = $row->jawaban;
                         if ($request->hasFile("jawaban.{$p->id}")) {
                             if ($jawaban) {
@@ -1370,7 +1446,7 @@ class MasyarakatController extends Controller
                 $final[$p->id] = $jawaban;
             }
 
-            // Buang jawaban untuk parameter yang kini tidak tampil (dihapus/nonaktif di Master GC).
+            // Buang jawaban untuk parameter yang kini tidak tampil (dihapus di Master GC).
             // Baris snapshot yatim (parameter_id NULL) tidak disentuh.
             GcPbiJawaban::where('pbi_apbd_id', $pbiApbd->id)->whereNotNull('parameter_id')
                 ->whereNotIn('parameter_id', GcKriteriaParameter::pluck('id'))->delete();
@@ -1988,8 +2064,7 @@ class MasyarakatController extends Controller
     }
 
     /**
-     * Field identitas (Nama, No KK) yang terkunci dari registrasi selama pertanyaan pasangannya
-     * ("Apakah nama sama?" / "Apakah No KK sama?") tidak dijawab "Tidak".
+     * Field identitas (Nama, No KK) yang SELALU diambil dari registrasi (ditampilkan sebagai teks).
      * Hasil: [id parameter field => ['gate' => id pertanyaan Ya/Tidak, 'nilai' => nilai registrasi]]
      */
     private function petaIdentitas(PbiApbd $pbi, $parameters): array

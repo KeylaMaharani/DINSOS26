@@ -8,46 +8,7 @@ use App\Models\PbiKriteriaParameter;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
-/**
- * Master kriteria GROUND CHECK (SOLID).
- *
- * Sumber:
- *  - Dokumen "39 Variabel Ground Check pada Aplikasi SOLID" -> nama & bobot tiap variabel
- *  - Laporan komparasi 39 variabel vs 18 parameter SK 460/Kep.196-Dinsos/2021 -> pemetaan ke PBI
- *  - Buku Saku Ground Check 2026 -> urutan tab & jenis isian
- *
- * Aturan opsi:
- *  1. Variabel yang punya padanan di PBI  -> opsi + indeks DISALIN dari master PBI (kolom pbi di bawah).
- *  2. Variabel numerik (jumlah/koordinat) -> tipe angka, tanpa opsi.
- *  3. Variabel isian bebas                -> tipe teks / tanggal / foto.
- *  4. Variabel tanpa padanan PBI          -> opsi SEMENTARA, nilai dikosongkan (null),
- *                                            nanti diisi Super Admin lewat menu master.
- *  5. Variabel bersumber master terpisah  -> kolom 'sumber' diisi, TANPA opsi di gc_kriteria_opsis
- *                                            (mis. keluhan kronis -> Master Penyakit Kronis).
- *
- * Format baris data:
- *  [kelompok, nama, bobot, tipe_input, nama parameter PBI (atau null), opsi sementara (atau []),
- *   aktif (opsional, default true), wajib (opsional, default true)]
- *
- * Seeder hanya berjalan jika master GC masih kosong, jadi tidak menimpa hasil edit Super Admin.
- * Untuk database yang sudah terisi, tambahkan field baru lewat GcKriteriaTambahanSeeder.
- *
- * Perbaikan anti-dobel:
- *  - Opsi "yatim" (parameter_id tidak lagi ada di tabel parameter) dibersihkan di awal,
- *    supaya tidak menempel ke parameter baru yang kebetulan memakai id yang sama.
- *  - Opsi dibuat dengan updateOrCreate per label, jadi tidak bisa tercipta dua kali.
- *  - Tab A Kependudukan punya dua isian alamat: dibedakan menjadi "Alamat sesuai KK" dan
- *    "Alamat domisili" supaya tidak tampil dobel di form maupun halaman master.
- *
- * Perubahan tab D Kesehatan: pertanyaan "Apakah penderita stunting?" DIHAPUS dari seeder, dan
- * "Apakah memiliki keluhan kesehatan kronis/menahun?" kini dropdown dari Master Penyakit Kronis.
- * Ditambahkan: Diagnosa, Faskes, dan Surat Keterangan Rawat Inap (opsional, tidak wajib).
- *
- * Perubahan tab E Keluarga: "Jenis kloset" dan "Tempat pembuangan akhir tinja" DIHAPUS;
- * "Kepemilikan fasilitas BAB" memakai 6 opsi sesuai SOLID (nilai diisi Super Admin di menu master).
- * Perubahan tab F2: "Jumlah ternak kuda yang dimiliki" AKTIF.
- * Perubahan tab G: foto tabung gas, kamar mandi, dan individu DIHAPUS; ditambahkan Foto KTP.
- */
+
 class GcKriteriaSeeder extends Seeder
 {
     /** Nama (huruf kecil) parameter yang pilihannya berasal dari master terpisah -> nilai kolom 'sumber'. */
@@ -118,11 +79,6 @@ class GcKriteriaSeeder extends Seeder
                 ['Tidak ada', 'Tuna netra', 'Tuna rungu', 'Tuna wicara', 'Tuna daksa', 'Tuna grahita', 'Disabilitas mental', 'Disabilitas ganda']],
             // Pilihan berasal dari Master Penyakit Kronis (lihat SUMBER_MASTER), bukan dari gc_kriteria_opsis.
             ['kesehatan', 'Apakah memiliki keluhan kesehatan kronis/menahun?', 3, 'pilihan', null, []],
-            // Tambahan: bobot 0 karena belum ada di dokumen 39 variabel. Ubah di menu master bila perlu.
-            ['kesehatan', 'Diagnosa', 0, 'teks', null, []],
-            ['kesehatan', 'Faskes (fasilitas kesehatan)', 0, 'teks', null, []],
-            // OPSIONAL: kolom ke-8 (wajib) = false.
-            ['kesehatan', 'Surat Keterangan Rawat Inap', 0, 'foto', null, [], true, false],
 
             // ================= E. KELUARGA =================
             ['keluarga', 'Jumlah keluarga yang tinggal dalam satu rumah', 2, 'angka', 'Jumlah tanggungan keluarga', []],
@@ -177,8 +133,8 @@ class GcKriteriaSeeder extends Seeder
             ['dokumentasi', 'Koordinat bujur', 1, 'angka', null, []],
             ['dokumentasi', 'Foto tampak depan', 2, 'foto', null, []],
             ['dokumentasi', 'Foto tampak dalam', 1, 'foto', null, []],
-            ['dokumentasi', 'Foto kartu keluarga', 2, 'foto', null, []],
-            ['dokumentasi', 'Foto KTP', 2, 'foto', null, []],
+            // Memakai Scan KK dari pengajuan PBI -> tidak wajib diunggah ulang (kolom ke-8 wajib = false)
+            ['dokumentasi', 'Foto kartu keluarga', 2, 'foto', null, [], true, false],
         ];
 
         DB::transaction(function () use ($data) {

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use App\Models\Concerns\HasKriteriaSkor;
 
 class PbiApbd extends Model
@@ -161,6 +162,15 @@ class PbiApbd extends Model
         return $this->hasMany(GcPbiJawaban::class, 'pbi_apbd_id');
     }
 
+    /**
+     * Data koreksi (No KK / nama / wilayah baru) bila warga menjawab "Tidak".
+     * Disimpan terpisah, tidak mengubah kolom induk pbi_apbds.
+     */
+    public function gcKoreksi()
+    {
+        return $this->hasOne(PbiApbdGcKoreksi::class, 'pbi_apbd_id');
+    }
+
     public function statusLabel(): string
     {
         return self::STATUS_LABELS[$this->status] ?? $this->status;
@@ -188,8 +198,71 @@ class PbiApbd extends Model
         return $this->data_diisi_at === null && $this->status === 'kelurahan';
     }
 
+    /** Hubungan keluarga bertulisan "kepala keluarga" (toleran: kepala_keluarga / Kepala Keluarga). */
+    public static function isHubunganKepala(?string $hubungan): bool
+    {
+        return str_contains(Str::lower(str_replace('_', ' ', (string) $hubungan)), 'kepala');
+    }
+
+    /**
+     * Tambah anggota keluarga dari halaman masyarakat (di luar registrasi).
+     * Anggota otomatis ditandai didaftarkan_gc = true lalu langsung disinkronkan
+     * ke Daftar Sasaran Ground Check.
+     *
+     * forceFill dipakai supaya kolom didaftarkan_gc tetap tersimpan walau belum ada di $fillable
+     * model PbiApbdAnggotaKeluarga.
+     */
+    public function tambahAnggotaKeluarga(array $data): PbiApbdAnggotaKeluarga
+    {
+        $anggota = $this->anggotaKeluarga()->make($data);
+
+        $anggota->forceFill([
+            'keanggotaan_bpjs' => $anggota->keanggotaan_bpjs ?: 'Belum Terdaftar',
+            'didaftarkan_gc' => true,
+            'didaftarkan_gc_at' => now(),
+        ])->save();
+
+        $this->sinkronGroundCheck();
+
+        return $anggota;
+    }
+
+    /**
+     * Ubah data anggota keluarga, lalu samakan baris Daftar Sasaran Ground Check-nya
+     * (NIK, nama, tanggal lahir).
+     * - Sasaran yang sudah diverifikasi petugas tidak diubah (data petugas tidak boleh bergeser).
+     * - Bila NIK baru sudah dipakai sasaran lain, NIK sasaran tidak diganti (NIK di Ground Check unik).
+     */
+    public function perbaruiAnggotaKeluarga(PbiApbdAnggotaKeluarga $anggota, array $data): PbiApbdAnggotaKeluarga
+    {
+        $nikLama = preg_replace('/\D/', '', (string) $anggota->nik);
+
+        $anggota->update($data);
+
+        $nikBaru = preg_replace('/\D/', '', (string) $anggota->nik);
+        $kk = preg_replace('/\D/', '', (string) $this->no_kk);
+
+        $sasaran = GcSasaran::where('nik', $nikLama)->where('no_kk', $kk)->first();
+
+        if ($sasaran && ! $sasaran->verifikasis()->exists()) {
+            $nikDipakaiLain = $nikBaru !== $nikLama
+                && GcSasaran::where('nik', $nikBaru)->where('id', '!=', $sasaran->id)->exists();
+
+            $sasaran->update([
+                'nik' => $nikDipakaiLain ? $nikLama : $nikBaru,
+                'nama' => mb_strtoupper(trim((string) $anggota->nama)),
+                'tanggal_lahir' => $anggota->tanggal_lahir,
+            ]);
+        }
+
+        $this->sinkronGroundCheck();
+
+        return $anggota;
+    }
+
     /**
      * Masukkan anggota keluarga pengajuan ini ke Daftar Sasaran Ground Check.
+     * HANYA kepala keluarga (selalu) dan anggota yang dipilih warga (didaftarkan_gc = true).
      * - No KK sudah ada di Ground Check -> ikut keluarga itu (wilayah/alamat/desil mengikuti).
      * - No KK baru -> otomatis jadi keluarga baru.
      * Notifikasi ke petugas Ground Check dikirim hanya bila ada sasaran baru.
@@ -202,12 +275,20 @@ class PbiApbd extends Model
             return 0;
         }
 
+        $kepalaNik = preg_replace('/\D/', '', (string) $this->nik_kepala_keluarga);
+
         $induk = GcSasaran::where('no_kk', $kk)->first();
         $baru = 0;
 
         foreach ($this->anggotaKeluarga()->get() as $a) {
             $nik = preg_replace('/\D/', '', (string) $a->nik);
             if (strlen($nik) !== 16) {
+                continue;
+            }
+
+            // Kepala keluarga selalu ikut; anggota lain hanya bila dipilih warga
+            $kepala = $nik === $kepalaNik || self::isHubunganKepala($a->hubungan_keluarga);
+            if (! $kepala && ! $a->didaftarkan_gc) {
                 continue;
             }
 

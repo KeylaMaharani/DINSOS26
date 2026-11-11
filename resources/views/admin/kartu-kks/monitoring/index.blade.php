@@ -31,7 +31,6 @@
                 <select name="status" class="w-full px-3 py-1.5 rounded-xl border border-outline-variant/40 bg-slate-50 text-xs">
                     <option value="">Semua Status</option>
                     @foreach ($statusLabels as $key => $label)
-                        {{-- "Selesai" tidak ditampilkan di Monitoring (sudah masuk Arsip) --}}
                         @continue($key === \App\Models\KartuKksPermohonan::STATUS_SELESAI)
                         <option value="{{ $key }}" @selected(request('status') === $key)>{{ $label }}</option>
                     @endforeach

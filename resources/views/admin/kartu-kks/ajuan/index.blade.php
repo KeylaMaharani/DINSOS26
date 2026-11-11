@@ -3,6 +3,13 @@
 @section('title', 'Ajuan Kartu KKS - SOLID Dinas Sosial Kota Bogor')
 @section('page_title', 'Kartu KKS — Ajuan')
 
+@php
+    $roleSaatIni = auth()->user()->role ?? null;
+    $bisaTambahAjuan = $roleSaatIni
+        && $roleSaatIni->hasModule('kartu-kks.ajuan.tambah')
+        && \Illuminate\Support\Facades\Route::has('layanan.kartu-kks.ajukan');
+@endphp
+
 @section('content')
     <div class="space-y-6">
 
@@ -18,6 +25,22 @@
                 <span class="font-medium">{{ session('error') }}</span>
             </div>
         @endif
+
+        {{-- Bar atas: judul + tombol Tambah Ajuan --}}
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h2 class="text-sm font-semibold text-on-surface">Daftar Ajuan Berjalan</h2>
+                <p class="text-xs text-on-surface-variant mt-0.5">{{ $ajuanList->total() }} ajuan</p>
+            </div>
+
+            @if ($bisaTambahAjuan)
+                <a href="{{ route('layanan.kartu-kks.ajukan') }}"
+                    class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand text-white hover:opacity-90 text-xs font-bold shadow-md transition-all">
+                    <span class="material-symbols-outlined text-[18px]">add</span>
+                    Tambah Ajuan
+                </a>
+            @endif
+        </div>
 
         <!-- Filter Section -->
         <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] p-5">
@@ -132,6 +155,13 @@
                                         <span class="material-symbols-outlined text-[40px] mb-3 opacity-30">inbox</span>
                                         <p class="text-sm font-medium">Belum ada ajuan data</p>
                                         <p class="text-xs opacity-70 mt-1">Silakan sesuaikan filter pencarian Anda</p>
+                                        @if ($bisaTambahAjuan)
+                                            <a href="{{ route('layanan.kartu-kks.ajukan') }}"
+                                                class="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand/10 text-brand hover:bg-brand hover:text-white text-xs font-semibold transition-all">
+                                                <span class="material-symbols-outlined text-[16px]">add</span>
+                                                Tambah Ajuan
+                                            </a>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>

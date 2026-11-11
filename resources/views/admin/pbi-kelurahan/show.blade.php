@@ -8,6 +8,10 @@
     // Isian masyarakat = jawaban Ground Check (sama dengan form warga & hitungan kelengkapan di controller)
     $jawabans = $gcJawabans->sortBy('urutan')->values();
     $dataLengkap = $totalParameter > 0 && $terjawab >= $totalParameter;
+    // Jawaban berupa foto ditampilkan terpisah sebagai kartu lampiran (urutan sama dengan daftar isian)
+    // Tanda "Verifikasi Data" oleh petugas kelurahan (disimpan di kolom verifikasi_berkas); wajib sebelum diteruskan ke Lurah
+    $verifData = $data->verifikasi_berkas['data_pemohon'] ?? null;
+    $fotos = $jawabans->filter(fn ($j) => $j->tipe_input === 'foto' && filled($j->jawaban))->values();
 @endphp
 
 @section('content')
@@ -99,6 +103,7 @@
                     </thead>
                     <tbody class="divide-y divide-outline-variant/30">
                         @foreach ($jawabans as $j)
+                            @continue($j->tipe_input === 'foto')
                             @php
                                 $nilai = $j->jawaban;
                                 $pilihan = null;
@@ -118,8 +123,6 @@
                                 <td class="px-5 py-3 font-semibold">
                                     @if (blank($nilai))
                                         <span class="font-normal text-on-surface-variant">Belum diisi</span>
-                                    @elseif ($j->tipe_input === 'foto')
-                                        <div class="w-20"><x-lampiran-preview :src="asset('storage/' . $nilai)" :label="$j->nama_parameter" /></div>
                                     @elseif ($pilihan)
                                         {{ implode(', ', $pilihan) }}
                                     @else
@@ -133,6 +136,85 @@
             </div>
         @endif
     </div>
+
+    {{-- Verifikasi data: wajib diklik sebelum berkas bisa diteruskan ke Lurah --}}
+    @if ($bisaProses)
+        <div class="bg-surface-container-lowest border rounded-xl shadow-sm p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4
+                    {{ $verifData ? 'border-success/50' : 'border-outline-variant/40' }}">
+            <div class="flex items-start gap-3 min-w-0">
+                <span class="material-symbols-outlined text-[26px] {{ $verifData ? 'text-success' : 'text-secondary' }}">{{ $verifData ? 'task_alt' : 'fact_check' }}</span>
+                <div class="min-w-0">
+                    <h3 class="text-sm font-bold">Verifikasi Data Pemohon</h3>
+                    @if ($verifData)
+                        <p class="text-xs text-success mt-0.5">Data sudah diverifikasi pada {{ \Illuminate\Support\Carbon::parse($verifData)->format('d M Y - H:i') }}. Berkas bisa diteruskan ke Lurah.</p>
+                    @else
+                        <p class="text-xs text-on-surface-variant mt-0.5">Cek data pemohon, isian, dan lampiran di halaman ini, lalu klik Verifikasi. Sebelum itu, berkas belum bisa diteruskan ke Lurah.</p>
+                    @endif
+                </div>
+            </div>
+            @unless ($verifData)
+                <form method="POST" action="{{ route('pbi-kelurahan.aksi', $data) }}" class="shrink-0">
+                    @csrf
+                    <button type="submit" name="aksi" value="verifikasi_data"
+                        data-confirm="Pastikan data pemohon, isian, dan lampiran sudah dicek. Tandai data ini sudah diverifikasi?" data-confirm-title="Verifikasi Data"
+                        class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-on-primary hover:bg-secondary text-sm font-bold shadow-md">
+                        <span class="material-symbols-outlined text-[18px]">verified</span> Verifikasi
+                    </button>
+                </form>
+            @endunless
+        </div>
+    @endif
+
+    {{-- Lampiran Persyaratan: foto jawaban masyarakat. Klik kartu -> pilihan Lihat / Unduh --}}
+    @if ($fotos->isNotEmpty())
+        <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl shadow-sm">
+            <div class="px-5 py-4 border-b border-outline-variant/40">
+                <h3 class="text-sm font-bold flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[20px] text-secondary">attach_file</span> Lampiran Persyaratan
+                </h3>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-5">
+                @foreach ($fotos as $f)
+                    @php
+                        $url = asset('storage/' . $f->jawaban);
+                        $ext = pathinfo((string) $f->jawaban, PATHINFO_EXTENSION) ?: 'jpg';
+                        $namaUnduh = \Illuminate\Support\Str::slug($f->nama_parameter) . '.' . $ext;
+                    @endphp
+                    <div class="relative min-w-0" x-data="{ buka: false, gagal: false }"
+                         @click.outside="buka = false" @keydown.escape.window="buka = false">
+                        <button type="button" @click="buka = !buka"
+                                class="w-full text-left rounded-xl border border-outline-variant/40 overflow-hidden bg-surface-container-lowest hover:shadow-md transition"
+                                :aria-expanded="buka" aria-haspopup="true">
+                            <div class="aspect-square bg-[#eef5ff] flex items-center justify-center">
+                                <img src="{{ $url }}" alt="{{ $f->nama_parameter }}" loading="lazy"
+                                     class="w-full h-full object-cover" x-show="!gagal" x-on:error="gagal = true">
+                                <span x-show="gagal" x-cloak class="material-symbols-outlined text-[44px] text-outline">image_not_supported</span>
+                            </div>
+                            <div class="px-3 py-3 text-center text-sm text-on-surface border-t border-outline-variant/40">
+                                {{ $f->nama_parameter }}
+                                @if ($f->parameter_id && ! in_array($f->parameter_id, $idAktif, true))
+                                    <span class="block mt-0.5 text-[10px] text-on-surface-variant">Disembunyikan dari warga</span>
+                                @endif
+                            </div>
+                        </button>
+
+                        {{-- Pilihan: Lihat / Unduh --}}
+                        <div x-show="buka" x-cloak x-transition.opacity
+                             class="absolute z-20 left-3 right-3 top-1/2 -translate-y-1/2 rounded-lg border border-outline-variant/40 bg-white shadow-lg overflow-hidden text-sm">
+                            <a href="{{ $url }}" target="_blank" rel="noopener" @click="buka = false"
+                               class="flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container">
+                                <span class="material-symbols-outlined text-[18px] text-secondary">visibility</span> Lihat
+                            </a>
+                            <a href="{{ $url }}" download="{{ $namaUnduh }}" @click="buka = false"
+                               class="flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container border-t border-outline-variant/30">
+                                <span class="material-symbols-outlined text-[18px] text-secondary">download</span> Unduh
+                            </a>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
 
     @if ($bisaProses)
         {{-- Pengompres & pengambil foto (kamera / file). Foto dikecilkan agar muat batas 4 MB. --}}
@@ -185,49 +267,6 @@
                 </div>
             @endif
 
-            {{-- Berkas dari masyarakat: Kelurahan hanya menandai sesuai / tidak sesuai --}}
-            <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
-                <div class="px-5 py-4 border-b border-outline-variant/40">
-                    <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">folder_shared</span> Berkas dari Masyarakat</h3>
-                    <p class="text-xs text-on-surface-variant mt-1">Diunggah oleh masyarakat. Cek lalu tandai sesuai atau tidak sesuai. Bila ada yang tidak sesuai, gunakan "Kembalikan ke Masyarakat".</p>
-                </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 p-5">
-                    @foreach ($lampiranMasyarakat as $field => [$label, $wajib])
-                        @php
-                            $perluCek = in_array($field, $fieldVerifikasi, true);
-                            $nilaiCek = old("verifikasi.{$field}", $data->verifikasi_berkas[$field] ?? null);
-                        @endphp
-                        <div class="min-w-0 rounded-lg border border-outline-variant/40 p-3">
-                            <p class="text-xs font-semibold mb-2">{{ $label }} @if($wajib)<span class="text-error">*</span>@endif</p>
-                            @if ($data->{$field})
-                                <div class="w-28 mb-3"><x-lampiran-preview :src="asset('storage/' . $data->{$field})" :label="$label" /></div>
-                                @if ($perluCek)
-                                    <div class="flex flex-wrap gap-2">
-                                        <label class="cursor-pointer">
-                                            <input type="radio" class="peer sr-only" name="verifikasi[{{ $field }}]" value="sesuai" @checked($nilaiCek === 'sesuai')>
-                                            <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-outline-variant text-xs font-semibold peer-checked:bg-success peer-checked:text-white peer-checked:border-success">
-                                                <span class="material-symbols-outlined text-[16px]">check_circle</span> Sesuai
-                                            </span>
-                                        </label>
-                                        <label class="cursor-pointer">
-                                            <input type="radio" class="peer sr-only" name="verifikasi[{{ $field }}]" value="tidak_sesuai" @checked($nilaiCek === 'tidak_sesuai')>
-                                            <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-outline-variant text-xs font-semibold peer-checked:bg-error peer-checked:text-on-error peer-checked:border-error">
-                                                <span class="material-symbols-outlined text-[16px]">cancel</span> Tidak sesuai
-                                            </span>
-                                        </label>
-                                    </div>
-                                    @error("verifikasi.{$field}")<p class="text-error text-xs mt-1">{{ $message }}</p>@enderror
-                                @else
-                                    <p class="text-[11px] text-on-surface-variant">Opsional dari masyarakat, tidak perlu diverifikasi.</p>
-                                @endif
-                            @else
-                                <p class="text-xs text-on-surface-variant">{{ $wajib ? 'Belum diunggah masyarakat.' : 'Tidak dilampirkan masyarakat.' }}</p>
-                            @endif
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-
             {{-- Lampiran hasil turun lapangan (diisi Kelurahan) --}}
             <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
                 <div class="px-5 py-4 border-b border-outline-variant/40">
@@ -278,6 +317,13 @@
                         </div>
                     @endforeach
                 </div>
+                <div class="px-5 py-4 border-t border-outline-variant/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <p class="text-xs text-on-surface-variant">Foto yang bertanda "belum disimpan" baru tersimpan setelah tombol Simpan diklik.</p>
+                    <button type="submit" name="aksi" value="simpan"
+                        class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-on-primary hover:bg-secondary text-sm font-bold shadow-sm">
+                        <span class="material-symbols-outlined text-[18px]">save</span> Simpan Lampiran
+                    </button>
+                </div>
             </div>
 
             {{-- Verifikasi berkas --}}
@@ -299,9 +345,10 @@
                             class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-5 py-2.5 rounded-lg bg-surface-container hover:bg-secondary/20 text-secondary text-sm font-bold">
                             <span class="material-symbols-outlined text-[18px]">save</span> Simpan Draft
                         </button>
-                        <button type="submit" name="aksi" value="validasi"
+                        <button type="submit" name="aksi" value="validasi" @disabled(! $verifData)
+                            @if (! $verifData) title="Klik tombol Verifikasi pada kartu Verifikasi Data Pemohon terlebih dahulu" @endif
                             data-confirm="Verifikasi berkas ini dan teruskan ke Lurah? Setelah diteruskan, Kelurahan tidak bisa mengubahnya lagi." data-confirm-title="Verifikasi Berkas"
-                            class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-on-primary hover:bg-secondary text-sm font-bold shadow-md sm:ml-auto">
+                            class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-on-primary hover:bg-secondary text-sm font-bold shadow-md sm:ml-auto disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary">
                             <span class="material-symbols-outlined text-[18px]">verified</span> Verifikasi Berkas & Teruskan ke Lurah
                         </button>
                         <button type="submit" name="aksi" value="tolak"

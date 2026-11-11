@@ -451,6 +451,13 @@
 @endsection
 
 @push('scripts')
+    @php
+        // Data grafik: dari controller, atau angka contoh bila belum ada data
+        $dataSebaran = $sebaran ?? [
+            'categories' => ['Bogor Selatan', 'Bogor Barat', 'Bogor Utara', 'Tanah Sareal', 'Bogor Timur', 'Bogor Tengah'],
+            'values' => [2050, 1670, 1380, 1150, 1020, 950],
+        ];
+    @endphp
     <script>
         /* Scrollspy: sorot item Daftar Isi sesuai section yang sedang dibaca */
         (function () {
@@ -488,10 +495,7 @@
            Data dari database (PageController@kesan). Jika belum ada
            data, dipakai angka contoh di bawah.
            ============================================================ */
-        var dataSebaran = @json($sebaran ?? [
-            'categories' => ['Bogor Selatan', 'Bogor Barat', 'Bogor Utara', 'Tanah Sareal', 'Bogor Timur', 'Bogor Tengah'],
-            'values' => [2050, 1670, 1380, 1150, 1020, 950],
-        ]);
+        var dataSebaran = @json($dataSebaran);
 
         var barColors = ["#4f46e5", "#ec4899", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
 

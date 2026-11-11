@@ -13,6 +13,54 @@
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <style>
+    .ngopi-anim {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        animation: ngopi-bob 1.8s ease-in-out infinite;
+        transform-origin: 50% 90%;
+    }
+
+    .ngopi-steam {
+        position: absolute;
+        top: -2px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 6px;
+        pointer-events: none;
+    }
+
+    .ngopi-steam i {
+        width: 3px;
+        height: 10px;
+        border-radius: 9999px;
+        background: rgba(122, 74, 33, .5);
+        opacity: 0;
+        animation: ngopi-steam 1.8s ease-in infinite;
+    }
+
+    .ngopi-steam i:nth-child(2) { animation-delay: .6s; height: 13px; }
+    .ngopi-steam i:nth-child(3) { animation-delay: 1.2s; }
+
+    @keyframes ngopi-bob {
+        0%, 100% { transform: translateY(0) rotate(0deg); }
+        50%      { transform: translateY(-3px) rotate(-4deg); }
+    }
+
+    @keyframes ngopi-steam {
+        0%   { opacity: 0;  transform: translateY(6px) scaleY(.6); }
+        40%  { opacity: .8; }
+        100% { opacity: 0;  transform: translateY(-10px) scaleY(1.2); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .ngopi-anim, .ngopi-steam i { animation: none; }
+    }
+</style>
 @endpush
 
 @section('body_class', 'bg-surface font-body-md text-on-surface antialiased')
@@ -85,8 +133,11 @@
 
                     <a class="fab-radial-item" href="{{ route('ngopi-pagi.index') }}" title="Ngopi Pagi - Konsultasi LK3">
                         <span class="fab-radial-item-icon">
-                            <span class="material-symbols-outlined"
-                                style="font-size:44px;color:#7a4a21;font-variation-settings:'FILL' 1">coffee</span>
+                            <span class="ngopi-anim">
+                                <span class="ngopi-steam" aria-hidden="true"><i></i><i></i><i></i></span>
+                                <span class="material-symbols-outlined"
+                                    style="font-size:44px;color:#7a4a21;font-variation-settings:'FILL' 1">coffee</span>
+                            </span>
                         </span>
                         <span class="fab-radial-item-label">Ngopi Pagi</span>
                     </a>

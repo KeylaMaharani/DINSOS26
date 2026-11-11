@@ -93,7 +93,8 @@
                 <p x-show="pesan" x-cloak x-text="pesan" class="mb-3 px-4 py-2.5 rounded-lg bg-error-container text-on-error-container text-xs font-medium"></p>
 
                 @foreach ($tabs as $i => $t)
-                    <div id="gc-panel-{{ $i }}" x-show="tab === {{ $i }}" @if ($i !== $mulai) x-cloak @endif class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+                    {{-- [UBAH] satu kolom: setiap field satu baris (sebelumnya grid 2 kolom) --}}
+                    <div id="gc-panel-{{ $i }}" x-show="tab === {{ $i }}" @if ($i !== $mulai) x-cloak @endif class="space-y-1">
                         @foreach ($t['kelompok'] as $kel)
                             @php $isi = $t['params']->where('kelompok', $kel); @endphp
                             @if ($isi->isNotEmpty())

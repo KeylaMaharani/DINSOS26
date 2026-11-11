@@ -34,7 +34,17 @@ class KartuKksPermohonan extends Model
         'longitude' => 'decimal:7',
     ];
 
-    // Daftar status resmi alur, dipakai controller & view supaya konsisten
+    // Daftar status resmi alur, dipakai controller & view supaya konsisten.
+    //
+    // ALUR BARU (pemegang berkas -> status):
+    //   Operator Dinsos -> STATUS_DIAJUKAN
+    //   Kepala Bidang   -> STATUS_DIPROSES_KABIN
+    //   Kepala Dinas    -> STATUS_DISETUJUI_KADIS   (menunggu approval + TTD digital)
+    //   Operator Dinsos -> STATUS_VALIDASI_DINSOS   (sudah disetujui, tinggal memberitahu pemohon)
+    //   -               -> STATUS_SELESAI / STATUS_DITOLAK
+    //
+    // STATUS_VERIFIKASI_KELURAHAN & STATUS_TTD_LURAH tidak dipakai lagi oleh
+    // alur baru; konstantanya dibiarkan agar data lama / kode lain tidak error.
     public const STATUS_DIAJUKAN = 'diajukan';
     public const STATUS_VERIFIKASI_KELURAHAN = 'verifikasi_kelurahan';
     public const STATUS_TTD_LURAH = 'ttd_lurah';
@@ -75,14 +85,17 @@ class KartuKksPermohonan extends Model
     public static function statusLabels(): array
     {
         return [
-            self::STATUS_DIAJUKAN => 'Diajukan',
-            self::STATUS_VERIFIKASI_KELURAHAN => 'Verifikasi Kelurahan',
-            self::STATUS_TTD_LURAH => 'TTD Lurah',
-            self::STATUS_VALIDASI_DINSOS => 'Validasi Dinsos',
-            self::STATUS_DIPROSES_KABIN => 'Diproses Kabin',
-            self::STATUS_DISETUJUI_KADIS => 'Disetujui Kadis',
+            // --- Alur baru (berurutan) ---
+            self::STATUS_DIAJUKAN => 'Diajukan (Operator)',
+            self::STATUS_DIPROSES_KABIN => 'Diperiksa Kepala Bidang',
+            self::STATUS_DISETUJUI_KADIS => 'Menunggu Approval Kepala Dinas',
+            self::STATUS_VALIDASI_DINSOS => 'Disetujui - Menunggu Pemberitahuan Operator',
             self::STATUS_SELESAI => 'Selesai',
             self::STATUS_DITOLAK => 'Ditolak',
+
+            // --- Status alur lama (hanya untuk data lama) ---
+            self::STATUS_VERIFIKASI_KELURAHAN => 'Verifikasi Kelurahan (alur lama)',
+            self::STATUS_TTD_LURAH => 'TTD Lurah (alur lama)',
         ];
     }
 
