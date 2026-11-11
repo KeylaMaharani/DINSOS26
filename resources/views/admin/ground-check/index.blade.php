@@ -32,17 +32,17 @@
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div class="relative overflow-hidden rounded-2xl bg-error text-on-error px-5 py-4 shadow-sm">
             <span class="material-symbols-outlined absolute -right-2 -bottom-3 text-[84px] opacity-15">pending_actions</span>
-            <p class="text-[11px] uppercase tracking-wider opacity-80">Belum · {{ request('tahun') ?: 'Semua tahun' }}</p>
+            <p class="text-[11px] uppercase tracking-wider opacity-80">Belum · {{ request('tahun') ?: 'Semua tahun' }}{{ $rw ? ' · RW ' . $rw : '' }}</p>
             <p class="text-3xl font-extrabold mt-0.5">{{ number_format($belum, 0, ',', '.') }}</p>
         </div>
         <div class="relative overflow-hidden rounded-2xl bg-success text-white px-5 py-4 shadow-sm">
             <span class="material-symbols-outlined absolute -right-2 -bottom-3 text-[84px] opacity-15">task_alt</span>
-            <p class="text-[11px] uppercase tracking-wider opacity-80">Sudah · {{ request('tahun') ?: 'Semua tahun' }}</p>
+            <p class="text-[11px] uppercase tracking-wider opacity-80">Sudah · {{ request('tahun') ?: 'Semua tahun' }}{{ $rw ? ' · RW ' . $rw : '' }}</p>
             <p class="text-3xl font-extrabold mt-0.5">{{ number_format($sudah, 0, ',', '.') }}</p>
         </div>
         <div class="relative overflow-hidden rounded-2xl bg-brand text-white px-5 py-4 shadow-sm">
             <span class="material-symbols-outlined absolute -right-2 -bottom-3 text-[84px] opacity-15">monitoring</span>
-            <p class="text-[11px] uppercase tracking-wider opacity-80">Progres · {{ request('tahun') ?: 'Semua tahun' }}</p>
+            <p class="text-[11px] uppercase tracking-wider opacity-80">Progres · {{ request('tahun') ?: 'Semua tahun' }}{{ $rw ? ' · RW ' . $rw : '' }}</p>
             <p class="text-3xl font-extrabold mt-0.5">{{ number_format($progres, 1, ',', '.') }}%</p>
             <div class="mt-2 h-1.5 rounded-full bg-white/25 overflow-hidden">
                 <div class="h-full bg-white rounded-full" style="width: {{ min($progres, 100) }}%"></div>
@@ -72,6 +72,14 @@
                         @endforeach
                     </select>
 
+                    {{-- Filter RW (dari isian RT/RW saat registrasi) --}}
+                    <select name="rw" onchange="this.form.submit()" title="Filter RW" class="{{ $inFilter }}">
+                        <option value="">Semua RW</option>
+                        @foreach ($rwList as $r)
+                            <option value="{{ $r }}" @selected((string) $rw === (string) $r)>RW {{ $r }}</option>
+                        @endforeach
+                    </select>
+
                     {{-- Filter tahun pengajuan masyarakat --}}
                     <select name="tahun" onchange="this.form.submit()" title="Tahun pengajuan masyarakat" class="{{ $inFilter }}">
                         <option value="">Semua tahun pengajuan</option>
@@ -95,7 +103,7 @@
                                class="w-60 rounded-lg border border-outline-variant/50 pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30" />
                     </div>
 
-                    @if (request()->hasAny(['q', 'tahun', 'tgl_dari', 'tgl_sampai']))
+                    @if (request()->hasAny(['q', 'tahun', 'tgl_dari', 'tgl_sampai', 'rw']))
                         <a href="{{ url()->current() }}?per_page={{ $perPage }}"
                            class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-outline-variant/50 text-xs hover:bg-surface-container-low transition-colors">
                             <span class="material-symbols-outlined text-[15px]">restart_alt</span> Reset
@@ -202,7 +210,7 @@
                 @empty
                     <tr><td colspan="9" class="px-4 py-12 text-center text-on-surface-variant">
                         <span class="material-symbols-outlined text-[32px] opacity-40 block mb-1">search_off</span>
-                        {{ request()->hasAny(['q', 'tahun', 'tgl_dari', 'tgl_sampai']) ? 'Tidak ada data yang cocok dengan pencarian/filter.' : 'Belum ada data sasaran.' }}
+                        {{ request()->hasAny(['q', 'tahun', 'tgl_dari', 'tgl_sampai', 'rw']) ? 'Tidak ada data yang cocok dengan pencarian/filter.' : 'Belum ada data sasaran.' }}
                     </td></tr>
                 @endforelse
             </tbody>

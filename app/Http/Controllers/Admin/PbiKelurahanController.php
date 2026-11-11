@@ -30,8 +30,12 @@ class PbiKelurahanController extends Controller
         'screenshot_pembaharuan_desil' => ['Screenshot Pembaharuan Desil (opsional)', false, 'jpg,jpeg,png'],
     ];
 
-    /** Berkas masyarakat yang dicek Kelurahan (sesuai / tidak sesuai). */
-    public const VERIFIKASI = ['scan_ktp', 'scan_kk', 'surat_rawat_inap'];
+    /**
+     * Berkas masyarakat yang dicek Kelurahan (sesuai / tidak sesuai).
+     * Dikosongkan: kartu "Berkas dari Masyarakat" sudah dihapus dari halaman verifikasi
+     * (dokumen warga kini tampil sebagai foto jawaban di "Lampiran Persyaratan").
+     */
+    public const VERIFIKASI = [];
 
     /** Diunggah KELURAHAN (hasil verifikasi lapangan). field => [label, wajib, mimes, hanya kamera] */
     public const LAMPIRAN_KELURAHAN = [
@@ -143,7 +147,7 @@ class PbiKelurahanController extends Controller
         $pbiApbd->tandaiDilihat(Auth::user());
 
         $rules = [
-            'aksi' => ['required', Rule::in(['simpan', 'validasi', 'kembalikan', 'tolak'])],
+            'aksi' => ['required', Rule::in(['simpan', 'validasi', 'kembalikan', 'tolak', 'verifikasi_data'])],
             'catatan' => [
                 Rule::requiredIf(in_array($request->input('aksi'), ['kembalikan', 'tolak'], true)),
                 'nullable', 'string', 'max:2000',
@@ -170,6 +174,17 @@ class PbiKelurahanController extends Controller
         $aksi = $request->input('aksi');
         $catatan = $request->input('catatan');
 
+        // ---- Tombol "Verifikasi" data: menandai data sudah dicek (syarat sebelum diteruskan ke Lurah) ----
+        if ($aksi === 'verifikasi_data') {
+            $hasil = $pbiApbd->verifikasi_berkas ?? [];
+            $hasil['data_pemohon'] = now()->toDateTimeString();
+            $pbiApbd->update(['verifikasi_berkas' => $hasil]);
+            $this->catatLog($pbiApbd, 'Kelurahan memverifikasi data pemohon', null);
+
+            return redirect()->route('pbi-kelurahan.show', $pbiApbd)
+                ->with('success', 'Data pemohon ditandai sudah diverifikasi.');
+        }
+
         // ---- Simpan hasil cek berkas masyarakat (berlaku untuk semua aksi kecuali tolak) ----
         if ($aksi !== 'tolak') {
             $hasil = $pbiApbd->verifikasi_berkas ?? [];
@@ -184,6 +199,11 @@ class PbiKelurahanController extends Controller
 
         // ---- Kembalikan ke masyarakat / Tolak: tidak memproses file ----
         if ($aksi === 'kembalikan') {
+            // Data akan diperbaiki warga -> verifikasi harus diulang
+            $hasil = $pbiApbd->verifikasi_berkas ?? [];
+            unset($hasil['data_pemohon']);
+            $pbiApbd->update(['verifikasi_berkas' => $hasil]);
+
             $pbiApbd->update([
                 'dikembalikan_ke_masyarakat' => true,
                 'catatan_kelurahan' => $catatan,
@@ -227,14 +247,18 @@ class PbiKelurahanController extends Controller
         $pbiApbd->refresh();
         $masalah = [];
 
+        if (empty($pbiApbd->verifikasi_berkas['data_pemohon'] ?? null)) {
+            $masalah[] = 'Klik tombol "Verifikasi" pada kartu Verifikasi Data Pemohon terlebih dahulu sebelum meneruskan ke Lurah.';
+        }
+
         $kelengkapan = PbiGcForm::kelengkapan($pbiApbd);
         if ($kelengkapan['total'] === 0 || $kelengkapan['terjawab'] < $kelengkapan['total']) {
             $masalah[] = "Masyarakat belum menjawab semua parameter ({$kelengkapan['terjawab']}/{$kelengkapan['total']}). Gunakan \"Kembalikan ke Masyarakat\" bila perlu.";
         }
 
-        // Berkas wajib: milik masyarakat (harus sudah diunggah) dan milik Kelurahan
+        // Berkas wajib: hanya lampiran hasil lapangan milik Kelurahan
         $kurang = [];
-        foreach (self::LAMPIRAN as $field => [$label, $wajib]) {
+        foreach (self::LAMPIRAN_KELURAHAN as $field => [$label, $wajib]) {
             if ($wajib && ! $pbiApbd->{$field}) {
                 $kurang[] = $label;
             }

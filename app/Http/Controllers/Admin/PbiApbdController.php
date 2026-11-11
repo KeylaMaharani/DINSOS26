@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\PbiApbd;
 use App\Models\PbiApbdLog;
+use App\Support\Faskes;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -95,8 +96,17 @@ class PbiApbdController extends Controller
 
         $pbiApbd->tandaiDilihat(Auth::user());
 
+        $opsi = $this->faskesOptions($pbiApbd);
+
         $validated = $request->validate([
-            'nama_faskes' => ['nullable', 'string', 'max:150'],
+            'nama_faskes' => ['nullable', 'string', 'max:150', function ($attr, $value, $fail) use ($opsi, $pbiApbd) {
+                if ($value === null || $value === '' || $value === $pbiApbd->nama_faskes) {
+                    return; // kosong / nilai tersimpan lama tetap boleh
+                }
+                if (! in_array($value, $opsi, true)) {
+                    $fail('Faskes tidak sesuai dengan wilayah pemohon.');
+                }
+            }],
         ]);
 
         $pbiApbd->update($validated);
@@ -136,11 +146,10 @@ class PbiApbdController extends Controller
         return back()->with('success', 'Diagnosa baru berhasil ditambahkan.');
     }
 
+    /** Puskesmas sesuai wilayah pemohon (kelurahan -> kecamatan, tanpa peduli besar-kecil huruf). */
     private function faskesOptions(PbiApbd $pbiApbd): array
     {
-        $master = config('faskes.puskesmas', []);
-
-        return $master[$pbiApbd->kecamatan] ?? [];
+        return Faskes::untuk($pbiApbd->kecamatan, $pbiApbd->desa_kelurahan);
     }
 
     /**

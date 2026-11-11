@@ -101,15 +101,15 @@
          |  ada 2 tab: "Data Diri" (masyarakat.profil) dan "Akun & Kata Sandi"
          |  (masyarakat.password). Keduanya membuat menu Profile tetap aktif.
          * ==================================================================== */
-        // Menu "PBI APBD" langsung membuka form PBI milik user ini (form tetap sama
-        // sebelum maupun sesudah mendaftar). Kalau user belum punya pengajuan PBI,
+        // Menu "PBI APBD" membuka DAFTAR KELUARGA dulu (warga memilih anggota yang didaftarkan
+        // ke Ground Check), baru lanjut ke form. Kalau user belum punya pengajuan PBI,
         // arahkan ke form pendaftaran awal.
         $pbiSaya = auth()->check() && method_exists(auth()->user(), 'pengajuanPbiApbd')
             ? auth()->user()->pengajuanPbiApbd()->latest()->first()
             : null;
 
         $pbiUrl = $pbiSaya
-            ? route('masyarakat.pbi-apbd.lengkapi', $pbiSaya)
+            ? route('masyarakat.pbi-apbd.keluarga', $pbiSaya)
             : (\Illuminate\Support\Facades\Route::has('registrasi.step1') ? route('registrasi.step1') : '#');
 
         // Menu "DTSEN" menuju route 'masyarakat.dtsen' yang menentukan tujuannya sendiri:
@@ -137,7 +137,7 @@
         ];
 
         // Link menu: route asli kalau sudah terdaftar, kalau belum '#'
-        // ('url' = tujuan khusus yang sudah dihitung di atas, mis. form PBI milik user)
+        // ('url' = tujuan khusus yang sudah dihitung di atas, mis. daftar keluarga PBI milik user)
         $href = fn(array $n) => $n['url'] ?? (\Illuminate\Support\Facades\Route::has($n['route']) ? route($n['route']) : '#');
 
         // Node tampil jika: (link -> punya route) / (folder -> ada anak yang tampil)

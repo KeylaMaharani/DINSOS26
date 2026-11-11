@@ -8,6 +8,11 @@
     };
     $me = auth()->user();
     $punyaTtd = filled($me->ttd_path);
+    // Isian masyarakat = jawaban Ground Check (sama dengan halaman Kelurahan); jawaban foto tampil sebagai kartu lampiran
+    $jawabans = ($gcJawabans ?? collect())->sortBy('urutan')->values();
+    $fotos = $jawabans->filter(fn ($j) => $j->tipe_input === 'foto' && filled($j->jawaban))->values();
+    // Berkas lama dari masyarakat hanya ditampilkan kalau memang ada file-nya
+    $lampiranMasyarakat = ['scan_ktp', 'scan_kk', 'surat_rawat_inap', 'screenshot_pembaharuan_desil'];
     $lampiranDaftar = [
         'scan_ktp' => 'Scan KTP', 'scan_kk' => 'Scan Kartu Keluarga',
         'surat_rawat_inap' => 'Surat Ket. Rawat Inap', 'screenshot_pembaharuan_desil' => 'Screenshot Pembaharuan Desil',
@@ -56,6 +61,23 @@
             ] as $label => $value)
                 <div><dt class="text-xs text-on-surface-variant mb-0.5">{{ $label }}</dt><dd class="font-semibold">{{ $value ?: '-' }}</dd></div>
             @endforeach
+            <div>
+                <dt class="text-xs text-on-surface-variant mb-0.5">Titik Lokasi (dari masyarakat)</dt>
+                <dd class="font-semibold">
+                    @if ($data->latitude && $data->longitude)
+                        <a class="text-primary underline" target="_blank" rel="noopener"
+                           href="https://www.google.com/maps?q={{ $data->latitude }},{{ $data->longitude }}">Buka di Google Maps</a>
+                    @else - @endif
+                </dd>
+            </div>
+            <div>
+                <dt class="text-xs text-on-surface-variant mb-0.5">Verifikasi Data oleh Kelurahan</dt>
+                <dd class="font-semibold">
+                    @if ($data->verifikasi_berkas['data_pemohon'] ?? null)
+                        <span class="text-success">Sudah diverifikasi ({{ \Illuminate\Support\Carbon::parse($data->verifikasi_berkas['data_pemohon'])->format('d M Y - H:i') }})</span>
+                    @else - @endif
+                </dd>
+            </div>
         </dl>
     </div>
 
@@ -81,6 +103,102 @@
         </div>
     </div>
 
+    {{-- Jawaban masyarakat: HANYA pertanyaan & jawaban (tanpa indeks/bobot/skor) --}}
+    <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
+        <div class="px-5 py-4 border-b border-outline-variant/40 flex items-center justify-between gap-3 flex-wrap">
+            <h3 class="text-sm font-bold flex items-center gap-2">
+                <span class="material-symbols-outlined text-[20px] text-secondary">checklist</span> Isian Masyarakat (untuk dicek di lapangan)
+            </h3>
+        </div>
+        @if ($jawabans->isEmpty())
+            <p class="p-6 text-sm text-on-surface-variant text-center">Masyarakat belum mengisi parameter.</p>
+        @else
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left">
+                    <thead class="bg-surface-container/50 text-on-surface-variant text-xs uppercase">
+                        <tr><th class="px-5 py-3 w-14 text-center">No</th><th class="px-5 py-3">Parameter</th><th class="px-5 py-3">Jawaban Masyarakat</th></tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant/30">
+                        @foreach ($jawabans as $j)
+                            @continue($j->tipe_input === 'foto')
+                            @php
+                                $nilai = $j->jawaban;
+                                $pilihan = null;
+                                if ($j->tipe_input === 'pilihan_ganda' && filled($nilai)) {
+                                    $dec = json_decode($nilai, true);
+                                    $pilihan = is_array($dec) ? $dec : [$nilai];
+                                }
+                            @endphp
+                            <tr>
+                                <td class="px-5 py-3 text-center">{{ $loop->iteration }}</td>
+                                <td class="px-5 py-3">
+                                    {{ $j->nama_parameter }}
+                                </td>
+                                <td class="px-5 py-3 font-semibold">
+                                    @if (blank($nilai))
+                                        <span class="font-normal text-on-surface-variant">Belum diisi</span>
+                                    @elseif ($pilihan)
+                                        {{ implode(', ', $pilihan) }}
+                                    @else
+                                        {{ $nilai }}
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
+    </div>
+
+    {{-- Lampiran Persyaratan: foto jawaban masyarakat. Klik kartu -> pilihan Lihat / Unduh --}}
+    @if ($fotos->isNotEmpty())
+        <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl shadow-sm">
+            <div class="px-5 py-4 border-b border-outline-variant/40">
+                <h3 class="text-sm font-bold flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[20px] text-secondary">attach_file</span> Lampiran Persyaratan
+                </h3>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-5">
+                @foreach ($fotos as $f)
+                    @php
+                        $url = asset('storage/' . $f->jawaban);
+                        $ext = pathinfo((string) $f->jawaban, PATHINFO_EXTENSION) ?: 'jpg';
+                        $namaUnduh = \Illuminate\Support\Str::slug($f->nama_parameter) . '.' . $ext;
+                    @endphp
+                    <div class="relative min-w-0" x-data="{ buka: false, gagal: false }"
+                         @click.outside="buka = false" @keydown.escape.window="buka = false">
+                        <button type="button" @click="buka = !buka"
+                                class="w-full text-left rounded-xl border border-outline-variant/40 overflow-hidden bg-surface-container-lowest hover:shadow-md transition"
+                                :aria-expanded="buka" aria-haspopup="true">
+                            <div class="aspect-square bg-[#eef5ff] flex items-center justify-center">
+                                <img src="{{ $url }}" alt="{{ $f->nama_parameter }}" loading="lazy"
+                                     class="w-full h-full object-cover" x-show="!gagal" x-on:error="gagal = true">
+                                <span x-show="gagal" x-cloak class="material-symbols-outlined text-[44px] text-outline">image_not_supported</span>
+                            </div>
+                            <div class="px-3 py-3 text-center text-sm text-on-surface border-t border-outline-variant/40">
+                                {{ $f->nama_parameter }}
+                            </div>
+                        </button>
+
+                        {{-- Pilihan: Lihat / Unduh --}}
+                        <div x-show="buka" x-cloak x-transition.opacity
+                             class="absolute z-20 left-3 right-3 top-1/2 -translate-y-1/2 rounded-lg border border-outline-variant/40 bg-white shadow-lg overflow-hidden text-sm">
+                            <a href="{{ $url }}" target="_blank" rel="noopener" @click="buka = false"
+                               class="flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container">
+                                <span class="material-symbols-outlined text-[18px] text-secondary">visibility</span> Lihat
+                            </a>
+                            <a href="{{ $url }}" download="{{ $namaUnduh }}" @click="buka = false"
+                               class="flex items-center gap-2 px-3 py-2.5 hover:bg-surface-container border-t border-outline-variant/30">
+                                <span class="material-symbols-outlined text-[18px] text-secondary">download</span> Unduh
+                            </a>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
+
     {{-- Lampiran + hasil verifikasi Kelurahan --}}
     <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
         <div class="px-5 py-4 border-b border-outline-variant/40">
@@ -88,6 +206,7 @@
         </div>
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-5">
             @foreach ($lampiranDaftar as $field => $label)
+                @continue(in_array($field, $lampiranMasyarakat, true) && ! $data->$field)
                 <div>
                     <x-lampiran-preview :src="$data->$field ? asset('storage/' . $data->$field) : null" :label="$label" />
                     @php $cek = $data->verifikasi_berkas[$field] ?? null; @endphp

@@ -1,12 +1,13 @@
 {{-- Satu pertanyaan Master Ground Check pada form masyarakat. Variabel: $p, $nomor, $nilai, $opsiLabels, $master, $bisaEdit
 
      Perilaku tampilan (mobile-first):
+     - Nama, No KK, Alamat sesuai KK                           -> TEKS biasa (bukan field), selalu dari registrasi
      - Pilihan panjang (> 6 opsi, lapangan usaha, pekerjaan)  -> tombol yang membuka lembar pilihan + kolom cari
      - Pilihan hanya Ya / Tidak                                 -> kotak centang besar
      - Pilihan ganda panjang (> 8 opsi)                         -> kolom cari di dalam daftar centang
      - Pilihan pendek lainnya                                   -> dropdown bawaan browser
      - Terkunci dari registrasi ($terkunci)                     -> tampil terkunci (status hubungan, lapangan usaha, pekerjaan)
-     - Alamat sesuai KK ($petaKk)                               -> selalu terkunci, isinya alamat registrasi --}}
+     - Jawaban "Tidak" pada No KK / nama / wilayah sama?        -> muncul field baru (_koreksi), disimpan terpisah --}}
 @php
     use App\Support\PbiGcForm;
 
@@ -35,33 +36,35 @@
 
     $iconCek = '<svg viewBox="0 0 24 24" fill="none" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
 
-    // Field alamat (kecamatan/kelurahan/alamat/rt/rw) & pertanyaan "wilayah sama?" -- dipetakan oleh MasyarakatController
+    // Field alamat (kecamatan/kelurahan/alamat/rt/rw) -- dipetakan oleh MasyarakatController
     $petaAlamat ??= [];
     $wilayah ??= [];
-    $petaKk ??= [];       // id parameter "Alamat sesuai KK" => true (selalu terkunci, dari registrasi)
-    $terkunci ??= [];     // id parameter yang dikunci dari data registrasi => true
+    $petaKk ??= [];        // id parameter "Alamat sesuai KK" => true
+    $identitas ??= [];     // id parameter Nama / No KK => ['gate', 'nilai']
+    $terkunci ??= [];      // id parameter yang dikunci dari data registrasi => true
+    $koreksiGate ??= [];   // id pertanyaan Ya/Tidak => no_kk | nama | wilayah
+    $koreksi ??= null;
     $peranAlamat = $petaAlamat[$p->id] ?? null;
-    $isSesuai = isset($sesuai) && $sesuai && $sesuai->id === $p->id;
-    $isKk = isset($petaKk[$p->id]);
     $isKunci = isset($terkunci[$p->id]);
+
+    // Nama, No KK, Alamat sesuai KK = data penting -> tampil sebagai teks, bukan field
+    $statis = isset($identitas[$p->id]) || isset($petaKk[$p->id]);
 @endphp
 
-<div class="min-w-0" @if ($wajib) data-gc-wajib @endif>
+<div class="min-w-0" @if ($wajib && ! $statis) data-gc-wajib @endif>
     <label for="jawaban-{{ $p->id }}" class="flex items-start gap-2 mb-2">
         <span class="mt-px shrink-0 inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-brand-soft text-brand text-[11px] font-bold">{{ $nomor }}</span>
         <span class="text-sm font-semibold text-on-surface leading-snug">
-            <span data-gc-nama>{{ $p->nama }}</span> @if ($wajib)<span class="text-error">*</span>@endif
+            <span data-gc-nama>{{ $p->nama }}</span> @if ($wajib && ! $statis)<span class="text-error">*</span>@endif
         </span>
     </label>
 
-    @if ($isKk)
-        {{-- ===== Alamat sesuai KK: selalu terkunci, isinya alamat dari registrasi ===== --}}
-        <input type="text" id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]" value="{{ $val }}" maxlength="500"
-               readonly data-gc-kk @disabled(! $bisaEdit) class="{{ $in }} bg-surface-container opacity-70">
-
+    @if ($statis)
+        {{-- ===== Nama / No KK / Alamat sesuai KK: teks saja. Server selalu memakai data registrasi ===== --}}
+        <p class="pl-[30px] text-sm font-bold text-on-surface break-words">{{ $val ?: '—' }}</p>
 
     @elseif ($peranAlamat === 'kecamatan' || $peranAlamat === 'kelurahan')
-        {{-- ===== Kecamatan -> Desa/Kelurahan berantai (opsi kelurahan diisi skrip dari window.gcAlamat) ===== --}}
+        {{-- ===== Kecamatan -> Desa/Kelurahan (terkunci dari KK; opsi kelurahan diisi skrip dari window.gcAlamat) ===== --}}
         <select id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]" @disabled(! $bisaEdit) class="{{ $in }}"
                 data-gc-alamat="{{ $peranAlamat }}" data-nilai="{{ $val }}">
             <option value="">- Pilih -</option>
@@ -73,15 +76,14 @@
         </select>
 
     @elseif ($peranAlamat)
-        {{-- ===== Alamat / RT / RW: terisi dari KK & terkunci bila "wilayah sama" = Ya ===== --}}
+        {{-- ===== Alamat / RT / RW domisili: terkunci dari KK ===== --}}
         <input type="text" id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]" value="{{ $val }}" maxlength="500"
                data-gc-alamat="{{ $peranAlamat }}" @disabled(! $bisaEdit) class="{{ $in }}">
 
     @elseif ($isYaTidak)
         {{-- ===== Ya / Tidak: dua pilihan berdampingan (pilih salah satu). Nilai asli disimpan di input tersembunyi ===== --}}
         <input type="hidden" id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]" value="{{ $val }}"
-               data-gc-yn data-ya="{{ $yaLabel }}" data-tidak="{{ $tidakLabel }}"
-               @if ($isSesuai) data-gc-sesuai @endif @disabled(! $bisaEdit)>
+               data-gc-yn data-ya="{{ $yaLabel }}" data-tidak="{{ $tidakLabel }}" @disabled(! $bisaEdit)>
         <div class="gc-yn" role="radiogroup" aria-label="{{ $p->nama }}">
             @foreach ([$yaLabel, $tidakLabel] as $opsi)
                 <button type="button" role="radio" class="gc-yn-opt" data-gc-yn-opt="{{ $opsi }}"
@@ -192,8 +194,6 @@
         {{-- Teks "Choose file" bawaan browser tidak bisa diubah, jadi input disembunyikan dan diganti label bertombol "Ambil foto".
              Atribut capture (kamera langsung) TIDAK dipasang di sini: dipasang oleh skrip hanya di HP/tablet,
              supaya laptop/PC membuka dialog pilih file biasa. --}}
-        {{-- Pembungkus "relative": input sr-only bersifat absolute, tanpa induk relative browser menggulung/menggeser
-             kontainer halaman saat dialog file terbuka sehingga isi form tampak hilang. --}}
         <div class="relative">
             <input type="file" id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]" accept="image/*"
                    @if ($val) data-ada="1" @endif @disabled(! $bisaEdit) class="peer sr-only"
@@ -219,6 +219,11 @@
     @error($key)<p class="text-error text-xs mt-1">{{ $message }}</p>@enderror
     @error($key . '.*')<p class="text-error text-xs mt-1">{{ $message }}</p>@enderror
 </div>
+
+{{-- Field baru bila jawaban "Tidak" (No KK baru / nama baru / kabupaten-kecamatan-kelurahan baru) --}}
+@if (isset($koreksiGate[$p->id]))
+    @include('masyarakat.pbi-apbd._koreksi', ['jenis' => $koreksiGate[$p->id], 'gate' => $p->id])
+@endif
 
 {{-- ===== Gaya & skrip dipasang sekali saja, walau partial ini dipakai berkali-kali ===== --}}
 @once
@@ -392,7 +397,7 @@
                 if (h.value === b.dataset.gcYnOpt) { return; }
                 h.value = b.dataset.gcYnOpt;
                 ynRefresh(h);
-                // Beri tahu form (mis. skrip "bekerja? Ya/Tidak" yang mengaktifkan field lain)
+                // Beri tahu form (mis. skrip "bekerja? Ya/Tidak" & field koreksi "Tidak")
                 h.dispatchEvent(new Event('change', { bubbles: true }));
             });
 

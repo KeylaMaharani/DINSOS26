@@ -67,6 +67,7 @@
                     </h2>
                     <p class="text-xs text-on-surface-variant mt-0.5">
                         Klik <span class="font-semibold">Verifikasi</span> pada anggota keluarga untuk menentukan status, lalu isi form jika ditemukan.
+                        Kepala keluarga mengisi tab A–G, anggota lain tab A–D.
                     </p>
                 </div>
             </div>
@@ -99,6 +100,7 @@
                         $v = $a->verifikasis->first();
                         [$label, $kelas] = $badge($v);
                         $inisial = mb_strtoupper(mb_substr($a->nama ?? '?', 0, 1));
+                        $isKepala = trim((string) $a->nik) === ($kepalaNik ?? '');
                         $alamatLengkap = collect([
                             $a->alamat,
                             $a->rt ? 'RT ' . $a->rt : null,
@@ -116,6 +118,11 @@
                                 <div class="min-w-0">
                                     <p class="font-semibold text-on-surface leading-tight">{{ $a->nama }}</p>
                                     <p class="text-[11px] text-on-surface-variant mt-0.5 tabular-nums whitespace-nowrap">{{ $a->nik }}</p>
+                                    @if ($isKepala)
+                                        <p class="text-[10.5px] text-primary font-medium mt-0.5">Kepala Keluarga · isi A–G</p>
+                                    @else
+                                        <p class="text-[10.5px] text-on-surface-variant mt-0.5">Anggota · isi A–D</p>
+                                    @endif
                                 </div>
                             </div>
                         </td>
@@ -137,7 +144,11 @@
 
                         <td class="pl-3 pr-5 py-3">
                             <div class="flex items-center justify-center">
-                                @php $keForm = $v && $v->status_temuan === 'ditemukan'; @endphp
+                                @php
+                                    $keForm = $v && $v->status_temuan === 'ditemukan';
+                                    // Pindah/Tidak Ditemukan & Meninggal = final, tidak bisa diubah lagi
+                                    $terkunci = $v && ! $keForm;
+                                @endphp
                                 <div class="relative group">
                                     @if ($keForm)
                                         {{-- Sudah diverifikasi "Ditemukan": langsung ke form isian, tanpa pop up --}}
@@ -145,16 +156,22 @@
                                            class="inline-flex w-9 h-9 items-center justify-center rounded-lg bg-success text-white shadow-sm hover:opacity-90 transition-opacity">
                                             <span class="material-symbols-outlined text-[19px]">edit_note</span>
                                         </a>
+                                    @elseif ($terkunci)
+                                        {{-- Terkunci: tidak bisa diedit --}}
+                                        <span aria-label="Terkunci"
+                                              class="inline-flex w-9 h-9 items-center justify-center rounded-lg bg-surface-container-highest text-on-surface-variant cursor-not-allowed">
+                                            <span class="material-symbols-outlined text-[19px]">lock</span>
+                                        </span>
                                     @else
-                                        <button type="button" aria-label="{{ $v ? 'Ubah verifikasi' : 'Verifikasi' }}"
-                                            @click="buka({ id: {{ $a->id }}, nik: @js($a->nik), nama: @js($a->nama), alamat: @js($alamatLengkap) }, @js($v->status_temuan ?? ''))"
+                                        <button type="button" aria-label="Verifikasi"
+                                            @click="buka({ id: {{ $a->id }}, nik: @js($a->nik), nama: @js($a->nama), alamat: @js($alamatLengkap) }, '')"
                                             class="inline-flex w-9 h-9 items-center justify-center rounded-lg bg-primary text-on-primary shadow-sm hover:bg-secondary transition-colors">
                                             <span class="material-symbols-outlined text-[19px]">fact_check</span>
                                         </button>
                                     @endif
                                     {{-- Keterangan (tooltip) --}}
                                     <span class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded-md bg-on-surface text-surface-container-lowest text-[10.5px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity z-10">
-                                        {{ $keForm ? 'Buka form isian' : ($v ? 'Ubah verifikasi' : 'Verifikasi') }}
+                                        {{ $keForm ? 'Buka form isian' : ($terkunci ? 'Terkunci (' . $label . ')' : 'Verifikasi') }}
                                     </span>
                                 </div>
                             </div>
@@ -203,7 +220,8 @@
                         @endforeach
                     </select>
                     <p class="text-[11px] text-on-surface-variant mt-1">
-                        Jika <strong>Ditemukan</strong>, kamu akan diarahkan ke form isian. Status lain langsung dianggap selesai.
+                        Jika <strong>Ditemukan</strong>, kamu akan diarahkan ke form isian.
+                        Status <strong>Pindah/Tidak Ditemukan</strong> atau <strong>Meninggal</strong> langsung dianggap selesai dan <strong>tidak dapat diubah lagi</strong>.
                     </p>
                 </div>
 
