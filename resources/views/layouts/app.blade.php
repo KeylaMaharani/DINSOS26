@@ -288,7 +288,7 @@
          Item bertanda 'external' => true dibuka di TAB BARU (target=_blank). --}}
     @php
         // 'cek-densil' tidak ikut: menu Cek Desil kini link eksternal (tab baru) ke Cek Bansos Kemensos.
-        $isPelayananBaru = request()->routeIs('login', 'tutorial-pendaftaran', 'ppks-psks');
+        $isPelayananBaru = request()->routeIs('login', 'tutorial-pendaftaran', 'ppks-psks', 'lks');
 
         $pelayananBaru = [
             [
@@ -314,7 +314,7 @@
                 'items' => [
                     ['label' => 'DTSEN', 'url' => '#'],
                     ['label' => 'PPKS & PSKS', 'url' => route('ppks-psks'), 'route' => 'ppks-psks'],
-                    ['label' => 'LKS', 'url' => '#'],
+                    ['label' => 'LKS', 'url' => route('lks'), 'route' => 'lks'],
                     ['label' => 'Data Suplier', 'url' => '#'],
                     ['label' => 'Permohonan Kunjungan Dinas', 'url' => '#'],
                 ],
