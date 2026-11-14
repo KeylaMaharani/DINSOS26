@@ -99,7 +99,7 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-outline-variant/30">
-                    @forelse ($data->anggotaKeluarga as $anggota)
+                    @forelse ($data->daftarPeserta() as $anggota)
                         <tr class="hover:bg-surface-container-lowest/50 transition-colors">
                             <td class="px-5 py-3">{{ $anggota->nik }}</td>
                             <td class="px-5 py-3 font-medium text-on-surface">{{ $anggota->nama }}</td>
@@ -134,22 +134,18 @@
             </div>
         @endif
         <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 p-5 text-sm">
-            <div>
+            <div class="sm:col-span-2">
                 <dt class="text-xs text-on-surface-variant mb-0.5">Desil Nasional</dt>
                 <dd class="font-semibold text-on-surface">{{ $data->desil_nasional ?: '-' }}</dd>
             </div>
-            <div>
-                <dt class="text-xs text-on-surface-variant mb-0.5">Kelengkapan/Kekurangan Berkas</dt>
-                <dd class="font-semibold text-on-surface">{{ $data->kelengkapan_kekurangan_berkas ?: '-' }}</dd>
-            </div>
             <div class="sm:col-span-2">
-                <dt class="text-xs text-on-surface-variant mb-0.5">Catatan Berkas</dt>
+                <dt class="text-xs text-on-surface-variant mb-0.5">Catatan Kelengkapan/Kekurangan Berkas</dt>
                 <dd class="font-semibold text-on-surface">{{ $data->catatan_berkas ?: '-' }}</dd>
             </div>
         </dl>
     </div>
 
-    {{-- Lampiran + Diagnosa (riwayat) --}}
+    {{-- Lampiran --}}
     <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
         <div class="px-5 py-4 border-b border-outline-variant/40">
             <h3 class="text-sm font-bold flex items-center gap-2">
@@ -173,57 +169,28 @@
                     :label="$label" />
             @endforeach
         </div>
+    </div>
 
-        {{-- Diagnosa (riwayat, bisa diisi berulang kali) --}}
-        <div class="border-t border-outline-variant/40 px-5 py-6">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {{-- Sisi Kiri: Label & Keterangan --}}
-                <div class="md:col-span-1">
-                    <label class="block text-sm font-bold text-on-surface mb-1">
-                        Diagnosa
-                    </label>
-                    <p class="text-xs text-on-surface-variant leading-relaxed">
-                        Setiap entri diagnosa akan tersimpan sebagai riwayat — tidak menimpa entri sebelumnya.
-                    </p>
-                </div>
-
-                {{-- Sisi Kanan: Riwayat + Form tambah (kalau berwenang) --}}
-                <div class="md:col-span-2 flex flex-col gap-4">
-
-                    {{-- Riwayat diagnosa --}}
-                    <div class="space-y-2 max-h-64 overflow-y-auto">
-                        @forelse ($data->diagnosaLogs as $log)
-                            <div class="p-3 bg-surface-container/30 rounded-lg border border-outline-variant/30">
-                                <div class="flex items-center justify-between gap-2 flex-wrap mb-1">
-                                    <span class="text-xs font-semibold text-on-surface">{{ $log->username }} <span class="text-on-surface-variant font-normal">({{ $log->role_name }})</span></span>
-                                    <span class="text-[11px] text-on-surface-variant whitespace-nowrap">{{ $log->created_at->format('d M Y - H:i') }}</span>
-                                </div>
-                                <p class="text-sm text-on-surface">{{ $log->diagnosa }}</p>
-                            </div>
-                        @empty
-                            <p class="text-sm text-on-surface-variant italic">Belum ada diagnosa yang tercatat.</p>
-                        @endforelse
+    <!--{{-- Diagnosa: hanya lihat (edit hanya di Dinkes) --}}-->
+    <!--@include('admin.pbi-apbd.partials.diagnosa-edit', ['canDiagnosa' => false])-->
+    
+    {{-- Diagnosa (riwayat, baca saja) --}}
+    <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
+        <div class="px-5 py-4 border-b border-outline-variant/40">
+            <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">medical_information</span> Diagnosa</h3>
+        </div>
+        <div class="p-5 space-y-2 max-h-64 overflow-y-auto">
+            @forelse ($data->diagnosaLogs as $log)
+                <div class="p-3 bg-surface-container/30 rounded-lg border border-outline-variant/30">
+                    <div class="flex justify-between gap-2 flex-wrap mb-1">
+                        <span class="text-xs font-semibold">{{ $log->username }} <span class="font-normal text-on-surface-variant">({{ $log->role_name }})</span></span>
+                        <span class="text-[11px] text-on-surface-variant">{{ $log->created_at->format('d M Y - H:i') }}</span>
                     </div>
-
-                    {{-- Form tambah diagnosa baru --}}
-                    @if ($canAct)
-                        <form method="POST" action="{{ route('pbi-apbd.ajuan.diagnosa.store', $data) }}" class="pt-2 border-t border-outline-variant/30">
-                            @csrf
-                            <textarea name="diagnosa" rows="3" placeholder="Tulis diagnosa baru..."
-                                class="w-full px-4 py-3 rounded-lg border border-outline-variant/60 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-[#003B5C]/40 focus:border-[#003B5C] bg-white shadow-sm transition-shadow">{{ old('diagnosa') }}</textarea>
-                            @error('diagnosa')
-                                <p class="text-xs text-error mt-1">{{ $message }}</p>
-                            @enderror
-
-                            <button type="submit"
-                                class="mt-3 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#003B5C] text-white hover:bg-[#002A42] text-sm font-medium transition-all shadow-sm">
-                                <span class="material-symbols-outlined text-[18px]">add</span>
-                                Tambah Diagnosa
-                            </button>
-                        </form>
-                    @endif
+                    <p class="text-sm">{{ $log->diagnosa }}</p>
                 </div>
-            </div>
+            @empty
+                <p class="text-sm text-on-surface-variant italic">Belum ada diagnosa yang tercatat.</p>
+            @endforelse
         </div>
     </div>
 

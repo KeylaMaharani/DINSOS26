@@ -78,9 +78,13 @@ class MasyarakatController extends Controller
                 'logs' => fn ($q) => $q->orderBy('created_at'),
                 'diagnosaLogs.user',
                 'jawabans',
+                'anggotaKeluarga',
             ])
             ->latest()
             ->first();
+
+        // Pengajuan yang belum pernah dikirim selalu memakai form penuh (bukan form lama 18 parameter)
+        $pbiApbd?->sesuaikanVersiForm();
 
         // Pertanyaan yang tampil ke warga = parameter aktif di Master Kriteria Ground Check
         // (akun lama: hanya yang bertaut ke 18 parameter PBI).
@@ -96,7 +100,8 @@ class MasyarakatController extends Controller
             && $totalParameter > 0
             && $terjawab >= $totalParameter;
 
-        $bisaEdit = $pbiApbd ? $pbiApbd->masyarakatBisaEdit() : false;
+        // Kepala keluarga hanya bisa mengisi/mengirim form selama draft, atau bila ditolak/dikembalikan petugas
+        $bisaEdit = $pbiApbd ? $pbiApbd->kepalaBisaMengisiForm() : false;
 
         $persenTerisi = PbiGcForm::persen($kelengkapanGc);
 
@@ -131,6 +136,7 @@ class MasyarakatController extends Controller
                 'terdaftar' => $pbiMulai,
                 'draft' => $pbiDraft,
                 'punya_record' => (bool) $pbiApbd,
+                'diajukan' => $pbiApbd ? $pbiApbd->sudahDiajukanPbi() : false,
                 'persen' => $persenTerisi,
                 'terisi' => $terjawab,
                 'total' => $totalParameter,
@@ -175,19 +181,22 @@ class MasyarakatController extends Controller
     {
         $user = $request->user();
 
-        $pbi = $user->pengajuanPbiApbd()->latest()->get()->map(fn ($r) => $this->barisPermohonan(
-            $r,
-            $r->no_registrasi,
-            $r->nama_kepala_keluarga,
-            collect([
-                $r->alamat,
-                ($r->rt || $r->rw) ? 'RT ' . $r->rt . '/RW ' . $r->rw : null,
-                $r->desa_kelurahan,
-                $r->kecamatan,
-            ])->filter()->implode(', '),
-            // Lewat daftar keluarga dulu
-            route('masyarakat.pbi-apbd.keluarga', $r)
-        ));
+                $pbi = $user->pengajuanPbiApbd()->with('anggotaKeluarga')->latest()->get()
+            ->filter(fn ($r) => $r->sudahDiajukanPbi())
+            ->map(fn ($r) => $this->barisPermohonan(
+                $r,
+                $r->no_registrasi,
+                $r->pemohonLabel(),
+                collect([
+                    $r->alamat,
+                    ($r->rt || $r->rw) ? 'RT ' . $r->rt . '/RW ' . $r->rw : null,
+                    $r->desa_kelurahan,
+                    $r->kecamatan,
+                ])->filter()->implode(', '),
+                // Lewat daftar keluarga dulu
+                route('masyarakat.pbi-apbd.keluarga', $r)
+            ))
+            ->values();
 
         $dtsen = $user->pengajuanDtsen()->with('detail')->latest()->get()->map(fn ($r) => $this->barisPermohonan(
             $r,
@@ -237,8 +246,8 @@ class MasyarakatController extends Controller
 
         // PBI yang masih draft (warga belum menekan "Simpan Data") belum menjadi pengajuan,
         // jadi tidak ditampilkan di tracking.
-        $pbiList = $user->pengajuanPbiApbd()->latest()->get()
-            ->reject(fn ($r) => $r->masyarakatMasihDraft());
+         $pbiList = $user->pengajuanPbiApbd()->with('anggotaKeluarga')->latest()->get()
+            ->reject(fn ($r) => ! $r->sudahDiajukanPbi());
         $dtsenList = $user->pengajuanDtsen()->latest()->get();
 
         // Daftar pilihan (kartu): semua permohonan milik user
@@ -284,10 +293,10 @@ class MasyarakatController extends Controller
         $hasil = null;
 
         if ($no !== '') {
-            $pbi = $user->pengajuanPbiApbd()->with('logs')->where('no_registrasi', $no)->first();
+            $pbi = $user->pengajuanPbiApbd()->with(['logs', 'anggotaKeluarga'])->where('no_registrasi', $no)->first();
 
-            // Draft tidak dilacak (lihat catatan di atas)
-            if ($pbi && $pbi->masyarakatMasihDraft()) {
+            // Yang belum diajukan (draft / belum ada peserta) tidak dilacak
+            if ($pbi && ! $pbi->sudahDiajukanPbi()) {
                 $pbi = null;
             }
 
@@ -296,7 +305,7 @@ class MasyarakatController extends Controller
                     $pbi,
                     'PBI APBD',
                     $pbi->no_registrasi,
-                    $pbi->nama_kepala_keluarga,
+                    $pbi->pemohonLabel(),
                     $pbi->logs->map(fn ($l) => [
                         'waktu' => $l->created_at,
                         'tugas' => $l->task_name,
@@ -965,6 +974,17 @@ class MasyarakatController extends Controller
         return $nilai;
     }
 
+    /** Opsi Kepemilikan fasilitas BAB (Ground Check, 6 opsi) => opsi PBI "Penggunaan fasilitas BAB" (3 opsi). */
+    private const NAMA_BAB_PBI = 'Penggunaan fasilitas tempat buang air besar';
+    private const PETA_BAB = [
+        'Ada, digunakan hanya Anggota Keluarga sendiri' => 'Sendiri',
+        'Ada, digunakan bersama Anggota Keluarga dari keluarga tertentu' => 'Bersama',
+        'Ada, di MCK komunal' => 'Bersama',
+        'Ada, di MCK umum/siapapun menggunakan' => 'Bersama',
+        'Ada, Anggota Keluarga tidak menggunakan' => 'Tidak ada',
+        'Tidak ada fasilitas' => 'Tidak ada',
+    ];
+
     /**
      * Kelas kemiskinan (hitungUlangSkor) tetap memakai rumus SK 460: indeks x bobot x indeks terintegrasi PBI.
      * Pertanyaan GC yang punya padanan PBI (pbi_parameter_id) & opsinya cocok (label sama) ikut dihitung;
@@ -973,16 +993,27 @@ class MasyarakatController extends Controller
     private function sinkronSkorPbi(PbiApbd $pbi, $parameters, array $jawaban): void
     {
         $dipakai = [];
+        $pbiBab = PbiKriteriaParameter::where('nama', self::NAMA_BAB_PBI)->first();
 
         foreach ($parameters as $p) {
-            if (! $p->pbi_parameter_id || $p->tipe_input !== 'pilihan') {
+            // Hanya pertanyaan yang berlaku untuk PBI (khusus PBI atau bersama)
+            if (! in_array($p->target, ['pbi', 'pbi_gc'], true) || $p->tipe_input !== 'pilihan') {
                 continue;
             }
 
             $label = $jawaban[$p->id] ?? null;
-            $pp = $label !== null ? PbiKriteriaParameter::find($p->pbi_parameter_id) : null;
-            $opsi = $pp ? $pp->opsis()->where('label', $label)->first() : null;
+            if ($label === null) {
+                continue;
+            }
 
+            if (Str::lower(trim($p->nama)) === 'kepemilikan fasilitas bab') {
+                $pp = $pbiBab;
+                $label = self::PETA_BAB[$label] ?? null;
+            } else {
+                $pp = $p->pbi_parameter_id ? PbiKriteriaParameter::find($p->pbi_parameter_id) : null;
+            }
+
+            $opsi = ($pp && $label !== null) ? $pp->opsis()->where('label', $label)->first() : null;
             if (! $opsi) {
                 continue;
             }
@@ -1004,13 +1035,15 @@ class MasyarakatController extends Controller
             );
         }
 
-        // Akun lama (form 18 parameter): jawaban PBI yang tidak punya padanan di GC jangan dihapus.
+        // Akun lama (form 18 parameter): jawaban PBI tanpa padanan di GC jangan dihapus.
         if ($pbi->form_lama) {
             return;
         }
 
-        // Padanan PBI dari parameter GC yang hanya disembunyikan (aktif = false) tetap dipertahankan.
         $padananMaster = GcKriteriaParameter::whereNotNull('pbi_parameter_id')->pluck('pbi_parameter_id')->all();
+        if ($pbiBab) {
+            $padananMaster[] = $pbiBab->id;
+        }
 
         $pbi->jawabans()->whereNotNull('parameter_id')
             ->whereNotIn('parameter_id', array_merge($dipakai, $padananMaster))
@@ -1022,9 +1055,13 @@ class MasyarakatController extends Controller
     {
         $this->authorizePemilik($request, $pbiApbd);
 
+        // Pengajuan yang belum pernah dikirim selalu memakai form penuh (bukan form lama 18 parameter)
+        $pbiApbd->sesuaikanVersiForm();
+
         // Form TETAP ditampilkan walau data sudah tidak bisa diubah (mode baca saja);
         // penyimpanan tetap ditolak di lengkapiDataStore().
-        $bisaEdit = $pbiApbd->masyarakatBisaEdit();
+        // Kepala keluarga hanya bisa mengisi selama draft, atau bila ditolak/dikembalikan petugas.
+        $bisaEdit = $pbiApbd->kepalaBisaMengisiForm();
 
         // Draft otomatis hanya selama pengajuan belum pernah diajukan
         $bisaDraft = $bisaEdit && $pbiApbd->masyarakatMasihDraft();
@@ -1094,10 +1131,19 @@ class MasyarakatController extends Controller
         }
         $koreksi = $pbiApbd->gcKoreksi;
 
+        // ---- Kartu lampiran PBI (Scan KTP, Scan KK, Surat rawat inap) + pilihan faskes ----
+        $user = $request->user();
+        $faskesOpsi = $this->opsiFaskes($pbiApbd);
+        $lampiran = [
+            'scan_ktp' => filled($pbiApbd->scan_ktp) || DokumenMasyarakat::ada($user, 'ktp'),
+            'scan_kk' => filled($pbiApbd->scan_kk) || DokumenMasyarakat::ada($user, 'kk'),
+            'surat_rawat_inap' => filled($pbiApbd->surat_rawat_inap) || DokumenMasyarakat::ada($user, 'surat_rawat_inap'),
+        ];
+
         return view('masyarakat.pbi-apbd.lengkapi', compact(
             'pbiApbd', 'parameters', 'perKelompok', 'opsiLabels', 'nilai', 'master', 'kerja', 'bisaEdit', 'bisaDraft',
             'petaAlamat', 'sesuai', 'kk', 'wilayah', 'petaKk', 'terkunci', 'sama', 'identitas', 'isiAwal',
-            'koreksiGate', 'koreksi'
+            'koreksiGate', 'koreksi', 'faskesOpsi', 'lampiran'
         ));
     }
 
@@ -1111,6 +1157,21 @@ class MasyarakatController extends Controller
         $this->authorizePemilik($request, $pbiApbd);
 
         $draft = $request->input('aksi') === 'draft';
+
+        // Pengajuan yang belum pernah dikirim selalu memakai form penuh
+        $pbiApbd->sesuaikanVersiForm();
+
+        // Kepala keluarga yang sudah mengajukan tidak bisa mengajukan lagi
+        // (kecuali ditolak / dikembalikan petugas untuk diperbaiki). Dicek di server, bukan hanya di tampilan.
+        if (! $pbiApbd->kepalaBisaMengisiForm()) {
+            $pesan = $pbiApbd->status === 'disetujui'
+                ? 'Pengajuan sudah disetujui, data tidak dapat diubah lagi.'
+                : 'Pengajuan PBI APBD sudah dikirim dan tidak dapat diajukan lagi.';
+
+            return $draft
+                ? response()->json(['message' => $pesan], 409)
+                : redirect()->route('masyarakat.dashboard')->with('error', $pesan);
+        }
 
         // Sudah pernah diajukan: draft tidak boleh menimpa data yang sudah lengkap
         if ($draft && ! $pbiApbd->masyarakatMasihDraft()) {
@@ -1132,10 +1193,36 @@ class MasyarakatController extends Controller
             'longitude' => ['required', 'numeric', 'between:-180,180'],
             'jawaban' => ['nullable', 'array'],
         ];
+
+        // ---- Lampiran PBI + diagnosa & faskes (kolom PBI saja, tidak masuk Ground Check) ----
+        $lampiranAda = [
+            'scan_ktp' => filled($pbiApbd->scan_ktp) || DokumenMasyarakat::ada($request->user(), 'ktp'),
+            'scan_kk' => filled($pbiApbd->scan_kk) || DokumenMasyarakat::ada($request->user(), 'kk'),
+        ];
+        $fileRule = fn ($wajib) => [$wajib ? 'required' : 'nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:2048'];
+
+        $rules += [
+            'diagnosa' => ['required', 'string', 'max:500'],
+            'nama_faskes' => ['required', 'string', 'max:150'],
+            'scan_ktp' => $fileRule(! $lampiranAda['scan_ktp']),
+            'scan_kk' => $fileRule(! $lampiranAda['scan_kk']),
+            'surat_rawat_inap' => $fileRule(false),
+        ];
+
         $messages = [
             'latitude.required' => 'Lokasi belum berhasil diambil. Izinkan akses lokasi lalu coba lagi.',
             'longitude.required' => 'Lokasi belum berhasil diambil. Izinkan akses lokasi lalu coba lagi.',
             'jawaban.required' => 'Semua pertanyaan wajib dijawab.',
+            'diagnosa.required' => 'Diagnosa wajib diisi.',
+            'nama_faskes.required' => 'Nama faskes wajib dipilih.',
+            'scan_ktp.required' => 'Scan KTP wajib diunggah.',
+            'scan_kk.required' => 'Scan Kartu Keluarga wajib diunggah.',
+            'scan_ktp.mimes' => 'Scan KTP harus berformat JPG, PNG, atau PDF.',
+            'scan_kk.mimes' => 'Scan KK harus berformat JPG, PNG, atau PDF.',
+            'surat_rawat_inap.mimes' => 'Surat rawat inap harus berformat JPG, PNG, atau PDF.',
+            'scan_ktp.max' => 'Ukuran Scan KTP maksimal 2 MB.',
+            'scan_kk.max' => 'Ukuran Scan KK maksimal 2 MB.',
+            'surat_rawat_inap.max' => 'Ukuran surat rawat inap maksimal 2 MB.',
         ];
 
         $master = $this->masterGc();
@@ -1368,6 +1455,24 @@ class MasyarakatController extends Controller
                 $pbiApbd->gcKoreksi()->updateOrCreate([], $koreksiData);
             }
 
+            // Diagnosa & faskes: kolom PBI saja, tidak masuk Ground Check
+            $diagnosaBaru = trim((string) $request->input('diagnosa'));
+            $faskesBaru = trim((string) $request->input('nama_faskes'));
+
+            if ($diagnosaBaru !== '' && $diagnosaBaru !== trim((string) $pbiApbd->diagnosa)) {
+                $pbiApbd->diagnosaLogs()->create([
+                    'user_id' => $request->user()->id,
+                    'username' => $request->user()->name,
+                    'role_name' => 'Masyarakat',
+                    'diagnosa' => $diagnosaBaru,
+                ]);
+            }
+
+            $pbiApbd->update(array_filter([
+                'diagnosa' => $diagnosaBaru ?: null,
+                'nama_faskes' => $faskesBaru ?: null,
+            ], fn ($v) => $v !== null));
+
             $lama = GcPbiJawaban::where('pbi_apbd_id', $pbiApbd->id)->get()->keyBy('parameter_id');
             $final = [];
 
@@ -1439,6 +1544,7 @@ class MasyarakatController extends Controller
                     'nama_parameter' => $p->nama,
                     'tipe_input' => $p->tipe_input,
                     'bobot' => $p->bobot,
+                    'target' => $p->target,
                     'jawaban' => $jawaban,
                     'skor' => $skor,
                 ])->save();
@@ -1499,6 +1605,13 @@ class MasyarakatController extends Controller
             ]);
         }
 
+        // Lampiran PBI: disimpan ke menu Dokumen + kolom pbi_apbds. KK ini juga dipakai "Foto kartu keluarga" di Ground Check.
+        foreach (['scan_ktp' => 'ktp', 'scan_kk' => 'kk', 'surat_rawat_inap' => 'surat_rawat_inap'] as $field => $jenis) {
+            if ($request->hasFile($field)) {
+                DokumenMasyarakat::pasangKePbi($pbiApbd, $jenis, $request->file($field));
+            }
+        }
+
         // Foto KTP / KK dll yang diunggah di form ini ikut masuk ke menu Dokumen (jenis yang sudah ada tidak ditimpa)
         DokumenMasyarakat::imporDariPbi($pbiApbd);
 
@@ -1508,8 +1621,15 @@ class MasyarakatController extends Controller
         // Submit sungguhan -> anggota keluarga masuk Ground Check + notifikasi petugas
         $pbiApbd->sinkronGroundCheck();
 
-        return redirect()->route('masyarakat.dashboard')
-            ->with('success', 'Data berhasil disimpan dan akan diverifikasi oleh petugas kelurahan.');
+                // Submit form kepala keluarga = data Ground Check terisi. PBI APBD baru diajukan bila ada peserta yang dicentang.
+        $pbiApbd->unsetRelation('anggotaKeluarga');
+
+        $pesan = $pbiApbd->punyaPeserta()
+            ? 'Data berhasil disimpan dan akan diverifikasi oleh petugas kelurahan.'
+            : 'Data berhasil disimpan dan masuk daftar Ground Check. Untuk mengajukan PBI APBD, centang anggota keluarga yang didaftarkan sebagai peserta lalu simpan.';
+
+        return redirect()->route('masyarakat.pbi-apbd.keluarga', $pbiApbd)
+            ->with('success', $pesan);
     }
 
     // ==========================================================

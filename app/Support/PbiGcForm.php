@@ -7,20 +7,51 @@ use App\Models\GcPbiJawaban;
 use App\Models\PbiApbd;
 use Illuminate\Support\Str;
 
-
+/**
+ * GANTI app/Support/PbiGcForm.php dengan file ini.
+ * Perubahan: parameters()/idTetap()/kelengkapan() menerima filter $target (mis. ['pbi','pbi_gc'] untuk sisi PBI/Kelurahan),
+ * serta untukAnggota() untuk form per anggota keluarga.
+ */
 class PbiGcForm
 {
+    /** Kelompok yang ditanyakan ke tiap anggota keluarga (A-D). */
+    public const KELOMPOK_ANGGOTA = ['kependudukan', 'pendidikan', 'ketenagakerjaan', 'kesehatan'];
+
+    /** Pertanyaan A-D yang TIDAK ditanyakan lagi per anggota (sudah ada di data anggota / milik kepala keluarga). */
+    private const NAMA_OTOMATIS_ANGGOTA = [
+        'nama', 'no kk', 'alamat sesuai kk', 'alamat domisili',
+        'apakah no kk sama?', 'apakah nama sama?', 'apakah wilayah sama?',
+        'jenis kelamin', 'tanggal lahir', 'status hubungan dengan kepala keluarga',
+        'no. telp', 'no telp', 'email',
+    ];
+
+    public static function namaNormal(?string $nama): string
+    {
+        return preg_replace('/\s+/', ' ', Str::lower(trim((string) $nama)));
+    }
+
     /**
      * Parameter GC yang tampil di form masyarakat, urut mengikuti master.
-     * Tanpa $pbi = daftar penuh (dipakai pemanggil lama yang belum tahu pengajuannya).
+     * $target membatasi sisi: ['pbi','pbi_gc'] = sisi PBI; ['gc','pbi_gc'] = sisi Ground Check; null = semua (form warga).
      */
-    public static function parameters(?PbiApbd $pbi = null)
+    public static function parameters(?PbiApbd $pbi = null, ?array $target = null)
     {
-        if ($pbi && $pbi->form_lama) {
-            return GcKriteriaParameter::daftarMasyarakat();
-        }
+        $daftar = ($pbi && $pbi->form_lama)
+            ? GcKriteriaParameter::daftarMasyarakat()
+            : GcKriteriaParameter::aktif()->with('opsis')->get();
 
-        return GcKriteriaParameter::aktif()->with('opsis')->get();
+        return $target ? $daftar->whereIn('target', $target)->values() : $daftar;
+    }
+
+    /** Pertanyaan yang ditanyakan per anggota keluarga (tab A-D, target gc / pbi_gc, tanpa isian otomatis). */
+    public static function untukAnggota()
+    {
+        return GcKriteriaParameter::aktif()->with('opsis')->get()
+            ->filter(fn ($p) => in_array($p->kelompok, self::KELOMPOK_ANGGOTA, true)
+                && in_array($p->target, ['gc', 'pbi_gc'], true)
+                && ! in_array($p->tipe_input, ['foto', 'koordinat'], true)
+                && ! in_array(self::namaNormal($p->nama), self::NAMA_OTOMATIS_ANGGOTA, true))
+            ->values();
     }
 
     /** Pertanyaan pemicu di Ketenagakerjaan ("Apakah responden bekerja ...?"). */
@@ -77,9 +108,9 @@ class PbiGcForm
     }
 
     /** id yang selalu wajib (bukan opsional, bukan turunan "bekerja") — untuk hitungan di daftar. */
-    public static function idTetap(?PbiApbd $pbi = null): array
+    public static function idTetap(?PbiApbd $pbi = null, ?array $target = null): array
     {
-        $params = self::parameters($pbi);
+        $params = self::parameters($pbi, $target);
         $dependen = self::dependenIds($params);
 
         return $params
@@ -90,7 +121,6 @@ class PbiGcForm
     /**
      * Isi jawaban yang masih kosong dari jawaban PBI (pbi_apbd_jawabans) yang padanannya sama.
      * Hanya parameter 'pilihan' bertautan PBI, dan hanya bila labelnya ada di opsi parameter GC.
-     * Mengembalikan peta id parameter GC => jawaban.
      */
     public static function isiDariJawabanPbi(PbiApbd $pbi, $params, array $nilai): array
     {
@@ -118,11 +148,7 @@ class PbiGcForm
         return $nilai;
     }
 
-    /**
-     * Nilai tampilan form masyarakat: lengkapi isian awal dengan
-     *  - jawaban PBI yang padanannya sama (akun lama), dan
-     *  - Scan KK pengajuan untuk "Foto kartu keluarga" (supaya tidak unggah dua kali).
-     */
+    /** Nilai tampilan form masyarakat: jawaban PBI (akun lama) + Scan KK untuk "Foto kartu keluarga". */
     public static function lengkapiNilai(PbiApbd $pbi, $params, array $nilai): array
     {
         $nilai = self::isiDariJawabanPbi($pbi, $params, $nilai);
@@ -156,10 +182,13 @@ class PbiGcForm
         return $jawaban;
     }
 
-    /** ['total' => jumlah isian wajib, 'terjawab' => yang sudah terisi] untuk satu pengajuan. */
-    public static function kelengkapan(?PbiApbd $pbi): array
+    /**
+     * ['total' => jumlah isian wajib, 'terjawab' => yang sudah terisi] untuk satu pengajuan.
+     * $target: untuk Kelurahan/PBI pakai ['pbi','pbi_gc'] supaya pertanyaan khusus Ground Check tidak ikut dihitung.
+     */
+    public static function kelengkapan(?PbiApbd $pbi, ?array $target = null): array
     {
-        $params = self::parameters($pbi);
+        $params = self::parameters($pbi, $target);
 
         $jawaban = $pbi
             ? GcPbiJawaban::where('pbi_apbd_id', $pbi->id)->whereNotNull('jawaban')->pluck('jawaban', 'parameter_id')->all()
@@ -177,7 +206,7 @@ class PbiGcForm
         ];
     }
 
-    /** Persentase kelengkapan 0-100. Angka 100 hanya muncul bila semua isian wajib terjawab (tidak dibulatkan ke atas). */
+    /** Persentase kelengkapan 0-100. Angka 100 hanya muncul bila semua isian wajib terjawab. */
     public static function persen(array $kel): int
     {
         if ($kel['total'] <= 0) {

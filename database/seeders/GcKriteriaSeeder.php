@@ -81,7 +81,8 @@ class GcKriteriaSeeder extends Seeder
             ['kesehatan', 'Apakah memiliki keluhan kesehatan kronis/menahun?', 3, 'pilihan', null, []],
 
             // ================= E. KELUARGA =================
-            ['keluarga', 'Jumlah keluarga yang tinggal dalam satu rumah', 2, 'angka', 'Jumlah tanggungan keluarga', []],
+            // Tidak bertaut ke PBI (jumlah keluarga satu rumah & jumlah sepeda motor khusus Ground Check).
+            ['keluarga', 'Jumlah keluarga yang tinggal dalam satu rumah', 2, 'angka', null, []],
             ['keluarga', 'Status kepemilikan bangunan tempat tinggal yang ditempati', 4, 'pilihan', 'Status penguasaan bangunan tempat tinggal yang ditempati', []],
             ['keluarga', 'Jenis lantai terluas', 2, 'pilihan', 'Jenis lantai', []],
             ['keluarga', 'Jenis dinding terluas', 2, 'pilihan', 'Jenis dinding', []],
@@ -98,6 +99,16 @@ class GcKriteriaSeeder extends Seeder
                 'Ada, Anggota Keluarga tidak menggunakan',
                 'Tidak ada fasilitas',
             ]],
+            // Pertanyaan khusus PBI (opsi disalin dari master PBI)
+            ['keluarga', 'Status lahan tempat tinggal yang ditempati', 0.5, 'pilihan', 'Status lahan tempat tinggal yang ditempati', []],
+            ['keluarga', 'Kondisi dinding', 0.3, 'pilihan', 'Kondisi dinding', []],
+            ['keluarga', 'Kondisi atap', 0.25, 'pilihan', 'Kondisi atap', []],
+            ['keluarga', 'Cara memperoleh air minum', 0.25, 'pilihan', 'Cara memperoleh air minum', []],
+            ['keluarga', 'Daya listrik terpasang', 0.1, 'pilihan', 'Daya listrik terpasang', []],
+            ['keluarga', 'Jenis kloset', 0.1, 'pilihan', 'Jenis kloset', []],
+            ['keluarga', 'Tempat pembuangan akhir tinja', 0.1, 'pilihan', 'Tempat pembuangan akhir tinja', []],
+            ['keluarga', 'Jumlah tanggungan keluarga', 0.4, 'pilihan', 'Jumlah tanggungan keluarga', []],
+            ['keluarga', 'Kepemilikan kendaraan roda 2', 0.4, 'pilihan', 'Kepemilikan kendaraan roda 2', []],
 
             // ================= F1. ASET BERGERAK (semua isian angka) =================
             ['aset_bergerak', 'Jumlah tabung gas 5,5 kg atau lebih', 1, 'angka', null, []],
@@ -108,7 +119,7 @@ class GcKriteriaSeeder extends Seeder
             ['aset_bergerak', 'Televisi layar datar (min. 30 inci)', 1, 'angka', null, []],
             ['aset_bergerak', 'Jumlah emas/perhiasan (gram)', 1, 'angka', null, []],
             ['aset_bergerak', 'Jumlah komputer/laptop/tablet', 1, 'angka', null, []],
-            ['aset_bergerak', 'Jumlah sepeda motor', 2, 'angka', 'Kepemilikan kendaraan roda 2', []],
+            ['aset_bergerak', 'Jumlah sepeda motor', 2, 'angka', null, []],
             ['aset_bergerak', 'Jumlah sepeda', 0.5, 'angka', null, []],
             ['aset_bergerak', 'Jumlah mobil', 2, 'angka', null, []],
             ['aset_bergerak', 'Jumlah perahu', 0.5, 'angka', null, []],
@@ -159,6 +170,7 @@ class GcKriteriaSeeder extends Seeder
                     'bobot' => $bobot,
                     'tipe_input' => $tipe,
                     'sumber' => $sumber,
+                    'target' => GcKriteriaParameter::targetBawaan($kelompok, $nama),
                     'pbi_parameter_id' => $pbi?->id,
                     'keterangan' => $this->keterangan($tipe, $pbi, $opsiSementara, $aktif, $sumber),
                     'aktif' => $aktif,

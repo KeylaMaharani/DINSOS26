@@ -47,7 +47,7 @@
                 'Kecamatan' => $data->kecamatan, 'Desa/Kelurahan' => $data->desa_kelurahan,
                 'No Telp' => $data->no_telp, 'Email' => $data->email,
                 'Desil Nasional' => $data->desil_nasional, 'Nama Faskes' => $data->nama_faskes,
-                'Kelengkapan/Kekurangan Berkas' => $data->kelengkapan_kekurangan_berkas, 'Catatan Berkas' => $data->catatan_berkas,
+                'Catatan Kelengkapan/Kekurangan Berkas' => $data->catatan_berkas,
             ] as $label => $value)
                 <div><dt class="text-xs text-on-surface-variant mb-0.5">{{ $label }}</dt><dd class="font-semibold">{{ $value ?: '-' }}</dd></div>
             @endforeach
@@ -73,7 +73,7 @@
                     <tr><th class="px-5 py-3">NIK</th><th class="px-5 py-3">Nama</th><th class="px-5 py-3">Tempat/Tgl Lahir</th><th class="px-5 py-3">Pekerjaan</th><th class="px-5 py-3">Hub. Keluarga</th><th class="px-5 py-3">BPJS</th></tr>
                 </thead>
                 <tbody class="divide-y divide-outline-variant/30">
-                    @forelse ($data->anggotaKeluarga as $a)
+                    @forelse ($data->daftarPeserta() as $a)
                         <tr>
                             <td class="px-5 py-3">{{ $a->nik }}</td>
                             <td class="px-5 py-3 font-medium">{{ $a->nama }}</td>
@@ -112,49 +112,7 @@
 
     @include('admin.pbi-apbd.partials.hasil-verifikasi')
 
-    {{-- Diagnosa: diisi masyarakat (Master Ground Check). Dinkes hanya dapat MENGUBAH, tidak dapat menambah. --}}
-    @php
-        $diagnosaTerisi = $diagnosaGc->filter(fn ($r) => filled($r->jawaban));
-        $diagnosaKosong = $diagnosaGc->reject(fn ($r) => filled($r->jawaban));
-    @endphp
-    <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
-        <div class="px-5 py-4 border-b border-outline-variant/40">
-            <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">medical_information</span> Diagnosa</h3>
-            <p class="text-xs text-on-surface-variant mt-1">Diagnosa diisi oleh masyarakat. Dinkes dapat mengubahnya bila perlu; perubahan tercatat di Log Proses.</p>
-        </div>
-
-        @if ($diagnosaTerisi->isEmpty())
-            <div class="p-5 space-y-2">
-                <p class="text-sm text-on-surface-variant italic">Masyarakat belum mengisi diagnosa.</p>
-                @foreach ($diagnosaKosong as $row)
-                    <p class="text-xs text-on-surface-variant">{{ $row->nama_parameter }}: belum diisi masyarakat.</p>
-                @endforeach
-            </div>
-        @elseif ($canDiagnosa)
-            <form method="POST" action="{{ route('pbi-approval.dinkes.diagnosa', $data) }}" class="p-5 space-y-4">
-                @csrf @method('PUT')
-                @foreach ($diagnosaTerisi as $row)
-                    <div>
-                        <label for="diagnosa-{{ $row->id }}" class="block text-xs font-semibold text-on-surface-variant mb-1">{{ $row->nama_parameter }}</label>
-                        <textarea id="diagnosa-{{ $row->id }}" name="diagnosa[{{ $row->id }}]" rows="3" maxlength="500" required
-                                  class="w-full px-4 py-3 rounded-lg border border-outline-variant/60 text-sm">{{ old('diagnosa.' . $row->id, $row->jawaban) }}</textarea>
-                    </div>
-                @endforeach
-                <button type="submit" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-on-primary text-sm font-medium">
-                    <span class="material-symbols-outlined text-[18px]">save</span> Simpan Perubahan Diagnosa
-                </button>
-            </form>
-        @else
-            <div class="p-5 space-y-3">
-                @foreach ($diagnosaTerisi as $row)
-                    <div class="p-3 bg-surface-container/30 rounded-lg border border-outline-variant/30">
-                        <p class="text-xs text-on-surface-variant mb-1">{{ $row->nama_parameter }}</p>
-                        <p class="text-sm font-semibold">{{ $row->jawaban }}</p>
-                    </div>
-                @endforeach
-            </div>
-        @endif
-    </div>
+    @include('admin.pbi-apbd.partials.diagnosa-edit', ['canDiagnosa' => $canDiagnosa ?? false, 'tahap' => 'dinkes'])
 
     {{-- Log --}}
     <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">

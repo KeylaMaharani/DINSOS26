@@ -189,6 +189,8 @@ class RegistrasiController extends Controller
                 // Kolom `status` di migration default-nya 'operator_dinsos',
                 // itu keliru/basi -- override eksplisit di sini.
                 'status' => 'kelurahan',
+                // Pendaftar baru SELALU memakai form penuh (semua parameter Ground Check aktif)
+                'form_lama' => false,
             ]);
 
             $pbiApbd->anggotaKeluarga()->create([

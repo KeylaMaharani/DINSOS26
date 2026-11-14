@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use App\Models\Concerns\HasKriteriaSkor;
@@ -123,7 +124,7 @@ class PbiApbd extends Model
      */
     public const TAHAP = [
         'lurah'    => ['status' => 'lurah',           'label' => 'Lurah',           'module' => 'pbi-lurah',    'edit' => false, 'diagnosa' => false],
-        'operator' => ['status' => 'operator_dinsos', 'label' => 'Operator Dinsos', 'module' => 'pbi-operator', 'edit' => true,  'diagnosa' => true],
+        'operator' => ['status' => 'operator_dinsos', 'label' => 'Operator Dinsos', 'module' => 'pbi-operator', 'edit' => true,  'diagnosa' => false],
         'kabid'    => ['status' => 'kabid',           'label' => 'Kepala Bidang',   'module' => 'pbi-kabid',    'edit' => false, 'diagnosa' => false],
         'kadis'    => ['status' => 'kadis',           'label' => 'Kepala Dinas',    'module' => 'pbi-kadis',    'edit' => false, 'diagnosa' => false],
         'dinkes'   => ['status' => 'dinkes',          'label' => 'Dinas Kesehatan', 'module' => 'pbi-dinkes',   'edit' => false, 'diagnosa' => true],
@@ -162,6 +163,13 @@ class PbiApbd extends Model
         return $this->hasMany(GcPbiJawaban::class, 'pbi_apbd_id');
     }
 
+    /** Jawaban masyarakat yang berlaku untuk PBI APBD (khusus PBI + bersama). Jawaban khusus Ground Check tidak ikut. */
+    public function gcJawabansPbi()
+    {
+        return $this->hasMany(GcPbiJawaban::class, 'pbi_apbd_id')
+            ->whereIn('target', ['pbi', 'pbi_gc']);
+    }
+
     /**
      * Data koreksi (No KK / nama / wilayah baru) bila warga menjawab "Tidak".
      * Disimpan terpisah, tidak mengubah kolom induk pbi_apbds.
@@ -169,6 +177,81 @@ class PbiApbd extends Model
     public function gcKoreksi()
     {
         return $this->hasOne(PbiApbdGcKoreksi::class, 'pbi_apbd_id');
+    }
+
+    // ==========================================================
+    // PESERTA PBI APBD
+    // Peserta = anggota ber-didaftarkan_pbi = true (bisa anak/anggota lain saja, kepala keluarga hanya
+    // bila dicentang). Pengajuan baru masuk antrean Kelurahan bila data sudah diisi DAN ada peserta.
+    // Mengisi data kepala keluarga saja = hanya untuk sasaran Ground Check.
+    // ==========================================================
+
+    /**
+     * Daftar peserta PBI APBD. Memakai relasi anggotaKeluarga yang sudah dimuat (eager load)
+     * supaya tidak N+1 di halaman daftar.
+     */
+    public function daftarPeserta(): Collection
+    {
+        return $this->anggotaKeluarga->where('didaftarkan_pbi', true)->values();
+    }
+
+    public function punyaPeserta(): bool
+    {
+        return $this->daftarPeserta()->isNotEmpty();
+    }
+
+    /**
+     * Nama yang tampil di kolom "Pemohon": nama peserta yang didaftarkan (digabung koma),
+     * bukan nama kepala keluarga. Bila belum ada peserta, jatuh ke nama kepala keluarga.
+     */
+    public function pemohonLabel(bool $fallbackKepala = true): string
+    {
+        $nama = $this->daftarPeserta()
+            ->pluck('nama')
+            ->map(fn ($n) => trim((string) $n))
+            ->filter()
+            ->implode(', ');
+
+        if ($nama !== '') {
+            return $nama;
+        }
+
+        return $fallbackKepala ? (string) $this->nama_kepala_keluarga : '-';
+    }
+
+    /**
+     * Pengajuan PBI APBD sudah benar-benar diajukan (terlihat di antrean petugas):
+     *  - sudah lewat tahap Kelurahan, atau
+     *  - masih di Kelurahan, data sudah diisi, dan ada minimal satu peserta.
+     */
+    public function sudahDiajukanPbi(): bool
+    {
+        if ($this->status !== 'kelurahan') {
+            return true;
+        }
+
+        return $this->data_diisi_at !== null && $this->punyaPeserta();
+    }
+
+    /** Pilihan peserta hanya boleh diubah selama berkas di Kelurahan (atau ditolak). Setelah diteruskan, terkunci. */
+    public function pesertaBisaDiubah(): bool
+    {
+        return in_array($this->status, ['kelurahan', 'ditolak'], true);
+    }
+
+    /**
+     * Pengajuan yang tampil di antrean petugas. Sama dengan sudahDiajukanPbi() tetapi sebagai query:
+     * status sudah lewat Kelurahan, ATAU (data diisi + punya peserta PBI).
+     */
+    public function scopeSudahDiajukan($query)
+    {
+        return $query->where(function ($w) {
+            $w->where('status', '!=', 'kelurahan')
+                ->orWhere(function ($x) {
+                    $x->whereNotNull('data_diisi_at')
+                        ->whereHas('anggotaKeluarga', fn ($a) => $a->where('didaftarkan_pbi', true));
+                });
+        });
     }
 
     public function statusLabel(): string
@@ -198,6 +281,45 @@ class PbiApbd extends Model
         return $this->data_diisi_at === null && $this->status === 'kelurahan';
     }
 
+    /**
+     * Kepala keluarga sudah pernah menekan "Simpan Data" (data Ground Check terisi).
+     * Ini BUKAN berarti PBI APBD sudah diajukan: lihat sudahDiajukanPbi().
+     */
+    public function kepalaSudahMengajukan(): bool
+    {
+        return ! $this->masyarakatMasihDraft();
+    }
+
+    /**
+     * Kepala keluarga boleh mengisi / mengirim form pengajuan:
+     *  - selama masih draft (belum pernah diajukan), atau
+     *  - sudah diajukan TETAPI ditolak / dikembalikan petugas untuk diperbaiki.
+     * Setelah diajukan (dan tidak ditolak/dikembalikan) tidak bisa diajukan lagi.
+     */
+    public function kepalaBisaMengisiForm(): bool
+    {
+        if ($this->status === 'disetujui') {
+            return false;
+        }
+
+        if ($this->masyarakatMasihDraft()) {
+            return true;
+        }
+
+        return $this->status === 'ditolak' || (bool) $this->dikembalikan_ke_masyarakat;
+    }
+
+    /**
+     * Pengajuan yang belum pernah dikirim selalu memakai form baru (semua parameter Ground Check aktif),
+     * bukan form lama (hanya parameter yang bertaut ke 18 parameter PBI).
+     */
+    public function sesuaikanVersiForm(): void
+    {
+        if ($this->form_lama && $this->masyarakatMasihDraft()) {
+            $this->forceFill(['form_lama' => false])->saveQuietly();
+        }
+    }
+
     /** Hubungan keluarga bertulisan "kepala keluarga" (toleran: kepala_keluarga / Kepala Keluarga). */
     public static function isHubunganKepala(?string $hubungan): bool
     {
@@ -206,11 +328,7 @@ class PbiApbd extends Model
 
     /**
      * Tambah anggota keluarga dari halaman masyarakat (di luar registrasi).
-     * Anggota otomatis ditandai didaftarkan_gc = true lalu langsung disinkronkan
-     * ke Daftar Sasaran Ground Check.
-     *
-     * forceFill dipakai supaya kolom didaftarkan_gc tetap tersimpan walau belum ada di $fillable
-     * model PbiApbdAnggotaKeluarga.
+     * Anggota baru belum menjadi peserta PBI APBD (didaftarkan_pbi = false) sampai dicentang warga.
      */
     public function tambahAnggotaKeluarga(array $data): PbiApbdAnggotaKeluarga
     {
@@ -218,11 +336,7 @@ class PbiApbd extends Model
 
         $anggota->forceFill([
             'keanggotaan_bpjs' => $anggota->keanggotaan_bpjs ?: 'Belum Terdaftar',
-            'didaftarkan_gc' => true,
-            'didaftarkan_gc_at' => now(),
         ])->save();
-
-        $this->sinkronGroundCheck();
 
         return $anggota;
     }
@@ -262,9 +376,12 @@ class PbiApbd extends Model
 
     /**
      * Masukkan anggota keluarga pengajuan ini ke Daftar Sasaran Ground Check.
-     * HANYA kepala keluarga (selalu) dan anggota yang dipilih warga (didaftarkan_gc = true).
+     * Kepala keluarga masuk setelah form pengajuannya dikirim; anggota lain masuk setelah datanya
+     * diisi (didaftarkan_gc). Tidak bergantung pada status peserta PBI APBD.
      * - No KK sudah ada di Ground Check -> ikut keluarga itu (wilayah/alamat/desil mengikuti).
      * - No KK baru -> otomatis jadi keluarga baru.
+     * - NIK sudah ada di Ground Check tapi tercatat di KK lain dan belum diverifikasi petugas
+     *   -> dipindahkan ke KK pengajuan ini supaya muncul di daftar keluarga.
      * Notifikasi ke petugas Ground Check dikirim hanya bila ada sasaran baru.
      * Mengembalikan jumlah sasaran baru.
      */
@@ -286,8 +403,13 @@ class PbiApbd extends Model
                 continue;
             }
 
-            // Kepala keluarga selalu ikut; anggota lain hanya bila dipilih warga
             $kepala = $nik === $kepalaNik || self::isHubunganKepala($a->hubungan_keluarga);
+
+            // Kepala keluarga masuk setelah form pengajuannya dikirim (bukan saat masih draft)
+            if ($kepala && $this->masyarakatMasihDraft()) {
+                continue;
+            }
+            // Anggota lain masuk setelah datanya diisi (didaftarkan_gc diisi PbiAnggotaController)
             if (! $kepala && ! $a->didaftarkan_gc) {
                 continue;
             }
@@ -305,6 +427,18 @@ class PbiApbd extends Model
             ]);
 
             if ($s->wasRecentlyCreated) {
+                $baru++;
+            } elseif ($s->no_kk !== $kk && ! $s->verifikasis()->exists()) {
+                // NIK sudah ada di Ground Check tapi tercatat di KK lain/kosong (mis. dari sinkron DTSEN)
+                // -> pindahkan ke KK pengajuan ini
+                $s->update([
+                    'no_kk' => $kk,
+                    'kecamatan' => $induk->kecamatan ?? $this->kecamatan,
+                    'kelurahan' => $induk->kelurahan ?? $this->desa_kelurahan,
+                    'alamat' => $induk->alamat ?? $this->alamat,
+                    'rt' => $induk->rt ?? $this->rt,
+                    'rw' => $induk->rw ?? $this->rw,
+                ]);
                 $baru++;
             }
         }

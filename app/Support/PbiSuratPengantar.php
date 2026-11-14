@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\Dokumen;
 use App\Models\PbiApbd;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
@@ -9,15 +10,21 @@ use Illuminate\Support\Str;
 
 /**
  * Membuat Surat Pengantar Kelurahan otomatis dari template .docx.
- * Template: storage/app/templates/SuratPengantarPBI.docx
+ * Template diambil dari menu Dokumen (dokumen dengan kode "surat-pengantar-pbi"),
+ * diunggah Super Admin lewat UI, tidak perlu menaruh file manual di server.
  *  - Placeholder teks ${...} diisi oleh PbiSuratIsian.
  *  - Placeholder gambar ${ttd_kelurahan} (opsional) diisi TTD Lurah bila $ttdPath diberikan.
+ *    Template tanpa placeholder ini (mis. "Ditandatangani Secara Elektronik oleh")
+ *    tetap valid: gambar TTD dilewati tanpa peringatan.
  */
 class PbiSuratPengantar
 {
-    public static function templatePath(): string
+    public const KODE_TEMPLATE = 'surat-pengantar-pbi';
+
+    /** Path absolut template dari menu Dokumen, atau null bila belum diunggah. */
+    public static function templatePath(): ?string
     {
-        return storage_path('app/templates/SuratPengantarPBI.docx');
+        return Dokumen::pathTemplate(self::KODE_TEMPLATE);
     }
 
     /**
@@ -27,8 +34,9 @@ class PbiSuratPengantar
     public static function generate(PbiApbd $m, User $user, ?string $ttdPath = null): string
     {
         $src = self::templatePath();
-        if (! is_file($src)) {
-            return 'Surat pengantar belum dibuat: template tidak ditemukan di storage/app/templates/SuratPengantarPBI.docx.';
+        if (! $src) {
+            return 'Surat pengantar belum dibuat: template belum diunggah. '
+                . 'Minta Super Admin menambahkan dokumen .docx dengan kode "' . self::KODE_TEMPLATE . '" di menu Dokumen.';
         }
 
         $disk = Storage::disk('public');
@@ -48,9 +56,8 @@ class PbiSuratPengantar
                         'ratio' => true,
                     ]);
                     $tp->saveAs($disk->path($path));
-                } else {
-                    $peringatan = 'TTD tidak disisipkan: template belum punya placeholder ${ttd_kelurahan}.';
                 }
+                // Tanpa placeholder ${ttd_kelurahan}: dilewati, bukan kesalahan.
             } catch (\Throwable $e) {
                 report($e);
                 $peringatan = 'TTD gagal disisipkan ke surat (cek storage/logs/laravel.log).';

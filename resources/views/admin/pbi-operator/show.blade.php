@@ -63,7 +63,7 @@
             <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
                 <div class="px-5 py-4 border-b border-outline-variant/40">
                     <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">assignment</span> Data Pemohon</h3>
-                    <p class="text-xs text-on-surface-variant mt-1">Data diisi masyarakat/kelurahan. Operator hanya menambahkan Desil Nasional.</p>
+                    <p class="text-xs text-on-surface-variant mt-1">Data diisi masyarakat/kelurahan. Operator menambahkan Desil Nasional dan catatan kelengkapan berkas.</p>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 p-5 text-sm">
@@ -81,7 +81,7 @@
                         </div>
                     @endforeach
 
-                    {{-- Satu-satunya isian yang bisa diubah Operator --}}
+                    {{-- Isian yang bisa diubah Operator: Desil Nasional + Catatan Kelengkapan/Kekurangan Berkas --}}
                     <div class="sm:col-span-2">
                         <label class="block text-xs font-semibold mb-1">Desil Nasional</label>
                         <input type="text" name="desil_nasional" value="{{ old('desil_nasional', $data->desil_nasional) }}" maxlength="50"
@@ -90,18 +90,17 @@
                     </div>
 
                     <div class="sm:col-span-2">
-                        <label class="block text-xs text-on-surface-variant mb-1">Kelengkapan/Kekurangan Berkas</label>
-                        <textarea rows="2" disabled class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm bg-surface-container text-on-surface-variant cursor-not-allowed">{{ $data->kelengkapan_kekurangan_berkas }}</textarea>
-                    </div>
-                    <div class="sm:col-span-2">
-                        <label class="block text-xs text-on-surface-variant mb-1">Catatan Berkas</label>
-                        <textarea rows="2" disabled class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm bg-surface-container text-on-surface-variant cursor-not-allowed">{{ $data->catatan_berkas }}</textarea>
+                        <label class="block text-xs font-semibold mb-1">Catatan Kelengkapan/Kekurangan Berkas</label>
+                        <textarea name="catatan_berkas" rows="3" maxlength="2000"
+                                  placeholder="Tulis berkas yang sudah lengkap, yang kurang, dan catatan lainnya"
+                                  @disabled(! $canEdit)
+                                  class="w-full rounded-lg border border-primary/60 px-3 py-2 text-sm bg-white disabled:bg-surface-container disabled:text-on-surface-variant disabled:cursor-not-allowed">{{ old('catatan_berkas', $data->catatan_berkas) }}</textarea>
                     </div>
 
                     @if ($canEdit)
                         <div class="sm:col-span-2">
                             <button type="submit" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-on-primary text-sm font-medium">
-                                <span class="material-symbols-outlined text-[18px]">save</span> Simpan Desil Nasional
+                                <span class="material-symbols-outlined text-[18px]">save</span> Simpan
                             </button>
                         </div>
                     @endif
@@ -150,7 +149,7 @@
                     <tr><th class="px-5 py-3">NIK</th><th class="px-5 py-3">Nama</th><th class="px-5 py-3">Tempat/Tgl Lahir</th><th class="px-5 py-3">Pekerjaan</th><th class="px-5 py-3">Hub. Keluarga</th><th class="px-5 py-3">BPJS</th></tr>
                 </thead>
                 <tbody class="divide-y divide-outline-variant/30">
-                    @forelse ($data->anggotaKeluarga as $a)
+                    @forelse ($data->daftarPeserta() as $a)
                         <tr>
                             <td class="px-5 py-3">{{ $a->nik }}</td>
                             <td class="px-5 py-3 font-medium">{{ $a->nama }}</td>
@@ -168,6 +167,28 @@
     </div>
 
     @include('admin.pbi-apbd.partials.hasil-verifikasi')
+
+<!--@include('admin.pbi-apbd.partials.diagnosa-edit', ['canDiagnosa' => false])-->
+
+{{-- Diagnosa (riwayat, baca saja) --}}
+    <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
+        <div class="px-5 py-4 border-b border-outline-variant/40">
+            <h3 class="text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[20px] text-secondary">medical_information</span> Diagnosa</h3>
+        </div>
+        <div class="p-5 space-y-2 max-h-64 overflow-y-auto">
+            @forelse ($data->diagnosaLogs as $log)
+                <div class="p-3 bg-surface-container/30 rounded-lg border border-outline-variant/30">
+                    <div class="flex justify-between gap-2 flex-wrap mb-1">
+                        <span class="text-xs font-semibold">{{ $log->username }} <span class="font-normal text-on-surface-variant">({{ $log->role_name }})</span></span>
+                        <span class="text-[11px] text-on-surface-variant">{{ $log->created_at->format('d M Y - H:i') }}</span>
+                    </div>
+                    <p class="text-sm">{{ $log->diagnosa }}</p>
+                </div>
+            @empty
+                <p class="text-sm text-on-surface-variant italic">Belum ada diagnosa yang tercatat.</p>
+            @endforelse
+        </div>
+    </div>
 
     {{-- Log --}}
     <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">

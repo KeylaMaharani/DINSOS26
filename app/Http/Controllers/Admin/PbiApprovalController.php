@@ -70,7 +70,7 @@ class PbiApprovalController extends Controller
         $user = Auth::user()->loadMissing('role');
         $roleName = $user->role?->isSuperAdmin() ? null : ($user->role->name ?? null);
 
-        $query = PbiApbd::with('logs');
+        $query = PbiApbd::with(['logs', 'anggotaKeluarga']);
         // Lurah hanya melihat ajuan di wilayahnya sendiri
         if ($tahap === 'lurah') {
             $query->untukKelurahan($user);
@@ -189,11 +189,9 @@ class PbiApprovalController extends Controller
 
         $faskesOptions = config('faskes.puskesmas', [])[$pbiApbd->kecamatan] ?? [];
 
-        // Diagnosa = jawaban masyarakat di Master Ground Check (hanya dimuat untuk tahap yang boleh mengubahnya)
-        $diagnosaGc = $cfg['diagnosa'] ? $this->diagnosaGc($pbiApbd) : collect();
-
         return view("admin.pbi-{$tahap}.show", [
-            'diagnosaGc' => $diagnosaGc,
+            // Dipertahankan kosong supaya view yang belum diganti tidak error. Diagnosa kini dibaca dari pbi_apbds.diagnosa.
+            'diagnosaGc' => collect(),
             'tahap' => $tahap,
             'cfg' => $cfg,
             'data' => $pbiApbd,
@@ -201,9 +199,21 @@ class PbiApprovalController extends Controller
             'canEdit' => $canEdit,
             'canDiagnosa' => $canDiagnosa,
             'faskesOptions' => $faskesOptions,
-            // Jawaban Ground Check masyarakat (isian + foto), ditampilkan juga di halaman tahap lanjut
-            'gcJawabans' => $pbiApbd->gcJawabans()->get(),
+            // Jawaban masyarakat yang berlaku untuk PBI (khusus PBI + bersama), isian + foto, ditampilkan juga di halaman tahap lanjut.
+            // Parameter identitas (Nama, No KK, Alamat, No. Telp, Email) sudah ada di card Data Pemohon, jadi disaring.
+            'gcJawabans' => $pbiApbd->gcJawabansPbi()->bukanIdentitas()->get(),
         ]);
+    }
+
+    /**
+     * Pesan sukses biasa ("N isian surat terisi otomatis.") tidak perlu ditampilkan.
+     * Hanya peringatan/masalah yang dikembalikan (template belum ada, placeholder tidak dikenal, TTD gagal, dsb.).
+     */
+    private function pesanSuratPenting(?string $info): string
+    {
+        $info = trim((string) $info);
+
+        return preg_match('/^\d+ isian surat terisi otomatis\.?$/u', $info) ? '' : $info;
     }
 
     /** Buat / perbarui surat pengantar untuk tampilan Lurah memakai TTD Lurah yang sedang login. */
@@ -230,8 +240,8 @@ class PbiApprovalController extends Controller
         try {
             $info = PbiSuratPengantar::generate($pbiApbd, $user, $user->ttd_path);
             $pbiApbd->refresh();
-            if (filled($info)) {
-                session()->now('error', $info);
+            if (filled($pesan = $this->pesanSuratPenting($info))) {
+                session()->now('error', $pesan);
             }
         } catch (\Throwable $e) {
             report($e);
@@ -239,9 +249,10 @@ class PbiApprovalController extends Controller
         }
     }
 
-    /**
+        /**
      * Hanya tahap Operator (route PUT hanya didaftarkan untuk tahap dengan edit = true).
-     * Operator hanya boleh mengisi Desil Nasional; field lain tidak disentuh walau dikirim.
+     * Operator hanya boleh mengisi Desil Nasional dan Catatan Kelengkapan/Kekurangan Berkas;
+     * field lain tidak disentuh walau dikirim.
      */
     public function update(Request $request, PbiApbd $pbiApbd)
     {
@@ -252,6 +263,7 @@ class PbiApprovalController extends Controller
 
         $data = $request->validate([
             'desil_nasional' => ['nullable', 'string', 'max:50'],
+            'catatan_berkas' => ['nullable', 'string', 'max:2000'],
         ]);
 
         $pbiApbd->update($data);
@@ -260,7 +272,11 @@ class PbiApprovalController extends Controller
             $this->catat($pbiApbd, 'Mengisi Desil Nasional', 'Desil Nasional: ' . ($data['desil_nasional'] ?: '-'));
         }
 
-        return back()->with('success', 'Desil Nasional berhasil disimpan.');
+        if ($pbiApbd->wasChanged('catatan_berkas')) {
+            $this->catat($pbiApbd, 'Mengisi catatan kelengkapan/kekurangan berkas', $data['catatan_berkas'] ?: '-');
+        }
+
+        return back()->with('success', 'Data berhasil disimpan.');
     }
 
     public function diagnosa(Request $request, PbiApbd $pbiApbd)
@@ -271,54 +287,33 @@ class PbiApprovalController extends Controller
         abort_unless($cfg['diagnosa'] && $pbiApbd->status === $cfg['status'], 403);
 
         $v = $request->validate([
-            'diagnosa' => ['required', 'array', 'min:1'],
-            'diagnosa.*' => ['required', 'string', 'max:500'],
+            'diagnosa' => ['required', 'string', 'max:500'],
         ], [
             'diagnosa.required' => 'Diagnosa tidak boleh kosong.',
-            'diagnosa.*.required' => 'Diagnosa tidak boleh kosong.',
-            'diagnosa.*.max' => 'Diagnosa maksimal 500 karakter.',
+            'diagnosa.max' => 'Diagnosa maksimal 500 karakter.',
         ]);
 
-        // Hanya jawaban diagnosa yang SUDAH diisi masyarakat yang bisa diubah (tidak bisa menambah baru).
-        $baris = $this->diagnosaGc($pbiApbd)->filter(fn ($r) => filled($r->jawaban))->keyBy('id');
+        $baru = trim($v['diagnosa']);
+        $lama = trim((string) $pbiApbd->diagnosa);
 
-        $diubah = [];
-        foreach ($v['diagnosa'] as $id => $teks) {
-            $row = $baris->get((int) $id);
-            if (! $row) {
-                continue; // bukan baris diagnosa milik ajuan ini / belum diisi masyarakat -> diabaikan
-            }
-
-            $teks = trim($teks);
-            if ($teks === trim((string) $row->jawaban)) {
-                continue;
-            }
-
-            $diubah[] = $row->nama_parameter . ': "' . $row->jawaban . '" menjadi "' . $teks . '"';
-            $row->update(['jawaban' => $teks]); // menimpa jawaban masyarakat
-        }
-
-        if (! $diubah) {
+        if ($baru === $lama) {
             return back()->with('success', 'Tidak ada perubahan pada diagnosa.');
         }
 
-        $this->catat($pbiApbd, 'Mengubah diagnosa', implode('; ', $diubah));
+        $user = Auth::user();
+
+        $pbiApbd->update(['diagnosa' => $baru]);
+
+        $pbiApbd->diagnosaLogs()->create([
+            'user_id' => $user->id,
+            'username' => $user->name,
+            'role_name' => $user->role->name ?? '-',
+            'diagnosa' => $baru,
+        ]);
+
+        $this->catat($pbiApbd, 'Mengubah diagnosa', '"' . ($lama ?: '-') . '" menjadi "' . $baru . '"');
 
         return back()->with('success', 'Diagnosa berhasil diperbarui.');
-    }
-
-    /**
-     * Jawaban Ground Check milik ajuan ini yang berupa isian teks "Diagnosa"
-     * (dikenali dari nama parameter di Master Kriteria Ground Check).
-     */
-    private function diagnosaGc(PbiApbd $m)
-    {
-        return $m->gcJawabans()
-            ->whereNotNull('parameter_id')
-            ->where('tipe_input', 'teks')
-            ->whereRaw('LOWER(nama_parameter) LIKE ?', ['%diagnosa%'])
-            ->orderBy('urutan')
-            ->get();
     }
 
     /**
@@ -390,7 +385,7 @@ class PbiApprovalController extends Controller
                     'divalidasi_lurah_at' => now(),
                     'divalidasi_lurah_oleh' => $user->id,
                 ]);
-                $infoSurat[] = PbiSuratPengantar::generate($m->fresh(), $user, $ttd);
+                $infoSurat[] = $this->pesanSuratPenting(PbiSuratPengantar::generate($m->fresh(), $user, $ttd));
             }
 
             $m->tandaiDilihat($user);

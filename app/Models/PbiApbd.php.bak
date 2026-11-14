@@ -1,0 +1,535 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use App\Models\Concerns\HasKriteriaSkor;
+
+class PbiApbd extends Model
+{
+    use HasFactory, HasKriteriaSkor;
+
+    protected $guarded = [];
+
+    protected $casts = [
+        'latitude' => 'decimal:7',
+        'longitude' => 'decimal:7',
+        'punya_kendaraan_roda_2' => 'boolean',
+        'sudah_diverifikasi_kelurahan' => 'boolean',
+        // Hasil cek Kelurahan per berkas masyarakat: ['scan_ktp' => 'sesuai'|'tidak_sesuai', ...]
+        'verifikasi_berkas' => 'array',
+        'divalidasi_lurah_at' => 'datetime',
+    ];
+
+    /**
+     * Pakai `no_registrasi` sebagai "slug" di URL (route model binding).
+     * $this->id tetap dipakai untuk foreign key dan relasi.
+     */
+    public function getRouteKeyName(): string
+    {
+        return 'no_registrasi';
+    }
+
+    /**
+     * Notifikasi badge: saat status/pengembalian berubah, hapus catatan "sudah dilihat"
+     * untuk tahap yang baru, supaya role di tahap itu melihatnya sebagai notifikasi baru.
+     */
+    protected static function booted(): void
+    {
+        static::updated(function (PbiApbd $m) {
+            if ($m->wasChanged(['status', 'dikembalikan_ke_masyarakat', 'data_diisi_at'])) {
+                DB::table('pbi_apbd_dilihat')
+                    ->where('pbi_apbd_id', $m->id)
+                    ->where('status', $m->status)
+                    ->delete();
+            }
+        });
+    }
+
+    /**
+     * Catat bahwa user ini sudah membuka / menindaklanjuti permohonan pada tahap saat ini.
+     */
+    public function tandaiDilihat(?User $user): void
+    {
+        if (! $user) {
+            return;
+        }
+
+        DB::table('pbi_apbd_dilihat')->updateOrInsert(
+            ['pbi_apbd_id' => $this->id, 'user_id' => $user->id, 'status' => $this->status],
+            ['dilihat_at' => now()]
+        );
+    }
+
+    // ==========================================================
+    // ALUR STATUS
+    // kelurahan -> lurah -> operator_dinsos -> kabid -> kadis -> dinkes -> bpjs -> disetujui
+    // "ditolak" adalah status akhir terpisah (bisa terjadi dari tahap manapun)
+    // ==========================================================
+    public const OPERATOR_ROLE = 'dayasos';
+
+    public const STAGES = [
+        'kelurahan' => [
+            'label' => 'Kelurahan',
+            'role' => 'kelurahan',
+        ],
+        'lurah' => [
+            'label' => 'Lurah',
+            'role' => 'lurah',
+        ],
+        'operator_dinsos' => [
+            'label' => 'Operator Dinsos',
+            'role' => self::OPERATOR_ROLE,
+        ],
+        'kabid' => [
+            'label' => 'Kepala Bidang',
+            'role' => 'kabin',
+        ],
+        'kadis' => [
+            'label' => 'Kepala Dinas',
+            'role' => 'kadis',
+        ],
+        'dinkes' => [
+            'label' => 'Dinas Kesehatan',
+            'role' => 'dinkes',
+        ],
+        'bpjs' => [
+            'label' => 'BPJS Kesehatan',
+            'role' => 'bpjs',
+        ],
+    ];
+
+    public const STATUS_LABELS = [
+        'kelurahan' => 'Di Kelurahan',
+        'lurah' => 'Di Lurah',
+        'operator_dinsos' => 'Di Operator Dinsos',
+        'kabid' => 'Di Kepala Bidang',
+        'kadis' => 'Di Kepala Dinas',
+        'dinkes' => 'Di Dinas Kesehatan',
+        'bpjs' => 'Di BPJS Kesehatan',
+        'disetujui' => 'Disetujui (Teraktivasi)',
+        'ditolak' => 'Ditolak',
+    ];
+
+    /**
+     * Halaman approval per tahap (dipakai PbiApprovalController, route, sidebar, badge).
+     *  status   : nilai kolom status yang ditampilkan di halaman tahap itu
+     *  module   : key di Role::MODULES
+     *  edit     : boleh ubah data pemohon & unggah suket (hanya Operator)
+     *  diagnosa : boleh menambah diagnosa
+     */
+    public const TAHAP = [
+        'lurah'    => ['status' => 'lurah',           'label' => 'Lurah',           'module' => 'pbi-lurah',    'edit' => false, 'diagnosa' => false],
+        'operator' => ['status' => 'operator_dinsos', 'label' => 'Operator Dinsos', 'module' => 'pbi-operator', 'edit' => true,  'diagnosa' => true],
+        'kabid'    => ['status' => 'kabid',           'label' => 'Kepala Bidang',   'module' => 'pbi-kabid',    'edit' => false, 'diagnosa' => false],
+        'kadis'    => ['status' => 'kadis',           'label' => 'Kepala Dinas',    'module' => 'pbi-kadis',    'edit' => false, 'diagnosa' => false],
+        'dinkes'   => ['status' => 'dinkes',          'label' => 'Dinas Kesehatan', 'module' => 'pbi-dinkes',   'edit' => false, 'diagnosa' => true],
+        'bpjs'     => ['status' => 'bpjs',            'label' => 'BPJS Kesehatan',  'module' => 'pbi-bpjs',     'edit' => false, 'diagnosa' => false],
+    ];
+
+    public function anggotaKeluarga()
+    {
+        return $this->hasMany(PbiApbdAnggotaKeluarga::class);
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function logs()
+    {
+        return $this->hasMany(PbiApbdLog::class)->latest();
+    }
+
+    /**
+     * Riwayat diagnosa yang pernah diinput petugas (setiap entri baris baru).
+     */
+    public function diagnosaLogs()
+    {
+        return $this->hasMany(PbiApbdDiagnosaLog::class)->latest();
+    }
+
+    /**
+     * Jawaban Ground Check per parameter untuk permohonan ini
+     * (tabel pbi_apbd_gc_jawabans, unik per pbi_apbd_id + parameter_id).
+     */
+    public function gcJawabans()
+    {
+        return $this->hasMany(GcPbiJawaban::class, 'pbi_apbd_id');
+    }
+
+    /** Jawaban masyarakat yang berlaku untuk PBI APBD (khusus PBI + bersama). Jawaban khusus Ground Check tidak ikut. */
+    public function gcJawabansPbi()
+    {
+        return $this->hasMany(GcPbiJawaban::class, 'pbi_apbd_id')
+            ->whereIn('target', ['pbi', 'pbi_gc']);
+    }
+
+    /**
+     * Data koreksi (No KK / nama / wilayah baru) bila warga menjawab "Tidak".
+     * Disimpan terpisah, tidak mengubah kolom induk pbi_apbds.
+     */
+    public function gcKoreksi()
+    {
+        return $this->hasOne(PbiApbdGcKoreksi::class, 'pbi_apbd_id');
+    }
+
+    // ==========================================================
+    // PESERTA PBI APBD
+    // Peserta = anggota ber-didaftarkan_pbi = true (bisa anak/anggota lain saja, kepala keluarga hanya
+    // bila dicentang). Pengajuan baru masuk antrean Kelurahan bila data sudah diisi DAN ada peserta.
+    // Mengisi data kepala keluarga saja = hanya untuk sasaran Ground Check.
+    // ==========================================================
+
+    /**
+     * Daftar peserta PBI APBD. Memakai relasi anggotaKeluarga yang sudah dimuat (eager load)
+     * supaya tidak N+1 di halaman daftar.
+     */
+    public function daftarPeserta(): Collection
+    {
+        return $this->anggotaKeluarga->where('didaftarkan_pbi', true)->values();
+    }
+
+    public function punyaPeserta(): bool
+    {
+        return $this->daftarPeserta()->isNotEmpty();
+    }
+
+    /**
+     * Nama yang tampil di kolom "Pemohon": nama peserta yang didaftarkan (digabung koma),
+     * bukan nama kepala keluarga. Bila belum ada peserta, jatuh ke nama kepala keluarga.
+     */
+    public function pemohonLabel(bool $fallbackKepala = true): string
+    {
+        $nama = $this->daftarPeserta()
+            ->pluck('nama')
+            ->map(fn ($n) => trim((string) $n))
+            ->filter()
+            ->implode(', ');
+
+        if ($nama !== '') {
+            return $nama;
+        }
+
+        return $fallbackKepala ? (string) $this->nama_kepala_keluarga : '-';
+    }
+
+    /**
+     * Pengajuan PBI APBD sudah benar-benar diajukan (terlihat di antrean petugas):
+     *  - sudah lewat tahap Kelurahan, atau
+     *  - masih di Kelurahan, data sudah diisi, dan ada minimal satu peserta.
+     */
+    public function sudahDiajukanPbi(): bool
+    {
+        if ($this->status !== 'kelurahan') {
+            return true;
+        }
+
+        return $this->data_diisi_at !== null && $this->punyaPeserta();
+    }
+
+    /** Pilihan peserta hanya boleh diubah selama berkas di Kelurahan (atau ditolak). Setelah diteruskan, terkunci. */
+    public function pesertaBisaDiubah(): bool
+    {
+        return in_array($this->status, ['kelurahan', 'ditolak'], true);
+    }
+
+    /**
+     * Pengajuan yang tampil di antrean petugas. Sama dengan sudahDiajukanPbi() tetapi sebagai query:
+     * status sudah lewat Kelurahan, ATAU (data diisi + punya peserta PBI).
+     */
+    public function scopeSudahDiajukan($query)
+    {
+        return $query->where(function ($w) {
+            $w->where('status', '!=', 'kelurahan')
+                ->orWhere(function ($x) {
+                    $x->whereNotNull('data_diisi_at')
+                        ->whereHas('anggotaKeluarga', fn ($a) => $a->where('didaftarkan_pbi', true));
+                });
+        });
+    }
+
+    public function statusLabel(): string
+    {
+        return self::STATUS_LABELS[$this->status] ?? $this->status;
+    }
+
+    public function isFinal(): bool
+    {
+        return in_array($this->status, ['disetujui', 'ditolak']);
+    }
+
+    /**
+     * Apakah masyarakat masih boleh mengisi / memperbaiki data.
+     * Terkunci HANYA kalau sudah disetujui.
+     */
+    public function masyarakatBisaEdit(): bool
+    {
+        return $this->status !== 'disetujui';
+    }
+
+    /**
+     * Masih berupa draft: warga belum pernah menekan "Simpan Data".
+     */
+    public function masyarakatMasihDraft(): bool
+    {
+        return $this->data_diisi_at === null && $this->status === 'kelurahan';
+    }
+
+    /**
+     * Kepala keluarga sudah pernah menekan "Simpan Data" (data Ground Check terisi).
+     * Ini BUKAN berarti PBI APBD sudah diajukan: lihat sudahDiajukanPbi().
+     */
+    public function kepalaSudahMengajukan(): bool
+    {
+        return ! $this->masyarakatMasihDraft();
+    }
+
+    /**
+     * Kepala keluarga boleh mengisi / mengirim form pengajuan:
+     *  - selama masih draft (belum pernah diajukan), atau
+     *  - sudah diajukan TETAPI ditolak / dikembalikan petugas untuk diperbaiki.
+     * Setelah diajukan (dan tidak ditolak/dikembalikan) tidak bisa diajukan lagi.
+     */
+    public function kepalaBisaMengisiForm(): bool
+    {
+        if ($this->status === 'disetujui') {
+            return false;
+        }
+
+        if ($this->masyarakatMasihDraft()) {
+            return true;
+        }
+
+        return $this->status === 'ditolak' || (bool) $this->dikembalikan_ke_masyarakat;
+    }
+
+    /**
+     * Pengajuan yang belum pernah dikirim selalu memakai form baru (semua parameter Ground Check aktif),
+     * bukan form lama (hanya parameter yang bertaut ke 18 parameter PBI).
+     */
+    public function sesuaikanVersiForm(): void
+    {
+        if ($this->form_lama && $this->masyarakatMasihDraft()) {
+            $this->forceFill(['form_lama' => false])->saveQuietly();
+        }
+    }
+
+    /** Hubungan keluarga bertulisan "kepala keluarga" (toleran: kepala_keluarga / Kepala Keluarga). */
+    public static function isHubunganKepala(?string $hubungan): bool
+    {
+        return str_contains(Str::lower(str_replace('_', ' ', (string) $hubungan)), 'kepala');
+    }
+
+    /**
+     * Tambah anggota keluarga dari halaman masyarakat (di luar registrasi).
+     * Anggota baru belum menjadi peserta PBI APBD (didaftarkan_pbi = false) sampai dicentang warga.
+     */
+    public function tambahAnggotaKeluarga(array $data): PbiApbdAnggotaKeluarga
+    {
+        $anggota = $this->anggotaKeluarga()->make($data);
+
+        $anggota->forceFill([
+            'keanggotaan_bpjs' => $anggota->keanggotaan_bpjs ?: 'Belum Terdaftar',
+        ])->save();
+
+        return $anggota;
+    }
+
+    /**
+     * Ubah data anggota keluarga, lalu samakan baris Daftar Sasaran Ground Check-nya
+     * (NIK, nama, tanggal lahir).
+     * - Sasaran yang sudah diverifikasi petugas tidak diubah (data petugas tidak boleh bergeser).
+     * - Bila NIK baru sudah dipakai sasaran lain, NIK sasaran tidak diganti (NIK di Ground Check unik).
+     */
+    public function perbaruiAnggotaKeluarga(PbiApbdAnggotaKeluarga $anggota, array $data): PbiApbdAnggotaKeluarga
+    {
+        $nikLama = preg_replace('/\D/', '', (string) $anggota->nik);
+
+        $anggota->update($data);
+
+        $nikBaru = preg_replace('/\D/', '', (string) $anggota->nik);
+        $kk = preg_replace('/\D/', '', (string) $this->no_kk);
+
+        $sasaran = GcSasaran::where('nik', $nikLama)->where('no_kk', $kk)->first();
+
+        if ($sasaran && ! $sasaran->verifikasis()->exists()) {
+            $nikDipakaiLain = $nikBaru !== $nikLama
+                && GcSasaran::where('nik', $nikBaru)->where('id', '!=', $sasaran->id)->exists();
+
+            $sasaran->update([
+                'nik' => $nikDipakaiLain ? $nikLama : $nikBaru,
+                'nama' => mb_strtoupper(trim((string) $anggota->nama)),
+                'tanggal_lahir' => $anggota->tanggal_lahir,
+            ]);
+        }
+
+        $this->sinkronGroundCheck();
+
+        return $anggota;
+    }
+
+    /**
+     * Masukkan anggota keluarga pengajuan ini ke Daftar Sasaran Ground Check.
+     * Kepala keluarga masuk setelah form pengajuannya dikirim; anggota lain masuk setelah datanya
+     * diisi (didaftarkan_gc). Tidak bergantung pada status peserta PBI APBD.
+     * - No KK sudah ada di Ground Check -> ikut keluarga itu (wilayah/alamat/desil mengikuti).
+     * - No KK baru -> otomatis jadi keluarga baru.
+     * - NIK sudah ada di Ground Check tapi tercatat di KK lain dan belum diverifikasi petugas
+     *   -> dipindahkan ke KK pengajuan ini supaya muncul di daftar keluarga.
+     * Notifikasi ke petugas Ground Check dikirim hanya bila ada sasaran baru.
+     * Mengembalikan jumlah sasaran baru.
+     */
+    public function sinkronGroundCheck(): int
+    {
+        $kk = preg_replace('/\D/', '', (string) $this->no_kk);
+        if (strlen($kk) !== 16) {
+            return 0;
+        }
+
+        $kepalaNik = preg_replace('/\D/', '', (string) $this->nik_kepala_keluarga);
+
+        $induk = GcSasaran::where('no_kk', $kk)->first();
+        $baru = 0;
+
+        foreach ($this->anggotaKeluarga()->get() as $a) {
+            $nik = preg_replace('/\D/', '', (string) $a->nik);
+            if (strlen($nik) !== 16) {
+                continue;
+            }
+
+            $kepala = $nik === $kepalaNik || self::isHubunganKepala($a->hubungan_keluarga);
+
+            // Kepala keluarga masuk setelah form pengajuannya dikirim (bukan saat masih draft)
+            if ($kepala && $this->masyarakatMasihDraft()) {
+                continue;
+            }
+            // Anggota lain masuk setelah datanya diisi (didaftarkan_gc diisi PbiAnggotaController)
+            if (! $kepala && ! $a->didaftarkan_gc) {
+                continue;
+            }
+
+            $s = GcSasaran::firstOrCreate(['nik' => $nik], [
+                'nama' => mb_strtoupper(trim((string) $a->nama)),
+                'no_kk' => $kk,
+                'tanggal_lahir' => $a->tanggal_lahir,
+                'kecamatan' => $induk->kecamatan ?? $this->kecamatan,
+                'kelurahan' => $induk->kelurahan ?? $this->desa_kelurahan,
+                'alamat' => $induk->alamat ?? $this->alamat,
+                'rt' => $induk->rt ?? $this->rt,
+                'rw' => $induk->rw ?? $this->rw,
+                'desil' => $induk->desil ?? null,
+            ]);
+
+            if ($s->wasRecentlyCreated) {
+                $baru++;
+            } elseif ($s->no_kk !== $kk && ! $s->verifikasis()->exists()) {
+                // NIK sudah ada di Ground Check tapi tercatat di KK lain/kosong (mis. dari sinkron DTSEN)
+                // -> pindahkan ke KK pengajuan ini
+                $s->update([
+                    'no_kk' => $kk,
+                    'kecamatan' => $induk->kecamatan ?? $this->kecamatan,
+                    'kelurahan' => $induk->kelurahan ?? $this->desa_kelurahan,
+                    'alamat' => $induk->alamat ?? $this->alamat,
+                    'rt' => $induk->rt ?? $this->rt,
+                    'rw' => $induk->rw ?? $this->rw,
+                ]);
+                $baru++;
+            }
+        }
+
+        if ($baru > 0) {
+            $roleIds = Role::all()
+                ->filter(fn ($r) => ! $r->isSuperAdmin() && $r->hasModule('ground-check'))
+                ->pluck('id');
+
+            User::whereIn('role_id', $roleIds)->get()->each(
+                fn ($u) => Notifikasi::create([
+                    'user_id' => $u->id,
+                    'tipe' => 'ground_check_baru',
+                    'judul' => 'Sasaran Ground Check baru',
+                    'pesan' => "{$baru} anggota dari KK {$kk} masuk daftar sasaran.",
+                    'url' => route('ground-check.keluarga', $kk),
+                ])
+            );
+        }
+
+        return $baru;
+    }
+
+    /** Urutan key tahap, dipakai untuk hitung next/back */
+    public static function stageKeys(): array
+    {
+        return array_keys(self::STAGES);
+    }
+
+    public function currentStageIndex(): ?int
+    {
+        $keys = self::stageKeys();
+        $idx = array_search($this->status, $keys, true);
+        return $idx === false ? null : $idx;
+    }
+
+    public function nextStageKey(): ?string
+    {
+        $idx = $this->currentStageIndex();
+        if ($idx === null) return null;
+        $keys = self::stageKeys();
+        // tahap terakhir (bpjs) -> disetujui
+        return $keys[$idx + 1] ?? 'disetujui';
+    }
+
+    public function previousStageKey(): ?string
+    {
+        $idx = $this->currentStageIndex();
+        if ($idx === null || $idx === 0) return null;
+        $keys = self::stageKeys();
+        return $keys[$idx - 1];
+    }
+
+    /** Role yang berhak bertindak di status saat ini */
+    public function currentStageRole(): ?string
+    {
+        return self::STAGES[$this->status]['role'] ?? null;
+    }
+
+    public function currentStageLabel(): ?string
+    {
+        return self::STAGES[$this->status]['label'] ?? null;
+    }
+
+    /**
+     * Urutan progress untuk stepper di halaman masyarakat.
+     */
+    public function progressSteps(): array
+    {
+        $allKeys = array_merge(self::stageKeys(), ['disetujui']);
+        $currentIdx = array_search($this->status, $allKeys, true);
+
+        $steps = [];
+        foreach ($allKeys as $i => $key) {
+            $label = $key === 'disetujui'
+                ? 'Disetujui'
+                : (self::STAGES[$key]['label'] ?? $key);
+
+            if ($currentIdx === false) {
+                $state = 'pending';
+            } elseif ($i < $currentIdx) {
+                $state = 'done';
+            } elseif ($i === $currentIdx) {
+                $state = 'current';
+            } else {
+                $state = 'pending';
+            }
+
+            $steps[] = ['key' => $key, 'label' => $label, 'state' => $state];
+        }
+
+        return $steps;
+    }
+}

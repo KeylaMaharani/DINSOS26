@@ -24,39 +24,55 @@ class DokumenController extends Controller
     }
 
     public function store(Request $request)
-    {
-        abort_unless($this->isSuperAdmin(), 403);
+{
+    abort_unless($this->isSuperAdmin(), 403);
 
-        $data = $request->validate([
-            'nama' => ['required', 'string', 'max:150'],
-            'keterangan' => ['nullable', 'string', 'max:500'],
-            'file' => ['required', 'file', 'mimes:pdf,doc,docx,xls,xlsx,ppt,pptx,odt,ods', 'max:10240'], // 10 MB
-        ], [
-            'nama.required' => 'Nama dokumen wajib diisi.',
-            'nama.max' => 'Nama dokumen maksimal 150 karakter.',
-            'keterangan.max' => 'Keterangan maksimal 500 karakter.',
-            'file.required' => 'File wajib dipilih.',
-            'file.mimes' => 'Format file harus PDF, Word, Excel, PowerPoint, atau OpenDocument.',
-            'file.max' => 'Ukuran file maksimal 10 MB.',
-            'file.uploaded' => 'File gagal diunggah. Periksa batas upload_max_filesize di php.ini.',
-        ]);
+    // Normalisasi kode: "Surat Pengantar PBI" -> "surat-pengantar-pbi"
+    $request->merge([
+        'kode' => filled($request->input('kode')) ? Str::slug($request->input('kode')) : null,
+    ]);
 
-        $file = $request->file('file');
-        $ext = strtolower($file->getClientOriginalExtension());
-        $path = $file->storeAs('dokumen', Str::uuid() . '.' . $ext, 'local');
+    $data = $request->validate([
+        'nama' => ['required', 'string', 'max:150'],
+        'kode' => ['nullable', 'string', 'max:100', 'unique:dokumens,kode'],
+        'keterangan' => ['nullable', 'string', 'max:500'],
+        'file' => ['required', 'file', 'mimes:pdf,doc,docx,xls,xlsx,ppt,pptx,odt,ods', 'max:10240'],
+    ], [
+        'nama.required' => 'Nama dokumen wajib diisi.',
+        'nama.max' => 'Nama dokumen maksimal 150 karakter.',
+        'kode.unique' => 'Kode template sudah dipakai dokumen lain. Hapus dokumen lama atau pakai kode berbeda.',
+        'kode.max' => 'Kode template maksimal 100 karakter.',
+        'keterangan.max' => 'Keterangan maksimal 500 karakter.',
+        'file.required' => 'File wajib dipilih.',
+        'file.mimes' => 'Format file harus PDF, Word, Excel, PowerPoint, atau OpenDocument.',
+        'file.max' => 'Ukuran file maksimal 10 MB.',
+        'file.uploaded' => 'File gagal diunggah. Periksa batas upload_max_filesize di php.ini.',
+    ]);
 
-        Dokumen::create([
-            'nama' => $data['nama'],
-            'keterangan' => $data['keterangan'] ?? null,
-            'file_path' => $path,
-            'file_name' => $file->getClientOriginalName(),
-            'mime' => $file->getClientMimeType(),
-            'file_size' => $file->getSize(),
-            'uploaded_by' => $request->user()->id,
-        ]);
+    $file = $request->file('file');
+    $ext = strtolower($file->getClientOriginalExtension());
 
-        return redirect()->route('dokumen.index')->with('success', 'Dokumen berhasil ditambahkan.');
+    // Template sistem diisi lewat placeholder ${...}, jadi harus .docx
+    if (! empty($data['kode']) && $ext !== 'docx') {
+        return back()->withInput()
+            ->withErrors(['file' => 'Dokumen dengan kode template harus berformat Word (.docx).']);
     }
+
+    $path = $file->storeAs('dokumen', Str::uuid() . '.' . $ext, 'local');
+
+    Dokumen::create([
+        'nama' => $data['nama'],
+        'kode' => $data['kode'] ?? null,
+        'keterangan' => $data['keterangan'] ?? null,
+        'file_path' => $path,
+        'file_name' => $file->getClientOriginalName(),
+        'mime' => $file->getClientMimeType(),
+        'file_size' => $file->getSize(),
+        'uploaded_by' => $request->user()->id,
+    ]);
+
+    return redirect()->route('dokumen.index')->with('success', 'Dokumen berhasil ditambahkan.');
+}
 
     /**
      * Tampilkan dokumen sebagai PDF inline (untuk iframe preview).

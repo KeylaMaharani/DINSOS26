@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Hash;
 class KartuKksSeeder extends Seeder
 {
     /**
-     * Wilayah kelurahan untuk user demo role "kelurahan" (akun lama).
+     * Wilayah kelurahan untuk user demo role "kelurahan".
      * Harus SAMA PERSIS dengan kolom `kelurahan` di data permohonan,
      * karena daftar Ajuan & detail untuk role Kelurahan dibatasi per wilayah.
      */
@@ -37,6 +37,8 @@ class KartuKksSeeder extends Seeder
 
         // 2) Contoh 1 user dummy per role, supaya bisa login & lihat sisi masing-masing
         //    Password default: password
+        //    User role "kelurahan" diberi wilayah (kolom `kelurahan`) supaya
+        //    pembatasan wilayah di KartuKksController / DtsenController jalan.
         foreach ($roles as $r) {
             User::firstOrCreate(
                 ['email' => $r['slug'] . '@dinsoskotabogor.test'],
@@ -61,11 +63,14 @@ class KartuKksSeeder extends Seeder
         //
         //    PENTING: current_role_id harus sesuai siapa yang SEDANG memegang
         //    berkas pada status tsb (lihat transitions() di KartuKksController):
-        //      diajukan          -> operator_dinsos  (input ajuan)
-        //      diproses_kabin    -> kabin            (cek Kepala Bidang)
-        //      disetujui_kadis   -> kadis            (approval + TTD digital)
-        //      validasi_dinsos   -> operator_dinsos  (memberitahu pemohon)
-        //      selesai / ditolak -> null
+        //      diajukan              -> kelurahan
+        //      verifikasi_kelurahan  -> kelurahan
+        //      ttd_lurah             -> operator_dinsos
+        //      validasi_dinsos       -> operator_dinsos
+        //      diproses_kabin        -> kabin
+        //      disetujui_kadis       -> kadis
+        //      selesai / ditolak     -> null
+        $kelurahanRole = Role::where('slug', 'kelurahan')->first();
         $dinsosRole = Role::where('slug', 'operator_dinsos')->first();
         $kabinRole = Role::where('slug', 'kabin')->first();
         $kadisRole = Role::where('slug', 'kadis')->first();
@@ -74,11 +79,13 @@ class KartuKksSeeder extends Seeder
             [
                 'nik' => '3271010101900001',
                 'nama' => 'Sri Wahyuni',
+                // Sengaja di Kel. Sempur supaya user demo "kelurahan" kebagian
+                // 2 ajuan aktif (tahap Diajukan & Verifikasi Kelurahan).
                 'alamat' => 'Jl. Merdeka No. 12, Kel. Sempur',
                 'lat' => -6.5950, 'lng' => 106.7890,
                 'masalah' => 'Kartu Hilang',
                 'status' => KartuKksPermohonan::STATUS_DIAJUKAN,
-                'current_role' => $dinsosRole?->id,
+                'current_role' => $kelurahanRole?->id,
             ],
             [
                 'nik' => '3271011101900011',
@@ -86,8 +93,8 @@ class KartuKksSeeder extends Seeder
                 'alamat' => 'Jl. Otista No. 5, Kel. Sempur',
                 'lat' => -6.5940, 'lng' => 106.7955,
                 'masalah' => 'Data Tidak Sesuai KTP',
-                'status' => KartuKksPermohonan::STATUS_DIAJUKAN,
-                'current_role' => $dinsosRole?->id,
+                'status' => KartuKksPermohonan::STATUS_VERIFIKASI_KELURAHAN,
+                'current_role' => $kelurahanRole?->id,
             ],
             [
                 'nik' => '3271020202880002',
@@ -95,8 +102,8 @@ class KartuKksSeeder extends Seeder
                 'alamat' => 'Jl. Pajajaran No. 45, Kel. Baranangsiang',
                 'lat' => -6.6021, 'lng' => 106.8071,
                 'masalah' => 'Kartu Rusak',
-                'status' => KartuKksPermohonan::STATUS_DIPROSES_KABIN,
-                'current_role' => $kabinRole?->id,
+                'status' => KartuKksPermohonan::STATUS_TTD_LURAH,
+                'current_role' => $dinsosRole?->id,
             ],
             [
                 'nik' => '3271030303950003',
@@ -104,8 +111,8 @@ class KartuKksSeeder extends Seeder
                 'alamat' => 'Jl. Sudirman No. 8, Kel. Cibogor',
                 'lat' => -6.5975, 'lng' => 106.7950,
                 'masalah' => 'Kartu Hilang',
-                'status' => KartuKksPermohonan::STATUS_DISETUJUI_KADIS,
-                'current_role' => $kadisRole?->id,
+                'status' => KartuKksPermohonan::STATUS_VALIDASI_DINSOS,
+                'current_role' => $dinsosRole?->id,
             ],
             [
                 'nik' => '3271040404870004',
@@ -113,8 +120,8 @@ class KartuKksSeeder extends Seeder
                 'alamat' => 'Jl. Ahmad Yani No. 20, Kel. Tanah Sareal',
                 'lat' => -6.5721, 'lng' => 106.7959,
                 'masalah' => 'Kartu Rusak',
-                'status' => KartuKksPermohonan::STATUS_VALIDASI_DINSOS,
-                'current_role' => $dinsosRole?->id,
+                'status' => KartuKksPermohonan::STATUS_DIPROSES_KABIN,
+                'current_role' => $kabinRole?->id,
             ],
             [
                 'nik' => '3271041404870014',
@@ -122,8 +129,8 @@ class KartuKksSeeder extends Seeder
                 'alamat' => 'Jl. Salak No. 9, Kel. Babakan',
                 'lat' => -6.6005, 'lng' => 106.8002,
                 'masalah' => 'Kartu Hilang',
-                'status' => KartuKksPermohonan::STATUS_DIPROSES_KABIN,
-                'current_role' => $kabinRole?->id,
+                'status' => KartuKksPermohonan::STATUS_DISETUJUI_KADIS,
+                'current_role' => $kadisRole?->id,
             ],
             [
                 'nik' => '3271050505920005',
@@ -154,12 +161,6 @@ class KartuKksSeeder extends Seeder
             'Data Tidak Sesuai KTP' => 'nama tidak sesuai',
         ];
 
-        // Tahap yang sudah melewati persetujuan Kadis (surat keterangan sudah ada)
-        $sudahDisetujuiKadis = [
-            KartuKksPermohonan::STATUS_VALIDASI_DINSOS,
-            KartuKksPermohonan::STATUS_SELESAI,
-        ];
-
         foreach ($dummy as $d) {
             $permohonan = KartuKksPermohonan::firstOrCreate(
                 ['nik' => $d['nik']],
@@ -182,7 +183,7 @@ class KartuKksSeeder extends Seeder
                     'nik' => $d['nik'],
                     'nama' => $d['nama'],
                     // Nilai disesuaikan dengan opsi dropdown di form Data Detail
-                    'jenis_kelamin' => rand(0, 1) ? 'Laki-laki' : 'Perempuan',
+                    'jenis_kelamin' => rand(0, 1) ? 'L' : 'P',
                     'tempat_lahir' => 'Bogor',
                     'tanggal_lahir' => now()->subYears(rand(25, 55))->subDays(rand(1, 300)),
                     'agama' => 'Islam',
@@ -206,66 +207,79 @@ class KartuKksSeeder extends Seeder
                     'screenshot_dtsen' => 'dummy/dtsen-placeholder.jpg',
                 ]);
 
-                // Surat pengantar kelurahan tidak dipakai lagi di alur baru.
-                // Surat keterangan Dinsos baru ada setelah Kadis menyetujui.
                 $permohonan->surat()->create([
-                    'surat_pengantar_kelurahan' => null,
-                    'surat_keterangan_dinsos' => in_array($d['status'], $sudahDisetujuiKadis, true)
+                    'surat_pengantar_kelurahan' => in_array($d['status'], [
+                        KartuKksPermohonan::STATUS_TTD_LURAH,
+                        KartuKksPermohonan::STATUS_VALIDASI_DINSOS,
+                        KartuKksPermohonan::STATUS_DIPROSES_KABIN,
+                        KartuKksPermohonan::STATUS_DISETUJUI_KADIS,
+                        KartuKksPermohonan::STATUS_SELESAI,
+                    ]) ? 'dummy/surat-pengantar-placeholder.pdf' : null,
+                    'surat_keterangan_dinsos' => $d['status'] === KartuKksPermohonan::STATUS_SELESAI
                         ? 'dummy/surat-keterangan-placeholder.pdf' : null,
                 ]);
 
                 // Bangun histori log sesuai posisi status saat ini.
-                // Urutan key = urutan tahap alur baru. Tiap entri adalah aktivitas
-                // yang membuat berkas SAMPAI di status tsb (cocok dengan task_lanjut
-                // di transitions() KartuKksController).
+                // rolename & username mengikuti tahap alur yang sebenarnya
+                // (bukan role asli akun demo yang menjalankan seeder), supaya
+                // konsisten dengan roleLabel() di KartuKksController.
                 $steps = [
                     KartuKksPermohonan::STATUS_DIAJUKAN => [
-                        'task' => 'Ajuan Diinput Operator',
+                        'task' => 'Permohonan Masuk',
+                        'rolename' => 'Kelurahan',
+                        'username' => 'kelurahan',
+                    ],
+                    KartuKksPermohonan::STATUS_VERIFIKASI_KELURAHAN => [
+                        'task' => 'Verifikasi Kelurahan',
+                        'rolename' => 'Kelurahan',
+                        'username' => 'kelurahan',
+                    ],
+                    KartuKksPermohonan::STATUS_TTD_LURAH => [
+                        'task' => 'TTD Lurah',
+                        'rolename' => 'Kelurahan',
+                        'username' => 'kelurahan',
+                    ],
+                    KartuKksPermohonan::STATUS_VALIDASI_DINSOS => [
+                        'task' => 'Validasi Dinsos',
                         'rolename' => 'Operator Dinsos',
                         'username' => 'operator_dinsos',
                     ],
                     KartuKksPermohonan::STATUS_DIPROSES_KABIN => [
-                        'task' => 'Diteruskan ke Kabid',
+                        'task' => 'Diteruskan ke Kabin',
                         'rolename' => 'Operator Dinsos',
                         'username' => 'operator_dinsos',
                     ],
                     KartuKksPermohonan::STATUS_DISETUJUI_KADIS => [
-                        'task' => 'Disetujui Kabid, diteruskan ke Kadis',
-                        'rolename' => 'Kepala Bidang',
+                        'task' => 'Disetujui Kabin, diteruskan ke Kadis',
+                        'rolename' => 'Kabin',
                         'username' => 'kabin',
                     ],
-                    KartuKksPermohonan::STATUS_VALIDASI_DINSOS => [
-                        // Harus sama dengan KartuKksController::TASK_TTD_KADIS
-                        'task' => 'Disetujui Kadis (TTD Digital)',
+                    KartuKksPermohonan::STATUS_SELESAI => [
+                        'task' => 'Disetujui Kadis',
                         'rolename' => 'Kepala Dinas',
                         'username' => 'kadis',
-                    ],
-                    KartuKksPermohonan::STATUS_SELESAI => [
-                        'task' => 'Hasil Diberitahukan ke Pemohon',
-                        'rolename' => 'Operator Dinsos',
-                        'username' => 'operator_dinsos',
                     ],
                 ];
 
                 if ($d['status'] === KartuKksPermohonan::STATUS_DITOLAK) {
-                    // Untuk yang ditolak: log 1 tahap awal saja, lalu log "Ditolak" oleh Kabid
+                    // Untuk yang ditolak: log 1 tahap awal saja, lalu log "Ditolak"
                     $permohonan->logs()->create([
                         'tanggal_proses' => now()->subDays(rand(5, 20)),
-                        'username' => 'operator_dinsos',
-                        'taskname' => 'Ajuan Diinput Operator',
-                        'rolename' => 'Operator Dinsos',
-                        'catatan' => 'Data awal diinput operator dari pemohon yang datang langsung.',
+                        'username' => 'kelurahan',
+                        'taskname' => 'Permohonan Masuk',
+                        'rolename' => 'Kelurahan',
+                        'catatan' => 'Data awal masuk melalui pendaftaran online.',
                     ]);
                     $permohonan->logs()->create([
                         'tanggal_proses' => now()->subDays(rand(1, 4)),
-                        'username' => 'kabin',
+                        'username' => 'kelurahan',
                         'taskname' => 'Ditolak',
-                        'rolename' => 'Kepala Bidang',
+                        'rolename' => 'Kelurahan',
                         'catatan' => 'NIK tidak sesuai dengan data KTP.',
                     ]);
                 } else {
                     $order = array_keys($steps);
-                    $currentIndex = array_search($d['status'], $order, true);
+                    $currentIndex = array_search($d['status'], $order);
                     $totalSteps = $currentIndex + 1;
                     $i = 0;
                     foreach ($steps as $status => $step) {
@@ -280,7 +294,7 @@ class KartuKksSeeder extends Seeder
                             'username' => $step['username'],
                             'taskname' => $step['task'],
                             'rolename' => $step['rolename'],
-                            'catatan' => $i === 0 ? 'Data awal diinput operator dari pemohon yang datang langsung.' : null,
+                            'catatan' => $i === 0 ? 'Data awal masuk melalui pendaftaran online.' : null,
                         ]);
                         $i++;
                     }

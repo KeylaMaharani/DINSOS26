@@ -21,6 +21,7 @@ use App\Http\Controllers\Layanan\KartuKksAjuanController;
 use App\Http\Controllers\Layanan\DtsenAjuanController;
 use App\Http\Controllers\Masyarakat\MasyarakatController;
 use App\Http\Controllers\Masyarakat\MasyarakatDokumenController;
+use App\Http\Controllers\Masyarakat\PbiAnggotaController;
 use App\Http\Controllers\Masyarakat\PbiKeluargaController;
 use App\Http\Controllers\Admin\KriteriaController;
 use App\Http\Controllers\Admin\GcKriteriaController;
@@ -210,7 +211,6 @@ Route::middleware(['auth', 'staff'])->group(function () {
         Route::get('/ajuan/{pbiApbd}', [PbiApbdController::class, 'ajuanShow'])->middleware('module:pbi-apbd.ajuan')->name('ajuan.show');
         Route::post('/ajuan/{pbiApbd}/aksi', [PbiApbdController::class, 'ajuanAksi'])->middleware('module:pbi-apbd.ajuan.proses')->name('ajuan.aksi');
         Route::put('/ajuan/{pbiApbd}/tambahan', [PbiApbdController::class, 'ajuanUpdateTambahan'])->middleware('module:pbi-apbd.ajuan.ubah')->name('ajuan.updateTambahan');
-        Route::post('/ajuan/{pbiApbd}/diagnosa', [PbiApbdController::class, 'ajuanTambahDiagnosa'])->middleware('module:pbi-apbd.ajuan.tambah')->name('ajuan.diagnosa.store');
 
         Route::get('/arsip', [PbiApbdController::class, 'arsipIndex'])->middleware('module:pbi-apbd.arsip')->name('arsip.index');
         Route::get('/arsip/{pbiApbd}/detail', [PbiApbdController::class, 'arsipDetail'])->middleware('module:pbi-apbd.arsip')->name('arsip.detail');
@@ -250,7 +250,7 @@ Route::middleware(['auth', 'staff'])->group(function () {
                 Route::get('/{pbiApbd}', [PbiApprovalController::class, 'show'])->name('show');
 
                 if ($tahapCfg['diagnosa']) {
-                    // Mengubah diagnosa yang diisi masyarakat (tidak menambah baru)
+                    // Mengubah diagnosa pengajuan (kolom pbi_apbds.diagnosa)
                     Route::put('/{pbiApbd}/diagnosa', [PbiApprovalController::class, 'diagnosa'])
                         ->middleware("module:{$modulTahap}.daftar.ubah")->name('diagnosa');
                 }
@@ -583,6 +583,10 @@ Route::middleware(['auth', 'role:masyarakat'])->prefix('akun-saya')->name('masya
         // Langkah pemilihan: anggota keluarga mana yang didaftarkan ke Ground Check
         Route::get('/keluarga', [PbiKeluargaController::class, 'index'])->name('keluarga');
         Route::post('/keluarga', [PbiKeluargaController::class, 'store'])->name('keluarga.store');
+
+        // Jawaban per anggota keluarga (tab A-D)
+        Route::get('/anggota/{anggota}', [PbiAnggotaController::class, 'edit'])->whereNumber('anggota')->name('anggota');
+        Route::post('/anggota/{anggota}', [PbiAnggotaController::class, 'update'])->whereNumber('anggota')->name('anggota.store');
 
         Route::get('/lengkapi', [MasyarakatController::class, 'lengkapiData'])->name('lengkapi');
         Route::post('/lengkapi', [MasyarakatController::class, 'lengkapiDataStore'])->name('lengkapi.store');

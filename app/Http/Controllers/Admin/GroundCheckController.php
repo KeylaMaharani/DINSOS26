@@ -12,6 +12,7 @@ use App\Models\GcPenyakitKronis;
 use App\Models\GcSasaran;
 use App\Models\GcVerifikasi;
 use App\Models\PbiApbd;
+use App\Models\PbiApbdAnggotaJawaban;
 use App\Support\PbiGcForm;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -321,12 +322,35 @@ class GroundCheckController extends Controller
             $nilai[$id] = 0;
         }
 
+        $pbi = $this->pbiSasaran($sasaran);
+
         // Foto kartu keluarga: tampilkan Scan KK dari pengajuan PBI bila petugas belum unggah sendiri.
-        $scanKk = $this->pbiSasaran($sasaran)?->scan_kk;
+        $scanKk = $pbi?->scan_kk;
         if (filled($scanKk)) {
             foreach ($params as $p) {
                 if (PbiGcForm::isFotoKk($p) && blank($nilai[$p->id] ?? null)) {
                     $nilai[$p->id] = $scanKk;
+                }
+            }
+        }
+
+        // Foto lain (tampak depan, tampak dalam, dll) yang sudah diunggah kepala keluarga:
+        // ditampilkan sebagai nilai awal bila petugas belum mengunggah sendiri.
+        // Hanya untuk kepala keluarga (foto rumah = data satu KK; form anggota lain hanya tab A-D).
+        if ($pbi && $this->isKepala($sasaran)) {
+            $idFoto = $params->where('tipe_input', 'foto')->pluck('id')->all();
+
+            if ($idFoto) {
+                $fotoWarga = GcPbiJawaban::where('pbi_apbd_id', $pbi->id)
+                    ->whereIn('parameter_id', $idFoto)
+                    ->whereNotNull('jawaban')
+                    ->where('jawaban', '!=', '')
+                    ->pluck('jawaban', 'parameter_id');
+
+                foreach ($fotoWarga as $pid => $path) {
+                    if (blank($nilai[$pid] ?? null)) {
+                        $nilai[$pid] = $path;
+                    }
                 }
             }
         }
@@ -362,7 +386,21 @@ class GroundCheckController extends Controller
         $existing = $v->jawabans()->get()->keyBy('parameter_id');
         $master = $this->masterKetenagakerjaan();
         $lapParam = $params->firstWhere('sumber', 'lapangan_usaha');
-        $scanKk = $this->pbiSasaran($sasaran)?->scan_kk;
+
+        $pbi = $this->pbiSasaran($sasaran);
+        $scanKk = $pbi?->scan_kk;
+        $kepala = $this->isKepala($sasaran);
+
+        // Foto yang sudah diunggah warga (hanya berlaku untuk kepala keluarga), dipakai sebagai "sudah ada".
+        $fotoWargaAda = [];
+        if ($pbi && $kepala) {
+            $fotoWargaAda = GcPbiJawaban::where('pbi_apbd_id', $pbi->id)
+                ->whereIn('parameter_id', $params->where('tipe_input', 'foto')->pluck('id')->all())
+                ->whereNotNull('jawaban')
+                ->where('jawaban', '!=', '')
+                ->pluck('jawaban', 'parameter_id')
+                ->all();
+        }
 
         // Field Ketenagakerjaan lain hanya berlaku jika responden bekerja ("Ya").
         $gate = $this->gateKerja($params);
@@ -422,8 +460,10 @@ class GroundCheckController extends Controller
                     break;
 
                 case 'foto':
-                    // Foto kartu keluarga dianggap ada bila Scan KK pengajuan PBI sudah terunggah.
+                    // Foto dianggap sudah ada bila: petugas pernah mengunggah, atau foto yang sama
+                    // sudah diunggah warga (kepala keluarga), atau (foto KK) Scan KK pengajuan PBI sudah ada.
                     $sudahAda = ! empty(optional($existing->get($p->id))->jawaban)
+                        || filled($fotoWargaAda[$p->id] ?? null)
                         || (PbiGcForm::isFotoKk($p) && filled($scanKk));
                     $rules[$key] = [$submit && ! $sudahAda ? 'required' : 'nullable', 'image', 'max:5120'];
                     break;
@@ -692,9 +732,10 @@ class GroundCheckController extends Controller
      * Isian awal form petugas, berurutan (yang belakangan menimpa yang depan):
      *  1. data identitas & alamat dari daftar sasaran;
      *  2. jawaban warga di halaman masyarakat (pbi_apbd_gc_jawabans):
-     *     - kepala keluarga -> semua jawaban (foto dilewati);
+     *     - kepala keluarga -> semua jawaban (foto dilewati di sini, ditangani terpisah di form());
      *     - anggota lain    -> hanya kelompok Keluarga & Aset (data milik satu KK);
      *       (untuk anggota non-kepala, kelompok ini tidak ada di form sehingga otomatis terlewati);
+     *     lalu jenis kelamin, status hubungan, dan jawaban per anggota (tab A-D) dari data anggota di pengajuan;
      *     lalu untuk akun lama (form 18 parameter) yang masih kosong diisi dari jawaban PBI
      *     (pbi_apbd_jawabans) dengan padanan yang sama;
      *  3. isian Keluarga/Aset dari anggota satu KK yang sudah disubmit petugas.
@@ -747,6 +788,57 @@ class GroundCheckController extends Controller
                     continue;
                 }
                 $nilai[$j->parameter_id] = $j->jawaban;
+            }
+
+            // Data anggota ini di pengajuan: jawaban per anggota (tab A-D), jenis kelamin, status hubungan
+            $digit = fn ($v) => preg_replace('/\D/', '', (string) $v);
+            $anggotaPbi = $pbi->anggotaKeluarga()->get()
+                ->first(fn ($x) => $digit($x->nik) === $digit($sasaran->nik));
+
+            if ($anggotaPbi) {
+                $cocok = function ($kandidat, $opsis) {
+                    $n = fn ($t) => preg_replace('/[^a-z0-9]/', '', Str::lower((string) $t));
+                    foreach ($kandidat as $k) {
+                        foreach ($opsis as $o) {
+                            if ($n($k) !== '' && $n($k) === $n($o->label)) {
+                                return $o->label;
+                            }
+                        }
+                    }
+
+                    return null;
+                };
+
+                $peta = [
+                    'kepala_keluarga' => ['Kepala keluarga'], 'suami' => ['Suami/Istri', 'Suami'], 'istri' => ['Suami/Istri', 'Istri'],
+                    'anak' => ['Anak'], 'menantu' => ['Menantu'], 'cucu' => ['Cucu'],
+                    'orang_tua' => ['Orang tua/Mertua', 'Orang tua'], 'famili_lain' => ['Famili lain'], 'lainnya' => ['Lainnya'],
+                ];
+                $kunciHub = strtolower(str_replace([' ', '-'], '_', trim((string) $anggotaPbi->hubungan_keluarga)));
+                $jk = strtoupper(substr(trim((string) $anggotaPbi->jenis_kelamin), 0, 1));
+
+                foreach ($params as $p) {
+                    $nama = Str::lower(trim($p->nama));
+                    if ($nama === 'jenis kelamin' && $jk !== '') {
+                        $l = $cocok($jk === 'L' ? ['Laki-laki', 'Pria'] : ['Perempuan', 'Wanita'], $p->opsis);
+                        if ($l) { $nilai[$p->id] = $l; }
+                    }
+                    if ($nama === 'status hubungan dengan kepala keluarga') {
+                        $l = $cocok($peta[$kunciHub] ?? [], $p->opsis);
+                        if ($l) { $nilai[$p->id] = $l; }
+                    }
+                }
+
+                // Jawaban masyarakat untuk anggota ini (hanya yang berlaku untuk form petugas anggota)
+                $idBolehAnggota = $params->where('tipe_input', '!=', 'foto')->pluck('id')->all();
+                $jawabanAnggota = PbiApbdAnggotaJawaban::where('anggota_id', $anggotaPbi->id)
+                    ->whereNotNull('jawaban')->where('jawaban', '!=', '')->get();
+
+                foreach ($jawabanAnggota as $j) {
+                    if (in_array($j->parameter_id, $idBolehAnggota, true)) {
+                        $nilai[$j->parameter_id] = $j->jawaban;
+                    }
+                }
             }
 
             // Akun lama (form 18 parameter): isi yang masih kosong dari jawaban PBI dengan padanan sama.

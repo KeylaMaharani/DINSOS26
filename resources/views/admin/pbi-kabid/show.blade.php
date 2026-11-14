@@ -47,7 +47,7 @@
                 'Kecamatan' => $data->kecamatan, 'Desa/Kelurahan' => $data->desa_kelurahan,
                 'No Telp' => $data->no_telp, 'Email' => $data->email,
                 'Desil Nasional' => $data->desil_nasional, 'Nama Faskes' => $data->nama_faskes,
-                'Kelengkapan/Kekurangan Berkas' => $data->kelengkapan_kekurangan_berkas, 'Catatan Berkas' => $data->catatan_berkas,
+                'Catatan Kelengkapan/Kekurangan Berkas' => $data->catatan_berkas,
             ] as $label => $value)
                 <div><dt class="text-xs text-on-surface-variant mb-0.5">{{ $label }}</dt><dd class="font-semibold">{{ $value ?: '-' }}</dd></div>
             @endforeach
@@ -73,7 +73,7 @@
                     <tr><th class="px-5 py-3">NIK</th><th class="px-5 py-3">Nama</th><th class="px-5 py-3">Tempat/Tgl Lahir</th><th class="px-5 py-3">Pekerjaan</th><th class="px-5 py-3">Hub. Keluarga</th><th class="px-5 py-3">BPJS</th></tr>
                 </thead>
                 <tbody class="divide-y divide-outline-variant/30">
-                    @forelse ($data->anggotaKeluarga as $a)
+                    @forelse ($data->daftarPeserta() as $a)
                         <tr>
                             <td class="px-5 py-3">{{ $a->nik }}</td>
                             <td class="px-5 py-3 font-medium">{{ $a->nama }}</td>
@@ -110,7 +110,7 @@
         </div>
     </div>
 
-    @include('admin.pbi-apbd.partials.hasil-verifikasi')
+    <!--@include('admin.pbi-apbd.partials.diagnosa-edit', ['canDiagnosa' => false])-->
 
     {{-- Diagnosa (riwayat, baca saja) --}}
     <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">

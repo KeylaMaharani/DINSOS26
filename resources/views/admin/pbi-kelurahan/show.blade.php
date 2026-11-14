@@ -5,7 +5,7 @@
 
 @php
     $bisaProses = $data->status === 'kelurahan';
-    // Isian masyarakat = jawaban Ground Check (sama dengan form warga & hitungan kelengkapan di controller)
+    // Isian masyarakat = jawaban Ground Check yang berlaku untuk PBI (target pbi + pbi_gc), sama dengan hitungan kelengkapan di controller
     $jawabans = $gcJawabans->sortBy('urutan')->values();
     $dataLengkap = $totalParameter > 0 && $terjawab >= $totalParameter;
     // Jawaban berupa foto ditampilkan terpisah sebagai kartu lampiran (urutan sama dengan daftar isian)
@@ -25,7 +25,7 @@
         <div>
             <p class="text-xs text-on-surface-variant uppercase tracking-wider font-medium">No. Registrasi</p>
             <h2 class="text-xl font-bold text-primary mt-0.5">{{ $data->no_registrasi }}</h2>
-            <p class="text-sm text-on-surface-variant mt-1">{{ $data->nama_kepala_keluarga }} — NIK {{ $data->nik_kepala_keluarga }}</p>
+            <p class="text-sm text-on-surface-variant mt-1">{{ $data->pemohonLabel() }} — No KK {{ $data->no_kk }}</p>
         </div>
         <span class="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-semibold bg-secondary-fixed text-on-secondary-container">{{ $data->statusLabel() }}</span>
     </div>
@@ -72,11 +72,11 @@
                     <tr><th class="px-5 py-3">NIK</th><th class="px-5 py-3">Nama</th><th class="px-5 py-3">Hubungan</th><th class="px-5 py-3">BPJS</th></tr>
                 </thead>
                 <tbody class="divide-y divide-outline-variant/30">
-                    @forelse ($data->anggotaKeluarga as $a)
+                    @forelse ($data->daftarPeserta() as $a)
                         <tr><td class="px-5 py-3">{{ $a->nik }}</td><td class="px-5 py-3 font-medium">{{ $a->nama }}</td>
-                            <td class="px-5 py-3">{{ $a->hubungan_keluarga }}</td><td class="px-5 py-3">{{ $a->keanggotaan_bpjs ?: '-' }}</td></tr>
+                            <td class="px-5 py-3">{{ ucwords(str_replace('_', ' ', (string) $a->hubungan_keluarga)) }}</td><td class="px-5 py-3">{{ $a->keanggotaan_bpjs ?: '-' }}</td></tr>
                     @empty
-                        <tr><td colspan="4" class="px-5 py-6 text-center text-on-surface-variant">Belum ada data.</td></tr>
+                        <tr><td colspan="4" class="px-5 py-6 text-center text-on-surface-variant">Belum ada peserta yang didaftarkan.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -135,6 +135,24 @@
                 </table>
             </div>
         @endif
+    </div>
+
+    {{-- Layanan kesehatan & berkas pemohon: kolom pbi_apbds (bukan jawaban Ground Check) --}}
+    <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
+        <div class="px-5 py-4 border-b border-outline-variant/40">
+            <h3 class="text-sm font-bold flex items-center gap-2">
+                <span class="material-symbols-outlined text-[20px] text-secondary">local_hospital</span> Layanan Kesehatan & Berkas Pemohon
+            </h3>
+        </div>
+        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 p-5 text-sm">
+            <div class="sm:col-span-2"><dt class="text-xs text-on-surface-variant mb-0.5">Diagnosa</dt><dd class="font-semibold">{{ $data->diagnosa ?: '-' }}</dd></div>
+            <div class="sm:col-span-2"><dt class="text-xs text-on-surface-variant mb-0.5">Nama Faskes</dt><dd class="font-semibold">{{ $data->nama_faskes ?: '-' }}</dd></div>
+        </dl>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 px-5 pb-5">
+            @foreach (['scan_ktp' => 'Scan KTP', 'scan_kk' => 'Scan Kartu Keluarga', 'surat_rawat_inap' => 'Surat Ket. Rawat Inap'] as $field => $label)
+                <x-lampiran-preview :src="$data->$field ? asset('storage/' . $data->$field) : null" :label="$label" />
+            @endforeach
+        </div>
     </div>
 
     {{-- Verifikasi data: wajib diklik sebelum berkas bisa diteruskan ke Lurah --}}

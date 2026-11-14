@@ -5,9 +5,13 @@
     use App\Support\PbiGcForm;
 
     // Koordinat / lintang / bujur diisi otomatis dari lokasi rumah dan TIDAK ditampilkan ke warga.
+    // Foto kartu keluarga juga disembunyikan: memakai kartu "Scan KK" di bagian lampiran.
     $tersembunyi = fn ($p) => $p->tipe_input === 'koordinat' || PbiGcForm::lintangBujur($p);
     $paramTersembunyi = $parameters->filter($tersembunyi)->values();
-    $perKelompok = $parameters->reject($tersembunyi)->groupBy('kelompok');
+    $perKelompok = $parameters
+        ->reject($tersembunyi)
+        ->reject(fn ($p) => PbiGcForm::isFotoKk($p))
+        ->groupBy('kelompok');
 @endphp
 
 @section('title', 'Lengkapi Data - SOLID Dinas Sosial Kota Bogor')
@@ -46,7 +50,11 @@
     @unless ($bisaEdit)
         <div class="mb-4 px-4 py-3.5 rounded-2xl bg-success-container text-on-success-container text-sm flex items-start gap-2">
             <span class="material-symbols-outlined text-[18px] shrink-0 mt-px">lock</span>
-            <p>Pengajuan sudah disetujui, sehingga data tidak dapat diubah lagi.</p>
+            <p>
+                {{ $pbiApbd->status === 'disetujui'
+                    ? 'Pengajuan sudah disetujui, sehingga data tidak dapat diubah lagi.'
+                    : 'Pengajuan sudah dikirim dan sedang diproses, sehingga tidak dapat diajukan lagi.' }}
+            </p>
         </div>
     @endunless
 
@@ -143,6 +151,9 @@
             </div>
         @endforeach
 
+        {{-- Kartu lampiran PBI: Scan KTP, Scan KK, Surat rawat inap, diagnosa & faskes --}}
+        @include('masyarakat.pbi-apbd._layanan_lampiran')
+
         {{-- Tombol simpan: blok biasa di paling bawah form (mobile & desktop), tidak mengambang. --}}
         @if ($bisaEdit)
             <div class="pt-2">
@@ -194,7 +205,7 @@
     var btnRetry = document.getElementById('btn-retry-geo');
     var btnSubmit = document.getElementById('btn-submit');
 
-    // Mode baca saja (sudah disetujui): tidak ada tombol simpan / pengambilan lokasi
+    // Mode baca saja (sudah disetujui / sudah dikirim): tidak ada tombol simpan / pengambilan lokasi
     if (!btnSubmit) { return; }
 
     function setStatus(text, icon, spin, state) {

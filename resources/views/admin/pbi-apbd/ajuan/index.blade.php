@@ -105,7 +105,7 @@
                                 <td class="px-3 py-3.5 whitespace-nowrap truncate text-center text-on-surface-variant">{{ $ajuan->firstItem() + $loop->index }}</td>
                                 <td class="px-3 py-3.5 whitespace-nowrap text-center text-on-surface-variant">{{ $item->created_at->format('d-m-Y') }}</td>
                                 <td class="px-3 py-3.5 whitespace-nowrap truncate font-semibold text-primary text-center" title="{{ $item->no_registrasi }}">{{ $item->no_registrasi }}</td>
-                                <td class="px-3 py-3.5 whitespace-nowrap truncate font-medium" title="{{ $item->nama_kepala_keluarga }}">{{ $item->nama_kepala_keluarga }}</td>
+                                <td class="px-3 py-3.5 whitespace-nowrap truncate font-medium" title="{{ $item->pemohonLabel() }}">{{ $item->pemohonLabel() }}</td>
                                 <td class="px-3 py-3.5 whitespace-nowrap truncate text-center">
                                     @if($item->desil_nasional)
                                         <span class="px-2 py-1 rounded bg-outline-variant/10 text-on-surface-variant font-medium">{{ $item->desil_nasional }}</span>

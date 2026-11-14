@@ -94,7 +94,7 @@
                                 <div class="text-[10px] text-on-surface-variant">{{ $item->no_registrasi }}</div>
                             </td>
                             <td class="px-3 py-3">{{ $item->nama_layanan }}</td>
-                            <td class="px-3 py-3 font-medium">{{ $item->nama_kepala_keluarga }}</td>
+                            <td class="px-3 py-3 font-medium">{{ $item->pemohonLabel() }}</td>
                             <td class="px-3 py-3 text-on-surface-variant">{{ $item->alamat }}, {{ $item->desa_kelurahan }}, {{ $item->kecamatan }}</td>
                             <td class="px-3 py-3 whitespace-nowrap">{{ $item->created_at->format('Y-m-d H:i:s') }}</td>
                             <td class="px-3 py-3">

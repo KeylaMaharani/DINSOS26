@@ -61,6 +61,9 @@
                             <td class="px-4 py-3">{{ $loop->iteration }}</td>
                             <td class="px-4 py-3 font-medium">
                                 {{ $d->nama }}
+                                @if ($isSuperAdmin && $d->kode)
+                                    <span class="ml-1 px-2 py-0.5 rounded bg-primary/10 text-primary text-[11px] font-mono">{{ $d->kode }}</span>
+                                @endif
                                 <div class="text-xs text-on-surface-variant font-normal">{{ $d->file_name }}</div>
                             </td>
                             <td class="px-4 py-3">{{ $d->keterangan ?: '-' }}</td>
@@ -162,6 +165,20 @@
                             <input name="nama" type="text" value="{{ old('nama') }}" required
                                 class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm" />
                             @error('nama')
+                                <p class="text-xs text-error mt-1">{{ $message }}</p>
+                            @enderror
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Kode Template <span class="text-on-surface-variant font-normal">(opsional)</span></label>
+                            <input name="kode" type="text" value="{{ old('kode') }}" list="daftar-kode-template"
+                                placeholder="mis. surat-pengantar-pbi"
+                                class="w-full rounded-lg border border-outline-variant/50 px-3 py-2 text-sm font-mono" />
+                            <datalist id="daftar-kode-template">
+                                <option value="surat-pengantar-pbi">
+                            </datalist>
+                            <p class="text-xs text-on-surface-variant mt-1">Isi hanya jika dokumen ini dipakai sistem sebagai template otomatis (harus .docx). Kosongkan untuk dokumen biasa.</p>
+                            @error('kode')
                                 <p class="text-xs text-error mt-1">{{ $message }}</p>
                             @enderror
                         </div>

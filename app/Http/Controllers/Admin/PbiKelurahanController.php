@@ -18,10 +18,14 @@ use Illuminate\Validation\Rule;
  * Halaman Petugas Kelurahan untuk modul PBI APBD.
  * Alur: Masyarakat isi data -> Kelurahan verifikasi + lampiran lapangan -> Lurah (TTD) -> Operator Dinsos -> Kabid -> Kadis.
  * Kelurahan HANYA melihat jawaban (tanpa indeks/bobot/skor).
- * Daftar pertanyaan yang dihitung = yang tampil di form masyarakat (Master Kriteria Ground Check).
+ * Daftar pertanyaan yang dihitung = pertanyaan target PBI ('pbi' dan 'pbi_gc') di Master Kriteria Ground Check.
+ * Pertanyaan khusus Ground Check tidak tampil dan tidak menghambat Kelurahan.
  */
 class PbiKelurahanController extends Controller
 {
+    /** Target pertanyaan yang berlaku untuk sisi PBI. */
+    private const TARGET_PBI = ['pbi', 'pbi_gc'];
+
     /** Diunggah MASYARAKAT. Kelurahan hanya menandai sesuai / tidak sesuai (kecuali yang opsional tanpa verifikasi). */
     public const LAMPIRAN_MASYARAKAT = [
         'scan_ktp' => ['Scan KTP', true, 'jpg,jpeg,png,pdf'],
@@ -53,16 +57,18 @@ class PbiKelurahanController extends Controller
         $user = Auth::user()->loadMissing('role');
         $tab = $request->query('tab', 'proses') === 'riwayat' ? 'riwayat' : 'proses';
 
-        // Hitungan di daftar = isian wajib yang selalu berlaku (alias tetap jawabans_count agar view tidak berubah).
-        $idTetap = PbiGcForm::idTetap();
+        // Hitungan di daftar = isian wajib yang selalu berlaku untuk PBI (alias tetap jawabans_count agar view tidak berubah).
+        $idTetap = PbiGcForm::idTetap(null, self::TARGET_PBI);
 
-        $query = PbiApbd::query()->untukKelurahan($user)->withCount([
+        $query = PbiApbd::query()->untukKelurahan($user)->with('anggotaKeluarga')->withCount([
             'gcJawabans as jawabans_count' => fn ($q) => $q->whereNotNull('jawaban')->whereIn('parameter_id', $idTetap),
         ]);
 
-        // Tab "proses" hanya berisi pengajuan sungguhan: draft warga (data_diisi_at kosong) tidak ikut.
+        // Tab "proses": data sudah diisi DAN ada minimal satu peserta PBI APBD. Draft / belum ada peserta tidak ikut.
         $tab === 'proses'
-            ? $query->where('status', 'kelurahan')->whereNotNull('data_diisi_at')
+            ? $query->where('status', 'kelurahan')
+                ->whereNotNull('data_diisi_at')
+                ->whereHas('anggotaKeluarga', fn ($a) => $a->where('didaftarkan_pbi', true))
             : $query->where('status', '!=', 'kelurahan');
 
         // Filter tanggal permohonan (created_at) & pencarian: dipakai bersama oleh tabel dan kartu ringkasan.
@@ -79,7 +85,10 @@ class PbiKelurahanController extends Controller
                     $w->where('nama_kepala_keluarga', 'like', "%{$s}%")
                         ->orWhere('no_registrasi', 'like', "%{$s}%")
                         ->orWhere('nik_kepala_keluarga', 'like', "%{$s}%")
-                        ->orWhere('no_kk', 'like', "%{$s}%");
+                        ->orWhere('no_kk', 'like', "%{$s}%")
+                        ->orWhereHas('anggotaKeluarga', fn ($a) => $a
+                            ->where('nama', 'like', "%{$s}%")
+                            ->orWhere('nik', 'like', "%{$s}%"));
                 });
             }
         };
@@ -97,8 +106,7 @@ class PbiKelurahanController extends Controller
 
         // Kartu ringkasan: hanya data yang bisa tampil di daftar (wilayah petugas, tab Proses + Riwayat,
         // draft warga tidak ikut), ikut filter tanggal & pencarian.
-        $basis = PbiApbd::query()->untukKelurahan($user)
-            ->where(fn ($q) => $q->where('status', '!=', 'kelurahan')->orWhereNotNull('data_diisi_at'));
+        $basis = PbiApbd::query()->untukKelurahan($user)->sudahDiajukan();
         $filter($basis);
         $stat = [
             'total' => (clone $basis)->count(),
@@ -117,7 +125,7 @@ class PbiKelurahanController extends Controller
         $pbiApbd->tandaiDilihat(Auth::user());
 
         $pbiApbd->load(['anggotaKeluarga', 'logs']);
-        $kelengkapan = PbiGcForm::kelengkapan($pbiApbd);
+        $kelengkapan = PbiGcForm::kelengkapan($pbiApbd, self::TARGET_PBI);
 
         return view('admin.pbi-kelurahan.show', [
             'data' => $pbiApbd,
@@ -127,7 +135,8 @@ class PbiKelurahanController extends Controller
             'fieldVerifikasi' => self::VERIFIKASI,
             'totalParameter' => $kelengkapan['total'],
             'terjawab' => $kelengkapan['terjawab'],
-            'gcJawabans' => $pbiApbd->gcJawabans()->get(),
+            // Parameter identitas (Nama, No KK, Alamat, No. Telp, Email) sudah ada di card Data Pemohon, jadi disaring
+            'gcJawabans' => $pbiApbd->gcJawabansPbi()->bukanIdentitas()->get(),
             // id parameter yang sedang tampil di halaman masyarakat (untuk menandai yang disembunyikan)
             'idAktif' => PbiGcForm::parameters()->pluck('id')->all(),
         ]);
@@ -251,7 +260,7 @@ class PbiKelurahanController extends Controller
             $masalah[] = 'Klik tombol "Verifikasi" pada kartu Verifikasi Data Pemohon terlebih dahulu sebelum meneruskan ke Lurah.';
         }
 
-        $kelengkapan = PbiGcForm::kelengkapan($pbiApbd);
+        $kelengkapan = PbiGcForm::kelengkapan($pbiApbd, self::TARGET_PBI);
         if ($kelengkapan['total'] === 0 || $kelengkapan['terjawab'] < $kelengkapan['total']) {
             $masalah[] = "Masyarakat belum menjawab semua parameter ({$kelengkapan['terjawab']}/{$kelengkapan['total']}). Gunakan \"Kembalikan ke Masyarakat\" bila perlu.";
         }
@@ -295,7 +304,7 @@ class PbiKelurahanController extends Controller
         }
 
         // Surat pengantar dibuat otomatis dari template (tanpa unggah). TTD & nama penandatangan diisi Lurah.
-        $infoSurat = PbiSuratPengantar::generate($pbiApbd, $user);
+        $infoSurat = $this->pesanSuratPenting(PbiSuratPengantar::generate($pbiApbd, $user));
 
         $pbiApbd->update([
             'status' => $pbiApbd->nextStageKey(), // kelurahan -> lurah
@@ -308,6 +317,17 @@ class PbiKelurahanController extends Controller
 
         return redirect()->route('pbi-kelurahan.index')
             ->with('success', trim('Berkas diverifikasi dan diteruskan ke Lurah. ' . $infoSurat));
+    }
+
+    /**
+     * Pesan sukses biasa ("N isian surat terisi otomatis.") tidak perlu ditampilkan.
+     * Hanya peringatan/masalah yang dikembalikan (template belum ada, placeholder tidak dikenal, dsb.).
+     */
+    private function pesanSuratPenting(?string $info): string
+    {
+        $info = trim((string) $info);
+
+        return preg_match('/^\d+ isian surat terisi otomatis\.?$/u', $info) ? '' : $info;
     }
 
     /**

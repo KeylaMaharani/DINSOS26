@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\DB;
 
 class GcPbiJawaban extends Model
 {
@@ -14,6 +15,17 @@ class GcPbiJawaban extends Model
         'bobot' => 'float',
         'skor' => 'float',
     ];
+
+    /** Parameter identitas: sudah tampil di card Data Pemohon, jadi tidak diulang di Isian Masyarakat. */
+    public const NAMA_IDENTITAS = [
+        'nama', 'no kk', 'alamat sesuai kk', 'no telp', 'no. telp', 'email',
+    ];
+
+    /** Sembunyikan parameter identitas (dicocokkan lewat nama, huruf besar/kecil & spasi pinggir diabaikan). */
+    public function scopeBukanIdentitas($query)
+    {
+        return $query->whereNotIn(DB::raw('LOWER(TRIM(nama_parameter))'), self::NAMA_IDENTITAS);
+    }
 
     public function pbiApbd(): BelongsTo
     {

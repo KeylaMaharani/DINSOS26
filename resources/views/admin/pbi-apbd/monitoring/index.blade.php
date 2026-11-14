@@ -110,7 +110,7 @@
                             <td class="px-3 py-3 text-center border-r border-outline-variant/40">{{ $data->firstItem() + $index }}.</td>
                             <td class="px-3 py-3 border-r border-outline-variant/40">
                                 <div class="text-on-surface-variant">{{ $item->no_registrasi }}</div>
-                                <div class="font-medium mt-1">{{ $item->nama_kepala_keluarga }}</div>
+                                <div class="font-medium mt-1">{{ $item->pemohonLabel() }}</div>
                             </td>
                             <td class="px-3 py-3 text-center border-r border-outline-variant/40">
                                 {{ $item->desil_nasional ?: '-' }}

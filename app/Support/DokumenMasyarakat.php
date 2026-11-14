@@ -148,6 +148,35 @@ class DokumenMasyarakat
     }
 
     /**
+     * Simpan unggahan lampiran PBI: masuk menu Dokumen, lalu dipasang ke kolom pengajuan
+     * (mengganti berkas sebelumnya). Satu unggahan KK dipakai PBI dan Ground Check (lewat scan_kk).
+     */
+    public static function pasangKePbi(PbiApbd $pbi, string $jenis, UploadedFile $file): void
+    {
+        $kolom = self::TARGET[$jenis]['pbi'] ?? null;
+
+        if (! $kolom || ! $pbi->user_id || ! ($user = User::find($pbi->user_id))) {
+            return;
+        }
+
+        $dok = self::tambahDariUnggahan($user, $jenis, $file);
+        $lama = $pbi->{$kolom};
+
+        $pbi->update([$kolom => self::salin($dok, 'pbi-apbd/lampiran')]);
+
+        if ($lama && Storage::disk('public')->exists($lama)) {
+            Storage::disk('public')->delete($lama);
+        }
+
+        // Hasil cek Kelurahan untuk berkas ini tidak berlaku lagi
+        $cek = $pbi->verifikasi_berkas ?? [];
+        if (isset($cek[$kolom])) {
+            unset($cek[$kolom]);
+            $pbi->update(['verifikasi_berkas' => $cek]);
+        }
+    }
+
+    /**
      * Impor berkas yang diunggah saat pengajuan PBI APBD (KTP, KK, dst) ke menu Dokumen milik pemohon.
      * Berkas disalin (bukan dipindah), dan hanya jenis yang belum punya dokumen sama sekali yang diimpor,
      * jadi dokumen yang sudah diunggah atau dihapus sendiri oleh warga tidak ditimpa.

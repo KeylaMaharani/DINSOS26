@@ -6,12 +6,16 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * GANTI isi app/Models/GcKriteriaParameter.php dengan file ini.
+ * Perubahan: kolom `target`, konstanta TARGET, targetBawaan(), scope untukPbi(), dan untukPetugas() kini hanya gc + pbi_gc.
+ */
 class GcKriteriaParameter extends Model
 {
     protected $table = 'gc_kriteria_parameters';
 
     protected $fillable = [
-        'kelompok', 'urutan', 'nama', 'bobot', 'tipe_input', 'sumber',
+        'kelompok', 'target', 'urutan', 'nama', 'bobot', 'tipe_input', 'sumber',
         'pbi_parameter_id', 'keterangan', 'aktif', 'wajib',
     ];
 
@@ -20,6 +24,68 @@ class GcKriteriaParameter extends Model
         'aktif' => 'boolean',
         'wajib' => 'boolean',
     ];
+
+    /**
+     * Ke mana jawaban sebuah pertanyaan dipakai.
+     *  pbi_gc = pertanyaan sama, dijawab sekali, dipakai PBI APBD dan Ground Check
+     *  pbi    = hanya PBI APBD (tidak muncul di form petugas Ground Check)
+     *  gc     = hanya Ground Check (tidak muncul di halaman PBI / kelurahan / approval)
+     * Form masyarakat menampilkan SEMUA target.
+     */
+    public const TARGET = [
+        'pbi_gc' => 'PBI APBD & Ground Check',
+        'pbi'    => 'Khusus PBI APBD',
+        'gc'     => 'Khusus Ground Check',
+    ];
+
+    /** Nama (huruf kecil) pertanyaan yang HANYA milik PBI APBD. */
+    private const NAMA_KHUSUS_PBI = [
+        'status lahan tempat tinggal yang ditempati',
+        'kondisi dinding',
+        'kondisi atap',
+        'cara memperoleh air minum',
+        'daya listrik terpasang',
+        'jenis kloset',
+        'tempat pembuangan akhir tinja',
+        'jumlah tanggungan keluarga',
+        'kepemilikan kendaraan roda 2',
+    ];
+
+    /** Nama (huruf kecil) pertanyaan yang dijawab sekali tetapi dipakai PBI dan Ground Check. */
+    private const NAMA_BERSAMA = [
+        'no kk',
+        'nama',
+        'alamat sesuai kk',
+        'no telp',
+        'no. telp',
+        'email',
+        'status kepemilikan bangunan tempat tinggal yang ditempati',
+        'jenis lantai terluas',
+        'jenis dinding terluas',
+        'jenis atap terluas',
+        'sumber air minum utama',
+        'sumber penerangan utama',
+        'bahan bakar/energi utama untuk memasak',
+        'kepemilikan fasilitas bab',
+        'pendapatan sebulan terakhir',
+        'foto kartu keluarga',
+    ];
+
+    /** Target bawaan sebuah pertanyaan berdasarkan namanya (dipakai migrasi & seeder). */
+    public static function targetBawaan(string $kelompok, string $nama): string
+    {
+        $n = preg_replace('/\s+/', ' ', mb_strtolower(trim($nama)));
+
+        if (in_array($n, self::NAMA_KHUSUS_PBI, true)) {
+            return 'pbi';
+        }
+
+        if (in_array($n, self::NAMA_BERSAMA, true)) {
+            return 'pbi_gc';
+        }
+
+        return 'gc';
+    }
 
     /** Kelompok di master (dipakai filter & form master). */
     public const KELOMPOK = [
@@ -84,7 +150,7 @@ class GcKriteriaParameter extends Model
     }
 
     /**
-     * Parameter yang boleh tampil di form masyarakat (PBI APBD):
+     * Parameter yang boleh tampil di form masyarakat AKUN LAMA (form 18 parameter PBI):
      * aktif, punya padanan PBI, berjenis pilihan satu jawaban, bukan bersumber
      * master terpisah, dan sudah punya opsi.
      */
@@ -97,11 +163,6 @@ class GcKriteriaParameter extends Model
             ->whereHas('opsis');
     }
 
-    /**
-     * Daftar final untuk form masyarakat, lengkap dengan opsi, urut mengikuti master GC.
-     * Satu padanan PBI hanya dipakai sekali (jawaban disimpan per pbi_parameter_id).
-     * Dipakai bersama oleh halaman masyarakat dan validasi kelurahan.
-     */
     public static function daftarMasyarakat()
     {
         return static::untukMasyarakat()->with('opsis')->get()->unique('pbi_parameter_id')->values();
@@ -113,8 +174,15 @@ class GcKriteriaParameter extends Model
         return ! $this->sumber && in_array($this->tipe_input, ['pilihan', 'pilihan_ganda'], true);
     }
 
+    /** Form petugas Ground Check: hanya pertanyaan target gc dan pbi_gc. */
     public function scopeUntukPetugas($query)
     {
-        return $query->orderBy('urutan')->orderBy('id');
+        return $query->whereIn('target', ['gc', 'pbi_gc'])->orderBy('urutan')->orderBy('id');
+    }
+
+    /** Sisi PBI APBD (skor, kelurahan, approval): hanya target pbi dan pbi_gc. */
+    public function scopeUntukPbi($query)
+    {
+        return $query->whereIn('target', ['pbi', 'pbi_gc'])->orderBy('urutan')->orderBy('id');
     }
 }

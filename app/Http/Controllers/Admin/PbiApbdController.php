@@ -41,9 +41,10 @@ class PbiApbdController extends Controller
      */
     public function ajuanIndex(Request $request)
     {
-        $query = PbiApbd::query()
+         $query = PbiApbd::query()
+            ->with('anggotaKeluarga')
             ->whereNotIn('status', ['disetujui', 'ditolak'])
-            ->where(fn ($q) => $q->where('status', '!=', 'kelurahan')->orWhereNotNull('data_diisi_at'));
+            ->sudahDiajukan();
 
         if ($request->filled('tanggal_awal')) {
             $query->whereDate('created_at', '>=', $request->date('tanggal_awal'));
@@ -112,38 +113,6 @@ class PbiApbdController extends Controller
         $pbiApbd->update($validated);
 
         return back()->with('success', 'Data berhasil diperbarui.');
-    }
-
-    public function ajuanTambahDiagnosa(Request $request, PbiApbd $pbiApbd)
-    {
-        if (!$this->userCanActOn($pbiApbd)) {
-            return back()->with('error', 'Anda tidak berwenang mengedit data ini.');
-        }
-
-        $pbiApbd->tandaiDilihat(Auth::user());
-
-        $validated = $request->validate([
-            'diagnosa' => ['required', 'string', 'max:2000'],
-        ], [
-            'diagnosa.required' => 'Diagnosa tidak boleh kosong.',
-        ]);
-
-        $user = Auth::user();
-
-        if ($pbiApbd->status === 'kelurahan') {
-            return back()->with('error', 'Diagnosa belum bisa ditambahkan selama berkas masih di Kelurahan.');
-        }
-
-        $pbiApbd->diagnosaLogs()->create([
-            'user_id' => $user->id,
-            'username' => $user->name,
-            'role_name' => $user->role->name ?? '-',
-            'diagnosa' => $validated['diagnosa'],
-        ]);
-
-        $pbiApbd->update(['diagnosa' => $validated['diagnosa']]);
-
-        return back()->with('success', 'Diagnosa baru berhasil ditambahkan.');
     }
 
     /** Puskesmas sesuai wilayah pemohon (kelurahan -> kecamatan, tanpa peduli besar-kecil huruf). */
@@ -245,7 +214,7 @@ class PbiApbdController extends Controller
     {
         $statusArsip = ['disetujui', 'ditolak'];
 
-        $query = PbiApbd::query()->whereIn('status', $statusArsip);
+        $query = PbiApbd::with('anggotaKeluarga')->whereIn('status', $statusArsip);
 
         if ($request->filled('tanggal_awal')) {
             $query->whereDate('created_at', '>=', $request->date('tanggal_awal'));
@@ -293,7 +262,7 @@ class PbiApbdController extends Controller
      */
     public function monitoringIndex(Request $request)
     {
-        $query = PbiApbd::with(['logs' => fn($q) => $q->orderBy('created_at')]);
+        $query = PbiApbd::with(['anggotaKeluarga', 'logs' => fn($q) => $q->orderBy('created_at')]);
 
         if ($request->filled('tanggal_awal')) {
             $query->whereDate('created_at', '>=', $request->tanggal_awal);
