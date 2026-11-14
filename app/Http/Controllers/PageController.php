@@ -243,6 +243,14 @@ class PageController extends Controller
         ]);
     }
 
+    public function lks()
+    {
+        return view('lks', [
+            // Isi dengan URL situs pendaftaran LKS resmi. Kalau dikosongkan, tombol tetap '#'.
+            'lksUrl' => '#',
+        ]);
+    }
+
     /**
      * Halaman Kontak / Hubungi Kami (form + info kontak).
      */

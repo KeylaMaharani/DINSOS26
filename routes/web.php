@@ -65,6 +65,7 @@ Route::get('/ppid', [PageController::class, 'ppid'])->name('ppid');
 Route::get('/kontak', [PageController::class, 'kontak'])->name('kontak');
 Route::post('/kontak', [PageController::class, 'kontakStore'])->name('kontak.store')->middleware('throttle:5,1');
 Route::get('/ppks-psks', [PageController::class, 'ppksPsks'])->name('ppks-psks');
+Route::get('/lks', [PageController::class, 'lks'])->name('lks');
 Route::get('/regulasi', [PageController::class, 'regulasi'])->name('regulasi');
 
 // ==========================================
