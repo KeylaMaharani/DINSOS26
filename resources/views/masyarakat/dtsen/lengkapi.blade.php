@@ -34,8 +34,9 @@
     // Lampiran: dipakai dari menu Dokumen bila sudah ada; kalau belum ada, diunggah lewat form ini
     // (lalu otomatis tersimpan juga di menu Dokumen). jenis = jenis dokumen di menu Dokumen.
     $lampiranFields = [
-        'scan_ktp' => ['label' => 'Scan KTP', 'required' => false, 'jenis' => 'ktp'],
-        'screenshot_dtsen' => ['label' => 'Screenshot DTSEN', 'required' => true, 'jenis' => 'screenshot_dtsen'],
+        // 'kamera' => true : langsung membuka kamera (di HP), tanpa memilih berkas dari galeri
+        'scan_ktp' => ['label' => 'Scan KTP', 'required' => true, 'jenis' => 'ktp', 'kamera' => true],
+        'screenshot_dtsen' => ['label' => 'Screenshot DTSEN', 'required' => true, 'jenis' => 'screenshot_dtsen', 'kamera' => false],
     ];
 
     $inputClass = 'w-full rounded-xl border border-outline-variant/60 px-3.5 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand disabled:bg-surface-container disabled:text-on-surface-variant';
@@ -169,10 +170,11 @@
             <p class="text-xs text-on-surface-variant mb-4">
                 Berkas yang sudah ada di menu
                 <a href="{{ route('masyarakat.dokumen') }}" class="text-primary font-semibold underline">Dokumen</a>
-                dipakai otomatis. Kalau belum ada, unggah di sini, berkas akan tersimpan juga di menu Dokumen.
+                dipakai otomatis. Jika belum ada, unggah di sini dan berkas ikut tersimpan di menu Dokumen.
             </p>
 
-            <div class="grid grid-cols-1 gap-4">
+            {{-- Mobile: 1 kolom. Layar sm ke atas: 2 kolom kiri-kanan. --}}
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 @foreach ($lampiranFields as $field => $config)
                     @php
                         $file = $lampiran->$field ?? null;
@@ -183,65 +185,90 @@
                         // Input unggah muncul bila belum ada berkas sama sekali, atau saat petugas meminta perbaikan (ganti berkas)
                         $bisaUnggah = $bisaEdit && ((! $file && ! $dok) || $perluPerbaikan);
                         $wajibUnggah = $config['required'] && ! $file && ! $dok;
-                    @endphp
-                    <div class="min-w-0">
-                        <p class="block text-xs font-semibold mb-2">
-                            {{ $config['label'] }}
-                            @if ($config['required']) <span class="text-error">*</span> @endif
-                        </p>
 
-                        <div class="flex items-center gap-3">
-                            <div id="thumb-{{ $field }}" class="w-20 h-20 shrink-0 rounded-lg border border-outline-variant/40 bg-surface-container overflow-hidden flex items-center justify-center">
-                                @if ($file && ! $isPdf)
-                                    <img src="{{ asset('storage/' . $file) }}" alt="{{ $config['label'] }}" class="w-full h-full object-cover">
-                                @elseif ($file && $isPdf)
-                                    <span class="material-symbols-outlined text-[32px] text-error/70">picture_as_pdf</span>
-                                @elseif ($dok && $dok->isGambar())
-                                    <img src="{{ $dok->url() }}" alt="{{ $config['label'] }}" class="w-full h-full object-cover">
-                                @elseif ($dok && $dok->isPdf())
-                                    <span class="material-symbols-outlined text-[32px] text-error/70">picture_as_pdf</span>
-                                @else
-                                    <span class="material-symbols-outlined text-[26px] text-on-surface-variant/50">image_not_supported</span>
+                        $adaBerkas = $file || $dok;
+                        $urlBerkas = $file ? asset('storage/' . $file) : ($dok ? $dok->url() : null);
+                        $tipeBerkas = $file ? ($isPdf ? 'pdf' : 'gambar') : ($dok ? ($dok->isPdf() ? 'pdf' : 'gambar') : null);
+                    @endphp
+
+                    <div class="min-w-0 rounded-2xl border border-outline-variant/50 bg-surface-container-lowest p-4 flex flex-col">
+                        {{-- Judul + badge --}}
+                        <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <p class="text-sm font-semibold leading-tight">{{ $config['label'] }}</p>
+                            @if ($config['required'])
+                                <span class="rounded-full bg-error-container px-2 py-0.5 text-[10px] font-semibold text-on-error-container">Wajib</span>
+                            @else
+                                <span class="rounded-full bg-surface-container px-2 py-0.5 text-[10px] font-semibold text-on-surface-variant">Opsional</span>
+                            @endif
+                        </div>
+
+                        {{-- Thumbnail hanya tampil jika sudah ada berkas; untuk berkas baru muncul saat dipilih (lewat JS) --}}
+                        <div class="mt-3 flex items-center gap-3">
+                            <div id="thumb-{{ $field }}"
+                                 class="{{ $adaBerkas ? '' : 'hidden' }} w-16 h-16 shrink-0 rounded-xl border border-outline-variant/40 bg-surface-container overflow-hidden flex items-center justify-center">
+                                @if ($adaBerkas && $tipeBerkas === 'gambar')
+                                    <img src="{{ $urlBerkas }}" alt="{{ $config['label'] }}" class="w-full h-full object-cover">
+                                @elseif ($adaBerkas && $tipeBerkas === 'pdf')
+                                    <span class="material-symbols-outlined text-[28px] text-error/70">picture_as_pdf</span>
                                 @endif
                             </div>
-                            <div class="min-w-0 text-xs">
-                                @if ($file)
-                                    <p class="text-success font-semibold flex items-center gap-1">
-                                        <span class="material-symbols-outlined text-[14px]">check_circle</span> Terpasang di pengajuan
+
+                            <div class="min-w-0 flex-1">
+                                @if ($adaBerkas)
+                                    <p class="flex items-center gap-1 text-xs font-semibold text-success">
+                                        <span class="material-symbols-outlined text-[14px]">check_circle</span>
+                                        {{ $file ? 'Terpasang di pengajuan' : 'Terpasang otomatis dari Dokumen' }}
                                     </p>
-                                    <a href="{{ asset('storage/' . $file) }}" target="_blank" rel="noopener" data-lihat="{{ $isPdf ? 'pdf' : 'gambar' }}" data-judul="{{ $config['label'] }}" class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3.5 py-2 text-xs font-semibold text-primary active:bg-primary/20">
-                                        <span class="material-symbols-outlined text-[16px]">visibility</span> Lihat berkas
-                                    </a>
-                                @elseif ($dok)
-                                    <p class="text-success font-semibold flex items-center gap-1">
-                                        <span class="material-symbols-outlined text-[14px]">check_circle</span> Terpasang otomatis dari Dokumen
-                                    </p>
-                                    <a href="{{ $dok->url() }}" target="_blank" rel="noopener" data-lihat="{{ $dok->isPdf() ? 'pdf' : 'gambar' }}" data-judul="{{ $config['label'] }}" class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3.5 py-2 text-xs font-semibold text-primary active:bg-primary/20">
+                                    <a href="{{ $urlBerkas }}" target="_blank" rel="noopener"
+                                       data-lihat="{{ $tipeBerkas }}" data-judul="{{ $config['label'] }}"
+                                       class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary active:bg-primary/20">
                                         <span class="material-symbols-outlined text-[16px]">visibility</span> Lihat berkas
                                     </a>
                                 @else
-                                    <p id="info-{{ $field }}" class="{{ $config['required'] ? 'text-error font-semibold' : 'text-on-surface-variant' }}">
+                                    <p id="info-{{ $field }}"
+                                       class="text-xs break-all {{ $config['required'] ? 'text-error font-semibold' : 'text-on-surface-variant' }}">
                                         Belum ada dokumen.
                                     </p>
-                                    @if ($bisaUnggah)
-                                        <p id="petunjuk-{{ $field }}" class="text-on-surface-variant">Unggah berkas di bawah ini.</p>
-                                    @endif
                                 @endif
                             </div>
                         </div>
 
+                        {{-- Ambil foto (kamera) atau pilih berkas --}}
                         @if ($bisaUnggah)
-                            <div class="mt-2.5">
-                                @if ($file || $dok)
-                                    <p class="text-[11px] text-on-surface-variant mb-1">Ganti berkas (opsional):</p>
+                            <div class="mt-3">
+                                @if (! empty($config['kamera']))
+                                    {{-- Desktop (mouse): pilih berkas biasa. Aktif secara default; dimatikan oleh JS di perangkat sentuh --}}
+                                    <div data-mode-berkas>
+                                        @if ($adaBerkas)
+                                            <p class="mb-1.5 text-[11px] font-semibold text-on-surface-variant">Ganti berkas (opsional)</p>
+                                        @endif
+                                        <input type="file" name="{{ $field }}" accept=".jpg,.jpeg,.png,.pdf"
+                                               @required($wajibUnggah) class="{{ $inputFile }}">
+                                        <p class="mt-1.5 text-[11px] text-on-surface-variant">JPG, PNG, atau PDF, maksimal 2 MB.</p>
+                                    </div>
+
+                                    {{-- HP & tablet (perangkat sentuh): langsung membuka kamera belakang. Diaktifkan oleh JS --}}
+                                    <div data-mode-kamera class="hidden">
+                                        <label class="inline-flex cursor-pointer items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-xs font-semibold text-white shadow-sm active:opacity-90 focus-within:ring-2 focus-within:ring-brand/40">
+                                            <span class="material-symbols-outlined text-[18px]">photo_camera</span>
+                                            <span data-teks-kamera data-awal="{{ $adaBerkas ? 'Foto ulang' : 'Ambil foto KTP' }}">{{ $adaBerkas ? 'Foto ulang' : 'Ambil foto KTP' }}</span>
+                                            <input type="file" name="{{ $field }}" accept="image/*" capture="environment"
+                                                   @required($wajibUnggah) disabled class="sr-only">
+                                        </label>
+                                        <p class="mt-1.5 text-[11px] text-on-surface-variant">Foto KTP langsung dari kamera, pastikan terang dan terbaca jelas. Maksimal 2 MB.</p>
+                                    </div>
+                                @else
+                                    @if ($adaBerkas)
+                                        <p class="mb-1.5 text-[11px] font-semibold text-on-surface-variant">Ganti berkas (opsional)</p>
+                                    @endif
+                                    <input type="file" name="{{ $field }}" accept=".jpg,.jpeg,.png,.pdf"
+                                           @required($wajibUnggah) class="{{ $inputFile }}">
+                                    <p class="mt-1.5 text-[11px] text-on-surface-variant">JPG, PNG, atau PDF, maksimal 2 MB.</p>
                                 @endif
-                                <input type="file" name="{{ $field }}" accept=".jpg,.jpeg,.png,.pdf"
-                                       @required($wajibUnggah) class="{{ $inputFile }}">
-                                <p class="mt-1 text-[11px] text-on-surface-variant">JPG, PNG, atau PDF, maksimal 2 MB.</p>
                             </div>
                         @endif
 
-                        @error($field)<p class="text-error text-xs mt-1">{{ $message }}</p>@enderror
+                        @error($field)<p class="mt-2 text-xs text-error">{{ $message }}</p>@enderror
                     </div>
                 @endforeach
             </div>
@@ -262,27 +289,46 @@
     </form>
 
     <script>
-        // Pratinjau langsung saat berkas dipilih (sebelum tersimpan); server tetap memeriksa ulang saat dikirim
+        // Pratinjau langsung saat berkas dipilih (sebelum tersimpan); server tetap memeriksa ulang saat dikirim.
+        // Thumbnail disembunyikan selama belum ada berkas, dan baru muncul setelah berkas dipilih.
         (function () {
             var form = document.getElementById('form-lengkapi-dtsen');
             if (!form) return;
+
+            // Perangkat sentuh (HP & tablet) memakai kamera; desktop dengan mouse memakai pilih berkas biasa.
+            // Hanya satu input per field yang aktif, supaya tidak terkirim ganda dan validasi "wajib" tetap benar.
+            var sentuh = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+            var mobileServer = {{ request()->attributes->get('is_mobile') ? 'true' : 'false' }};
+            if (sentuh || mobileServer) {
+                form.querySelectorAll('[data-mode-kamera]').forEach(function (el) {
+                    el.classList.remove('hidden');
+                    var i = el.querySelector('input[type="file"]');
+                    if (i) i.disabled = false;
+                });
+                form.querySelectorAll('[data-mode-berkas]').forEach(function (el) {
+                    el.classList.add('hidden');
+                    var i = el.querySelector('input[type="file"]');
+                    if (i) i.disabled = true;
+                });
+            }
 
             form.querySelectorAll('input[type="file"]').forEach(function (input) {
                 var thumb = document.getElementById('thumb-' + input.name);
                 if (!thumb) return;
 
                 var info = document.getElementById('info-' + input.name);
-                var petunjuk = document.getElementById('petunjuk-' + input.name);
                 var thumbAwal = thumb.innerHTML;
+                var thumbSembunyiAwal = thumb.classList.contains('hidden');
                 var infoAwal = info ? info.textContent : '';
                 var infoKelas = info ? info.className : '';
-                var petunjukAwal = petunjuk ? petunjuk.textContent : '';
                 var urlLama = null;
+                var teksKamera = input.parentNode.querySelector('[data-teks-kamera]');
 
                 function pulihkan() {
+                    if (teksKamera) { teksKamera.textContent = teksKamera.getAttribute('data-awal'); }
                     thumb.innerHTML = thumbAwal;
+                    thumb.classList.toggle('hidden', thumbSembunyiAwal);
                     if (info) { info.textContent = infoAwal; info.className = infoKelas; }
-                    if (petunjuk) { petunjuk.textContent = petunjukAwal; }
                 }
 
                 input.addEventListener('change', function () {
@@ -303,11 +349,12 @@
                         urlLama = URL.createObjectURL(f);
                         thumb.innerHTML = '<img src="' + urlLama + '" alt="Pratinjau" class="w-full h-full object-cover">';
                     } else {
-                        thumb.innerHTML = '<span class="material-symbols-outlined text-[32px] text-error/70">picture_as_pdf</span>';
+                        thumb.innerHTML = '<span class="material-symbols-outlined text-[28px] text-error/70">picture_as_pdf</span>';
                     }
+                    thumb.classList.remove('hidden');
+                    if (teksKamera) { teksKamera.textContent = 'Foto ulang'; }
 
-                    if (info) { info.className = 'text-success font-semibold'; info.textContent = 'Berkas dipilih: ' + f.name; }
-                    if (petunjuk) { petunjuk.textContent = 'Tersimpan saat Anda menekan tombol kirim.'; }
+                    if (info) { info.className = 'text-xs text-success font-semibold break-all'; info.textContent = 'Berkas dipilih: ' + f.name; }
                 });
             });
         })();
