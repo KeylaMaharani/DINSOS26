@@ -43,6 +43,10 @@ class DtsenPermohonan extends Model
     protected static function booted(): void
     {
         static::creating(function (self $permohonan) {
+            if (empty($permohonan->tanggal_insert)) {
+                $permohonan->tanggal_insert = now()->toDateString();
+            }
+
             if (empty($permohonan->no_permohonan)) {
                 $year = now()->year;
                 $count = self::whereYear('created_at', $year)->count() + 1;

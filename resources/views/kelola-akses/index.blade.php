@@ -12,6 +12,8 @@
         $katalog = config('akses', []);
         $labelModul = \App\Models\Role::MODULES;
 
+        $modulDisembunyikan = ['pbi-lurah', 'pbi-operator', 'pbi-kabid', 'pbi-kadis', 'pbi-dinkes', 'pbi-bpjs', 'pbi-kelurahan'];
+
         // Modul yang belum punya katalog (halaman belum ada) tetap satu centang per modul,
         // dikelompokkan berdasarkan prefix label sebelum " - ". Label tanpa " - " masuk grup "Umum".
         $legacyGroups = [];
@@ -535,7 +537,7 @@
                                                 }
                                             }
                                         @endphp
-                                        <div class="rounded-lg border border-outline-variant/40 overflow-hidden">
+                                        <div class="rounded-lg border border-outline-variant/40 overflow-hidden {{ in_array($modul, $modulDisembunyikan) ? 'hidden' : '' }}">
                                             <div class="flex items-center justify-between px-3 py-2 bg-surface-container-low border-b border-outline-variant/40">
                                                 <span class="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">{{ $labelModul[$modul] ?? $modul }}</span>
                                                 <button type="button" @click="toggleAll(@js($semuaKunci))"

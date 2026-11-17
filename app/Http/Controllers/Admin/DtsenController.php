@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DtsenPermohonan;
 use App\Models\Role;
 use App\Support\DtsenNotifikasi;
+use App\Support\TteSigner;
 use App\Support\DtsenSuratGenerator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -318,11 +319,11 @@ class DtsenController extends Controller
      */
     public function show(DtsenPermohonan $permohonan)
     {
-
         $permohonan->load([
             'detail',
             'bansos',
             'lampiran',
+            'surat',
             'logs' => fn ($q) => $q->orderBy('tanggal_proses'),
             'currentRole',
         ]);
@@ -377,7 +378,7 @@ class DtsenController extends Controller
      */
     public function detail(DtsenPermohonan $permohonan)
     {
-        $permohonan->load(['detail', 'bansos', 'lampiran', 'logs.user', 'currentRole']);
+        $permohonan->load(['detail', 'bansos', 'lampiran', 'surat', 'logs.user', 'currentRole']);
 
         return response()->json($permohonan);
     }
@@ -557,7 +558,6 @@ class DtsenController extends Controller
      */
     public function proses(Request $request, DtsenPermohonan $permohonan)
     {
-
         $request->validate([
             'action' => 'required|in:lanjut,tolak,kembalikan,simpan_catatan',
             'catatan' => 'required|string|max:1000',

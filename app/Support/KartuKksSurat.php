@@ -2,15 +2,23 @@
 
 namespace App\Support;
 
+use App\Models\Dokumen;
 use App\Models\KartuKksPermohonan;
 use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
 use chillerlan\QRCode\QRCode;
 use chillerlan\QRCode\QROptions;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use PhpOffice\PhpWord\Settings;
+use PhpOffice\PhpWord\TemplateProcessor;
+use Symfony\Component\Process\Process;
 
 class KartuKksSurat
 {
+    /** Kode template di menu Dokumen. */
+    public const KODE_TEMPLATE = 'surat-keterangan-kks';
+
     public static function buatDanSimpan(KartuKksPermohonan $p, User $kadis, ?string $passphrase = null): string
     {
         $p->loadMissing('detail', 'surat');
@@ -21,14 +29,21 @@ class KartuKksSurat
             'Surat Keterangan KKS ' . $p->no_permohonan . ' | ' . $nomor . ' | ' . ($kadis->name ?? '')
         );
 
-        $pdf = Pdf::loadView('pdf.kartu-kks-surat', [
-            'p' => $p,
-            'd' => $p->detail,
-            'kadis' => $kadis,
-            'nomor' => $nomor,
-            'qr' => $qr,
-            'logo' => self::logoPath(),
-        ])->setPaper('a4')->output();
+        $template = Dokumen::where('kode', self::KODE_TEMPLATE)->first();
+
+        if ($template && Storage::disk('local')->exists($template->file_path)) {
+            $pdf = self::dariTemplate($template, $p, $kadis, $nomor, $qr);
+        } else {
+            // Fallback: view HTML lama (dipakai kalau template belum diunggah).
+            $pdf = Pdf::loadView('pdf.kartu-kks-surat', [
+                'p' => $p,
+                'd' => $p->detail,
+                'kadis' => $kadis,
+                'nomor' => $nomor,
+                'qr' => $qr,
+                'logo' => self::logoPath(),
+            ])->setPaper('a4')->output();
+        }
 
         $pdf = TteSigner::sign($pdf, $kadis, $passphrase);
 
@@ -41,6 +56,113 @@ class KartuKksSurat
         ]);
 
         return $path;
+    }
+
+    /**
+     * Isi template .docx -> konversi ke PDF -> kembalikan isi PDF (string).
+     */
+    private static function dariTemplate(Dokumen $template, KartuKksPermohonan $p, User $kadis, string $nomor, string $qrDataUri): string
+    {
+        $d = $p->detail;
+        $disk = Storage::disk('local');
+
+        $tmpRel = 'dokumen-preview/kks-' . Str::uuid();
+        $disk->makeDirectory($tmpRel);
+        $tmpDir = $disk->path($tmpRel);
+
+        try {
+            Settings::setOutputEscapingEnabled(true);
+
+            $tpl = new TemplateProcessor($disk->path($template->file_path));
+
+            $masalah = strtolower((string) $d->masalah_kartu);
+            $redaksi = $masalah === 'hilang'
+                ? 'membuatkan kartu KKS yang baru'
+                : 'memproses penggantian/perbaikan kartu KKS yang baru';
+
+            $tpl->setValues([
+                'no_sk' => $nomor,
+                'tgl_sk' => now()->locale('id')->translatedFormat('d F Y'),
+                'ditujukan_kpada' => 'Kepala Bank Penyalur KKS',
+                'nama_pemohon' => $d->nama,
+                'alamat' => $d->alamat . ($p->kelurahan ? ', Kelurahan ' . strtoupper($p->kelurahan) : ''),
+                'pekerjaan' => $d->pekerjaan,
+                'nik' => $d->nik,
+                'no_kk' => $d->no_kk,
+                'no_kks' => $d->no_kartu_kks,
+                'no_rek' => $d->no_rekening,
+                'no_sktm' => '-',
+                'masalah_kartu' => $d->masalah_kartu,
+                'redaksi' => $redaksi,
+                'nama_lengkap_kadin' => $kadis->name,
+                'pangkat_kadin' => $kadis->pangkat ?? '',
+                'nip_kadin' => $kadis->nip ?? '',
+            ]);
+
+            // Gambar: di docx tulis ${qrcode} dan ${logo} (menggantikan teks "Qrcode" / "Logo").
+            $qrFile = $tmpDir . DIRECTORY_SEPARATOR . 'qr.png';
+            file_put_contents($qrFile, base64_decode(preg_replace('#^data:image/\w+;base64,#', '', $qrDataUri)));
+
+            try {
+                $tpl->setImageValue('qrcode', ['path' => $qrFile, 'width' => 80, 'height' => 80, 'ratio' => true]);
+                $tpl->setImageValue('logo', ['path' => self::logoPath(), 'width' => 60, 'height' => 60, 'ratio' => true]);
+            } catch (\Throwable $e) {
+                // Placeholder gambar tidak ada di template -> abaikan.
+            }
+
+            $docx = $tmpDir . DIRECTORY_SEPARATOR . 'surat.docx';
+            $tpl->saveAs($docx);
+
+            $log = self::docxKePdf($docx, $tmpDir);
+
+            $hasil = $tmpDir . DIRECTORY_SEPARATOR . 'surat.pdf';
+            if (! is_file($hasil)) {
+                $isi = implode(', ', @scandir($tmpDir) ?: []);
+                throw new \RuntimeException('Konversi surat KKS ke PDF gagal: ' . $log . ' | isi_outdir=[' . $isi . ']');
+            }
+
+            return (string) file_get_contents($hasil);
+        } finally {
+            $disk->deleteDirectory($tmpRel);
+        }
+    }
+
+        private static function docxKePdf(string $docx, string $outDir): string
+    {
+        $norm = fn (string $p) => str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $p);
+
+        $soffice = $norm((string) config('services.libreoffice.path'));
+        $docx = $norm($docx);
+        $outDir = $norm($outDir);
+
+        if (DIRECTORY_SEPARATOR === '\\') {
+            $bin = preg_replace('/soffice\.exe$/i', 'soffice.bin', $soffice);
+            if (! is_file($bin)) {
+                $bin = $soffice;
+            }
+
+            $proc = new Process([$bin, '--headless', '--convert-to', 'pdf', '--outdir', $outDir, $docx]);
+            $proc->setTimeout(180);
+            $proc->run();
+
+            return 'bin=' . $bin . ' exit=' . var_export($proc->getExitCode(), true) . ' err=' . trim($proc->getErrorOutput() . ' ' . $proc->getOutput());
+        }
+
+        $profilDir = storage_path('app/lo_profile');
+        if (! is_dir($profilDir)) {
+            @mkdir($profilDir, 0775, true);
+        }
+
+        $proc = new Process([
+            $soffice,
+            '-env:UserInstallation=file://' . $profilDir,
+            '--headless', '--norestore', '--nologo', '--nolockcheck',
+            '--convert-to', 'pdf', '--outdir', $outDir, $docx,
+        ]);
+        $proc->setTimeout(180);
+        $proc->run();
+
+        return 'exit=' . var_export($proc->getExitCode(), true) . ' err=' . trim($proc->getErrorOutput());
     }
 
     /**

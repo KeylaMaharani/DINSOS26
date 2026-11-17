@@ -9,6 +9,7 @@ use App\Support\Faskes;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\Rule;
 
 class PbiApbdController extends Controller
@@ -41,7 +42,17 @@ class PbiApbdController extends Controller
      */
     public function ajuanIndex(Request $request)
     {
-         $query = PbiApbd::query()
+        $user = Auth::user()->loadMissing('role');
+        if ($halaman = $this->halamanKerjaRole($user)) {
+            return redirect()->route($halaman[0], $request->except('status'));
+        }
+
+        $user = Auth::user()->loadMissing('role');
+        if (! $user->role?->isSuperAdmin() && ($route = $this->rutePekerjaanRole($user))) {
+            return redirect()->route($route, $request->except('status'));
+        }
+
+        $query = PbiApbd::query()
             ->with('anggotaKeluarga')
             ->whereNotIn('status', ['disetujui', 'ditolak'])
             ->sudahDiajukan();
@@ -73,8 +84,43 @@ class PbiApbdController extends Controller
         return view('admin.pbi-apbd.ajuan.index', compact('ajuan'));
     }
 
+    /**
+     * Cari halaman kerja untuk role user berdasarkan tahap (PbiApbd::STAGES).
+     * Null bila role bukan role tahap, atau tidak punya akses ke halaman tahapnya.
+     */
+    private function halamanKerjaRole($user): ?array
+{
+    $role = $user->role;
+    if (! $role || $role->isSuperAdmin()) {
+        return null;
+    }
+
+    $kandidat = [];
+    if ($role->hasModule('pbi-kelurahan.daftar')) {
+        $kandidat[] = ['pbi-kelurahan.index', 'pbi-kelurahan.show'];
+    }
+    foreach (PbiApbd::TAHAP as $t => $cfg) {
+        if ($role->hasModule($cfg['module'] . '.daftar')) {
+            $kandidat[] = ["pbi-approval.{$t}.index", "pbi-approval.{$t}.show"];
+        }
+    }
+
+    foreach ($kandidat as [$index, $show]) {
+        if (Route::has($index) && Route::has($show)) {
+            return [$index, $show];
+        }
+    }
+
+    return null;
+}
+
     public function ajuanShow(PbiApbd $pbiApbd)
     {
+         $user = Auth::user()->loadMissing('role');
+        if ($halaman = $this->halamanKerjaRole($user)) {
+            return redirect()->route($halaman[1], $pbiApbd);
+        }
+
         $pbiApbd->tandaiDilihat(Auth::user());
 
         $pbiApbd->load(['anggotaKeluarga', 'logs.user', 'diagnosaLogs.user']);

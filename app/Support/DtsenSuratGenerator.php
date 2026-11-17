@@ -215,4 +215,6 @@ class DtsenSuratGenerator
 
         return (new QRCode($options))->render($data);
     }
+
 }
+
