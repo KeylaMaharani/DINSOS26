@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration {
     public function up(): void
@@ -32,7 +33,7 @@ return new class extends Migration {
             // Kelurahan asal pemohon (opsional, isi manual dulu selama belum ada master wilayah)
             $table->string('kelurahan')->nullable();
 
-            $table->date('tanggal_insert')->useCurrent();
+            $table->date('tanggal_insert')->default(DB::raw('(CURDATE())'));
             $table->foreignId('created_by')->nullable()
                 ->constrained('users')->nullOnDelete();
 

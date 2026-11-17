@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\DtsenPermohonan;
 use App\Models\Role;
 use App\Support\DtsenNotifikasi;
+use App\Support\DtsenSuratGenerator;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -14,6 +16,13 @@ use Illuminate\Support\Str;
 
 class DtsenController extends Controller
 {
+    /**
+     * Jarak otomatis antara "Tanggal Cetak" dan "Berlaku Sampai" (dalam hari).
+     * Nilai ini TIDAK bisa diubah petugas: Berlaku Sampai selalu dihitung server
+     * dari Tanggal Cetak + MASA_BERLAKU_HARI.
+     */
+    public const MASA_BERLAKU_HARI = 2;
+
     /**
      * Sama seperti logika di CheckRole: role apapun yang namanya mengandung
      * "admin" dianggap admin dan bebas dari pembatasan role di bawah ini.
@@ -62,7 +71,7 @@ class DtsenController extends Controller
             return null;
         }
 
-        return $role->slug ?: Str::slug($role->name, '_');
+        return strtolower(str_replace(['-', ' '], '_', (string) ($role->slug ?: $role->name)));
     }
 
     /**
@@ -154,7 +163,10 @@ class DtsenController extends Controller
             ->whereNotIn('status', $statusFinal);
 
         if (! $isAdmin) {
-            $query->whereHas('currentRole', fn ($q) => $q->where('slug', $roleSlug));
+            $query->where(function ($q) use ($user, $roleSlug) {
+                $q->where('current_role_id', $user->role_id)
+                    ->orWhereHas('currentRole', fn ($r) => $r->where('slug', $roleSlug));
+            });
         }
 
         if ($request->filled('tanggal_awal')) {
@@ -268,8 +280,7 @@ class DtsenController extends Controller
         $query = DtsenPermohonan::with([
                 'bansos',
                 'currentRole',
-                // Diubah: sebelumnya hanya ambil 1 log terakhir (->limit(1)).
-                // Tampilan Monitoring sekarang butuh SELURUH riwayat log,
+                // Tampilan Monitoring butuh SELURUH riwayat log,
                 // diurutkan dari yang paling lama -> paling baru.
                 'logs' => fn ($q) => $q->orderBy('tanggal_proses'),
             ])
@@ -312,7 +323,6 @@ class DtsenController extends Controller
             'detail',
             'bansos',
             'lampiran',
-            'surat',
             'logs' => fn ($q) => $q->orderBy('tanggal_proses'),
             'currentRole',
         ]);
@@ -347,12 +357,18 @@ class DtsenController extends Controller
             'statusLabels' => DtsenPermohonan::statusLabels(),
             'isFinal' => $isFinal,
             'canAct' => $canAct,
-            // Lampiran (foto/dokumen) hanya boleh diunggah / diganti oleh
+            // Dokumen Tambahan hanya boleh diunggah / diganti oleh
             // Super Admin dan Operator Dinsos, pada tahap yang menjadi gilirannya.
+            // (Lampiran Scan KTP & Screenshot DTSEN dari warga hanya ditampilkan.)
             'canUploadLampiran' => $canAct && ($isSuperAdmin || $roleSlug === 'operator_dinsos'),
             'isAdmin' => $isAdmin,
             'nextTaskLabel' => $rule['task_lanjut'] ?? null,
             'returnLabel' => $returnLabel,
+            'masaBerlakuHari' => self::MASA_BERLAKU_HARI,
+            'butuhTtd' => false,
+            'tteAktif' => false,
+            'bisaBuatSurat' => $permohonan->status === DtsenPermohonan::STATUS_SELESAI
+                && $this->bolehBuatSurat($user),
         ]);
     }
 
@@ -361,7 +377,7 @@ class DtsenController extends Controller
      */
     public function detail(DtsenPermohonan $permohonan)
     {
-        $permohonan->load(['detail', 'bansos', 'lampiran', 'surat', 'logs.user', 'currentRole']);
+        $permohonan->load(['detail', 'bansos', 'lampiran', 'logs.user', 'currentRole']);
 
         return response()->json($permohonan);
     }
@@ -369,19 +385,29 @@ class DtsenController extends Controller
     /**
      * PUT /dtsen/{permohonan}/detail
      * Mengedit "Data Detail" pemohon (bagian 2 di dokumen kebutuhan).
+     *
+     * Tanggal lahir pemohon TERKUNCI: kalau sudah tercatat, nilainya tidak bisa diubah petugas
+     * (kiriman dari browser diabaikan). Field lain tetap bisa diedit.
      */
     public function updateDetail(Request $request, DtsenPermohonan $permohonan)
     {
         $this->authorizeCurrentStage($permohonan);
+
+        $permohonan->loadMissing('detail');
+        $tanggalLahirTerkunci = filled(optional($permohonan->detail)->tanggal_lahir);
 
         $validated = $request->validate([
             'nik' => 'required|string|max:20',
             'nama' => 'required|string|max:150',
             'no_kk' => 'required|string|max:30',
             'alamat' => 'required|string|max:255',
-            'tanggal_lahir' => 'required|date',
+            'tanggal_lahir' => $tanggalLahirTerkunci ? 'nullable' : 'required|date',
             'alasan_keputusan_cetak' => 'required|string|max:1000',
         ]);
+
+        if ($tanggalLahirTerkunci) {
+            unset($validated['tanggal_lahir']);
+        }
 
         $permohonan->detail()->updateOrCreate([], $validated);
 
@@ -395,6 +421,12 @@ class DtsenController extends Controller
      *
      * "dicetak_oleh" WAJIB diisi -- harus jelas siapa/unit mana yang mencetak
      * kartu DTSEN, untuk keperluan akuntabilitas & audit.
+     *
+     * "tanggal_cetak" TERKUNCI: tidak diterima dari form. Kalau sudah tercatat, nilainya
+     * dipertahankan; kalau belum (simpan pertama), diisi tanggal hari ini oleh server.
+     *
+     * "berlaku_sampai" juga TIDAK diterima dari form: selalu dihitung server =
+     * tanggal_cetak + MASA_BERLAKU_HARI (2 hari), sehingga tidak bisa diubah/dimanipulasi.
      */
     public function updateBansos(Request $request, DtsenPermohonan $permohonan)
     {
@@ -406,12 +438,35 @@ class DtsenController extends Controller
             'pkh' => 'required|boolean',
             'pbi' => 'required|boolean',
             'yatim_piatu' => 'required|boolean',
-            'tanggal_cetak' => 'required|date',
-            'berlaku_sampai' => 'required|date|after_or_equal:tanggal_cetak',
             'dicetak_oleh' => 'required|string|max:150',
+            'upload_lainnya' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
         ], [
             'dicetak_oleh.required' => 'Kolom "Dicetak Oleh" wajib diisi.',
         ]);
+
+        // File dipisah dari data biasa; hanya diganti kalau ada file baru
+        unset($validated['upload_lainnya']);
+
+        if ($request->hasFile('upload_lainnya')) {
+            $permohonan->loadMissing('bansos');
+
+            $oldPath = optional($permohonan->bansos)->upload_lainnya;
+            if ($oldPath) {
+                Storage::disk('public')->delete($oldPath);
+            }
+
+            $validated['upload_lainnya'] = $request->file('upload_lainnya')->store('dtsen/bansos', 'public');
+        }
+
+        $permohonan->loadMissing('bansos');
+        $tanggalCetak = filled(optional($permohonan->bansos)->tanggal_cetak)
+            ? Carbon::parse($permohonan->bansos->tanggal_cetak)
+            : now();
+
+        $validated['tanggal_cetak'] = $tanggalCetak->toDateString();
+        $validated['berlaku_sampai'] = $tanggalCetak->copy()
+            ->addDays(self::MASA_BERLAKU_HARI)
+            ->toDateString();
 
         $permohonan->bansos()->updateOrCreate([], $validated);
 
@@ -419,55 +474,55 @@ class DtsenController extends Controller
     }
 
     /**
-     * PUT /dtsen/{permohonan}/lampiran
-     * Upload Lampiran (Scan KTP, Screenshot DTSEN). Dipisah dari
-     * updateDetail() supaya field file tidak ikut masuk ke
-     * updateOrCreate() data detail.
+     * PUT /dtsen/{permohonan}/dokumen-tambahan
+     * Upload "Dokumen Tambahan" (bebas: gambar maupun berkas dokumen).
+     *
+     * Lampiran Scan KTP & Screenshot DTSEN berasal dari warga dan TIDAK bisa diubah petugas,
+     * jadi method updateLampiran() yang lama sudah dihapus.
+     *
+     * Jenis berkas dibatasi ke daftar aman (tanpa .php, .exe, .js, dst) karena disimpan di disk publik.
      */
-    public function updateLampiran(Request $request, DtsenPermohonan $permohonan)
+    public function updateDokumenTambahan(Request $request, DtsenPermohonan $permohonan)
     {
         $this->authorizeCurrentStage($permohonan);
 
+        $user = Auth::user();
+        abort_unless(
+            $this->isSuperAdmin($user->role) || $this->roleSlug($user->role) === 'operator_dinsos',
+            403,
+            'Hanya Super Admin dan Operator Dinsos yang dapat mengunggah dokumen tambahan.'
+        );
+
         $request->validate([
-            'scan_ktp' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
-            'screenshot_dtsen' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
+            'upload_lainnya' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,gif,pdf,doc,docx,xls,xlsx,csv,txt,zip', 'max:5120'],
+        ], [
+            'upload_lainnya.required' => 'Pilih berkas yang akan diunggah.',
+            'upload_lainnya.mimes' => 'Berkas harus berupa gambar, PDF, Word, Excel, CSV, TXT, atau ZIP.',
+            'upload_lainnya.max' => 'Ukuran berkas maksimal 5 MB.',
+            'upload_lainnya.uploaded' => 'Berkas gagal diunggah. Coba lagi dengan berkas yang lebih kecil.',
         ]);
 
-        // Lampiran (Scan KTP, Screenshot DTSEN) HANYA boleh diunggah / diganti
-        // oleh Super Admin dan Operator Dinsos.
-        $user = Auth::user();
-        $bolehUnggahLampiran = $this->isSuperAdmin($user->role)
-            || $this->roleSlug($user->role) === 'operator_dinsos';
+        $bansos = $permohonan->bansos()->first();
 
-        foreach (['scan_ktp', 'screenshot_dtsen'] as $fieldLampiran) {
-            if ($request->hasFile($fieldLampiran) && ! $bolehUnggahLampiran) {
-                abort(403, 'Hanya Super Admin dan Operator Dinsos yang dapat mengunggah atau mengganti lampiran.');
-            }
+        if (! $bansos) {
+            return back()->with('error', 'Simpan Keterangan Penerima BANSOS terlebih dahulu sebelum mengunggah dokumen tambahan.');
         }
 
-        $permohonan->loadMissing('lampiran');
+        $lama = $bansos->upload_lainnya;
+        $baru = $request->file('upload_lainnya')->store('dtsen/dokumen-tambahan', 'public');
 
-        // ---- Lampiran ----
-        $lampiranData = [];
-        foreach (['scan_ktp', 'screenshot_dtsen'] as $field) {
-            if ($request->hasFile($field)) {
-                $oldPath = optional($permohonan->lampiran)->{$field};
-                if ($oldPath) {
-                    Storage::disk('public')->delete($oldPath);
-                }
-                $lampiranData[$field] = $request->file($field)->store('dtsen/lampiran', 'public');
-            }
-        }
-        if (! empty($lampiranData)) {
-            $permohonan->lampiran()->updateOrCreate([], $lampiranData);
+        $bansos->forceFill(['upload_lainnya' => $baru])->save();
+
+        if ($lama) {
+            Storage::disk('public')->delete($lama);
         }
 
-        return back()->with('success', 'Lampiran berhasil diperbarui.');
+        return back()->with('success', 'Dokumen tambahan berhasil diunggah.');
     }
 
     /**
      * Helper aturan akses yang sama dipakai updateDetail(), updateBansos()
-     * & updateLampiran().
+     * & updateDokumenTambahan().
      */
     private function authorizeCurrentStage(DtsenPermohonan $permohonan): void
     {
@@ -506,6 +561,7 @@ class DtsenController extends Controller
         $request->validate([
             'action' => 'required|in:lanjut,tolak,kembalikan,simpan_catatan',
             'catatan' => 'required|string|max:1000',
+            'password' => 'nullable|string|max:255',
         ], [
             'catatan.required' => 'Catatan wajib diisi untuk aksi ini.',
         ]);
@@ -625,23 +681,36 @@ class DtsenController extends Controller
                     }
                 }
 
-                DB::transaction(function () use ($permohonan, $rule, $user, $request) {
-                    $nextRole = $rule['next_role'] ? Role::where('slug', $rule['next_role'])->first() : null;
+                $buatSurat = false;   // ubah ke: $rule['next'] === DtsenPermohonan::STATUS_SELESAI  saat TTD diaktifkan lagi
+                $passphrase = null;
 
-                    $permohonan->update([
-                        'status' => $rule['next'],
-                        'current_role_id' => $nextRole?->id,
-                    ]);
+                try {
+                    DB::transaction(function () use ($permohonan, $rule, $user, $request, $buatSurat, $passphrase) {
+                        $nextRole = $rule['next_role'] ? Role::where('slug', $rule['next_role'])->first() : null;
 
-                    $permohonan->logs()->create([
-                        'tanggal_proses' => now(),
-                        'user_id' => $user->id,
-                        'username' => $user->username ?? $user->name,
-                        'taskname' => $rule['task_lanjut'],
-                        'rolename' => $this->roleLabel($rule['allowed_role']),
-                        'catatan' => $request->catatan,
-                    ]);
-                });
+                        $permohonan->update([
+                            'status' => $rule['next'],
+                            'current_role_id' => $nextRole?->id,
+                        ]);
+
+                        $permohonan->logs()->create([
+                            'tanggal_proses' => now(),
+                            'user_id' => $user->id,
+                            'username' => $user->username ?? $user->name,
+                            'taskname' => $rule['task_lanjut'],
+                            'rolename' => $this->roleLabel($rule['allowed_role']),
+                            'catatan' => $request->catatan,
+                        ]);
+
+                        if ($buatSurat) {
+                            DtsenSuratGenerator::buatDanSimpan($permohonan, $user, $passphrase);
+                        }
+                    });
+                } catch (\Throwable $e) {
+                    report($e);
+
+                    return back()->with('error', 'Gagal memproses permohonan: ' . $e->getMessage());
+                }
 
                 if ($rule['next_role']) {
                     DtsenNotifikasi::keRole(
@@ -662,5 +731,53 @@ class DtsenController extends Controller
 
                 return back()->with('success', 'Permohonan berhasil diproses ke tahap berikutnya.');
         }
+    }
+
+    public function buatSurat(DtsenPermohonan $permohonan)
+    {
+        $user = Auth::user();
+        abort_unless($this->bolehBuatSurat($user), 403, 'Anda tidak berwenang membuat surat.');
+
+        if ($permohonan->status !== DtsenPermohonan::STATUS_SELESAI) {
+            return back()->with('error', 'Surat baru bisa dibuat setelah permohonan selesai.');
+        }
+
+        if (! DtsenSuratGenerator::templateTersedia()) {
+            return back()->with('error', 'Template "Surat Keterangan DTSEN" belum diunggah di menu Dokumen.');
+        }
+
+        $permohonan->loadMissing('logs.user');
+        $logKadis = $permohonan->logs->first(fn ($l) => $l->taskname === 'Disetujui Kadis');
+        $kadis = $logKadis?->user
+            ?? \App\Models\User::whereHas('role', fn ($q) => $q->where('slug', 'kadis'))->first();
+
+        if (! $kadis) {
+            return back()->with('error', 'Data Kepala Dinas penandatangan tidak ditemukan.');
+        }
+
+        try {
+            DtsenSuratGenerator::buatDanSimpan($permohonan, $kadis);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return back()->with('error', 'Gagal membuat surat: ' . $e->getMessage());
+        }
+
+        $permohonan->logs()->create([
+            'tanggal_proses' => now(),
+            'user_id' => $user->id,
+            'username' => $user->username ?? $user->name,
+            'taskname' => 'Surat Keterangan Dibuat',
+            'rolename' => $this->roleLabel($this->roleSlug($user->role) ?? 'operator_dinsos'),
+            'catatan' => null,
+        ]);
+
+        return back()->with('success', 'Surat Keterangan berhasil dibuat.');
+    }
+
+    private function bolehBuatSurat($user): bool
+    {
+        return $this->isSuperAdmin($user->role)
+            || in_array($this->roleSlug($user->role), ['operator_dinsos', 'kadis'], true);
     }
 }

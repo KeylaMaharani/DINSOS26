@@ -10,20 +10,38 @@
         default => 'bg-secondary-fixed text-on-secondary-container',
     };
 
-    $detail = $data->detail;
-    $bansos = $data->bansos;
+    $detail = $data->detail ?? new \App\Models\DtsenDetail();
+    $bansos = $data->bansos ?? new \App\Models\DtsenBansos();
 
+    $inputClass = 'w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30';
+    $kunciClass = 'w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-surface-container text-sm text-on-surface-variant cursor-not-allowed';
     $inputFileClass =
-        'mt-2 block w-full text-[10px] text-on-surface-variant file:mr-2 file:rounded file:border-0 file:bg-brand/10 file:px-2 file:py-1 file:text-brand';
+        'block w-full min-w-0 text-xs text-on-surface-variant file:mr-3 file:rounded-full file:border-0 file:bg-brand/10 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-brand';
+
+    // Tanggal Cetak TERKUNCI: pakai nilai tercatat, atau hari ini bila belum ada (server yang menyimpan).
+    // Berlaku Sampai selalu Tanggal Cetak + $masaBerlakuHari (dihitung server)
+    $tanggalCetakAwal = optional($bansos->tanggal_cetak ?? null)->format('Y-m-d') ?? now()->format('Y-m-d');
+    $berlakuSampaiAwal = \Carbon\Carbon::parse($tanggalCetakAwal)->addDays($masaBerlakuHari)->format('Y-m-d');
 @endphp
 
 @section('content')
-    <div class="space-y-5 max-w-5xl">
+    <div class="space-y-5 w-full">
 
         <a href="{{ route('dtsen.ajuan') }}"
             class="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-brand">
             <span class="material-symbols-outlined text-[18px]">arrow_back</span> Kembali ke daftar Ajuan
         </a>
+
+        @if (session('success'))
+            <div class="px-4 py-3 rounded-lg bg-success-container text-on-success-container text-sm shadow-sm">
+                {{ session('success') }}
+            </div>
+        @endif
+        @if (session('error'))
+            <div class="px-4 py-3 rounded-lg bg-error-container text-on-error-container text-sm shadow-sm">
+                {{ session('error') }}
+            </div>
+        @endif
 
         @if ($errors->any())
             <div class="flex flex-col gap-1 px-4 py-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700">
@@ -55,25 +73,29 @@
                 </h3>
                 <div class="flex items-center gap-3">
                     @if ($canAct)
-                        <span class="text-[11px] text-on-surface-variant"><span class="text-error">*</span> wajib diisi</span>
+                        <span class="text-[11px] text-on-surface-variant"><span class="text-error">*</span> wajib
+                            diisi</span>
                         <span class="text-xs text-brand">Dapat diedit</span>
                     @endif
                 </div>
             </div>
 
-            <form method="POST" action="{{ route('dtsen.bansos.update', $data) }}" class="p-4">
+            <form method="POST" action="{{ route('dtsen.bansos.update', $data) }}" enctype="multipart/form-data" class="p-4">
                 @csrf
                 @method('PUT')
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                {{-- Satu kolom (vertikal) --}}
+                <div class="grid grid-cols-1 gap-4">
                     <div>
-                        <label class="block text-xs text-on-surface-variant mb-1">Peringkat Kesejahteraan Keluarga (Desil) <span class="text-error">*</span></label>
+                        <label class="block text-xs text-on-surface-variant mb-1">Peringkat Kesejahteraan Keluarga (Desil)
+                            <span class="text-error">*</span></label>
                         @if (!$canAct)
-                            <p class="font-medium text-sm px-1 py-1.5">{{ $bansos->peringkat_kesejahteraan_keluarga ?? '-' }}</p>
+                            <p class="font-medium text-sm px-1 py-1.5">
+                                {{ $bansos->peringkat_kesejahteraan_keluarga ?? '-' }}</p>
                         @else
                             <input type="text" name="peringkat_kesejahteraan_keluarga" required
                                 value="{{ old('peringkat_kesejahteraan_keluarga', $bansos->peringkat_kesejahteraan_keluarga ?? '') }}"
-                                class="w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30" />
+                                class="{{ $inputClass }}" />
                         @endif
                     </div>
 
@@ -84,18 +106,19 @@
                         @else
                             <input type="text" name="dicetak_oleh" required
                                 value="{{ old('dicetak_oleh', $bansos->dicetak_oleh ?? '') }}"
-                                class="w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30" />
+                                class="{{ $inputClass }}" />
                         @endif
                     </div>
 
                     @foreach (['bnpt' => 'BNPT', 'pkh' => 'PKH', 'pbi' => 'PBI', 'yatim_piatu' => 'Yatim Piatu'] as $field => $label)
                         <div>
-                            <label class="block text-xs text-on-surface-variant mb-1">{{ $label }} <span class="text-error">*</span></label>
+                            <label class="block text-xs text-on-surface-variant mb-1">{{ $label }} <span
+                                    class="text-error">*</span></label>
                             @if (!$canAct)
-                                <p class="font-medium text-sm px-1 py-1.5">{{ ($bansos->$field ?? false) ? 'Ya' : 'Tidak' }}</p>
+                                <p class="font-medium text-sm px-1 py-1.5">
+                                    {{ $bansos->$field ?? false ? 'Ya' : 'Tidak' }}</p>
                             @else
-                                <select name="{{ $field }}" required
-                                    class="w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30">
+                                <select name="{{ $field }}" required class="{{ $inputClass }}">
                                     <option value="1" @selected(old($field, $bansos->$field ?? false))>Ya</option>
                                     <option value="0" @selected(!old($field, $bansos->$field ?? false))>Tidak</option>
                                 </select>
@@ -104,46 +127,43 @@
                     @endforeach
 
                     <div>
-                        <label class="block text-xs text-on-surface-variant mb-1">Tanggal Cetak <span class="text-error">*</span></label>
+                        <label class="block text-xs text-on-surface-variant mb-1">
+                            Tanggal Cetak
+                            <span class="ml-1 inline-flex items-center gap-0.5 text-[11px] text-on-surface-variant">
+                                <span class="material-symbols-outlined text-[13px]">lock</span> terkunci
+                            </span>
+                        </label>
                         @if (!$canAct)
                             <p class="font-medium text-sm px-1 py-1.5">
-                                {{ $bansos->tanggal_cetak ? $bansos->tanggal_cetak->format('d-m-Y') : '-' }}</p>
+                                {{ $bansos?->tanggal_cetak ? $bansos->tanggal_cetak->format('d-m-Y') : '-' }}</p>
                         @else
-                            <input type="date" name="tanggal_cetak" required
-                                value="{{ old('tanggal_cetak', optional($bansos->tanggal_cetak ?? null)->format('Y-m-d')) }}"
-                                class="w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30" />
+                            {{-- Hanya tampilan: tanpa atribut name, nilai sebenarnya ditentukan server --}}
+                            <input type="date" id="tanggal_cetak" value="{{ $tanggalCetakAwal }}" readonly tabindex="-1"
+                                class="{{ $kunciClass }}" />
                         @endif
                     </div>
 
                     <div>
-                        <label class="block text-xs text-on-surface-variant mb-1">Berlaku Sampai <span class="text-error">*</span></label>
+                        <label class="block text-xs text-on-surface-variant mb-1">
+                            Berlaku Sampai
+                            <span class="ml-1 inline-flex items-center gap-0.5 text-[11px] text-on-surface-variant">
+                                <span class="material-symbols-outlined text-[13px]">lock</span>
+                                otomatis {{ $masaBerlakuHari }} hari setelah Tanggal Cetak
+                            </span>
+                        </label>
                         @if (!$canAct)
                             <p class="font-medium text-sm px-1 py-1.5">
-                                {{ $bansos->berlaku_sampai ? $bansos->berlaku_sampai->format('d-m-Y') : '-' }}
+                                {{ $bansos?->berlaku_sampai ? $bansos->berlaku_sampai->format('d-m-Y') : '-' }}
                                 @if ($bansos && $bansos->isExpired())
                                     <span class="ml-1 text-xs text-error font-semibold">(Kedaluwarsa)</span>
                                 @endif
                             </p>
                         @else
-                            <input type="date" name="berlaku_sampai" required
-                                value="{{ old('berlaku_sampai', optional($bansos->berlaku_sampai ?? null)->format('Y-m-d')) }}"
-                                class="w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30" />
+                            {{-- Hanya tampilan: tanpa atribut name, nilai sebenarnya dihitung server --}}
+                            <input type="date" id="berlaku_sampai" value="{{ $berlakuSampaiAwal }}" readonly tabindex="-1"
+                                class="{{ $kunciClass }}" />
                         @endif
                     </div>
-                </div>
-
-                {{-- Upload Lainnya --}}
-                <div class="pt-4">
-                    <label class="block text-xs text-on-surface-variant mb-1">Upload Lainnya</label>
-                    @php $uploadLainnya = $bansos->upload_lainnya ?? null; @endphp
-                    <a @if ($uploadLainnya) href="{{ asset('storage/' . $uploadLainnya) }}" target="_blank" @endif
-                        class="inline-flex items-center gap-2 border border-outline-variant/40 rounded-lg px-3 py-2 text-sm hover:border-brand transition-colors w-fit">
-                        <span class="material-symbols-outlined text-[18px] text-on-surface-variant">upload_file</span>
-                        Dokumen Tambahan
-                        @unless ($uploadLainnya)
-                            <span class="text-xs text-on-surface-variant">(belum ada)</span>
-                        @endunless
-                    </a>
                 </div>
 
                 @if ($canAct)
@@ -158,7 +178,7 @@
             </form>
         </div>
 
-        {{-- 2. Data Detail (editable) --}}
+        {{-- 2. Data Detail (editable, kecuali Tanggal Lahir yang terkunci) --}}
         <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden">
             <div class="px-4 py-3 border-b border-outline-variant/40 flex items-center justify-between">
                 <h3 class="text-sm font-semibold flex items-center gap-2">
@@ -188,17 +208,29 @@
                     ];
                 @endphp
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                {{-- Satu kolom (vertikal) --}}
+                <div class="grid grid-cols-1 gap-4">
                     @foreach ($fields as $field => $config)
-                        <div class="{{ $config['type'] === 'textarea' ? 'sm:col-span-2' : '' }}">
+                        @php
+                            // Tanggal lahir pemohon terkunci selama sudah tercatat
+                            $terkunci = $field === 'tanggal_lahir' && filled($detail->tanggal_lahir ?? null);
+                        @endphp
+                        <div>
                             <label class="block text-xs text-on-surface-variant mb-1">
                                 {{ $config['label'] }}
                                 @if ($config['required'] ?? false)
                                     <span class="text-error">*</span>
                                 @endif
+                                @if ($terkunci)
+                                    <span class="ml-1 inline-flex items-center gap-0.5 text-[11px] text-on-surface-variant">
+                                        <span class="material-symbols-outlined text-[13px]">lock</span> terkunci
+                                    </span>
+                                @endif
                             </label>
 
-                            @if (!$canAct)
+                            @if ($terkunci)
+                                <p class="{{ $kunciClass }}">{{ \Carbon\Carbon::parse($detail->tanggal_lahir)->format('d-m-Y') }}</p>
+                            @elseif (!$canAct)
                                 <p class="font-medium text-sm px-1 py-1.5">
                                     {{ $detail->$field ?? null
                                         ? ($config['type'] === 'date'
@@ -208,11 +240,11 @@
                                 </p>
                             @elseif ($config['type'] === 'textarea')
                                 <textarea name="{{ $field }}" rows="2" @required($config['required'] ?? false)
-                                    class="w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30">{{ old($field, $detail->$field ?? '') }}</textarea>
+                                    class="{{ $inputClass }}">{{ old($field, $detail->$field ?? '') }}</textarea>
                             @else
                                 <input type="{{ $config['type'] }}" name="{{ $field }}" @required($config['required'] ?? false)
                                     value="{{ old($field, $config['type'] === 'date' ? optional($detail->$field ?? null)->format('Y-m-d') : $detail->$field ?? '') }}"
-                                    class="w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30" />
+                                    class="{{ $inputClass }}" />
                             @endif
                         </div>
                     @endforeach
@@ -230,76 +262,126 @@
             </form>
         </div>
 
-        {{-- 3. Lampiran (form upload terpisah) --}}
-        <form method="POST" action="{{ route('dtsen.lampiran.update', $data) }}" enctype="multipart/form-data"
-            class="space-y-5">
-            @csrf
-            @method('PUT')
+        {{-- 3. Lampiran (dari warga: hanya ditampilkan, tidak bisa diubah petugas) --}}
+        {{-- Tanpa overflow-hidden supaya menu Lihat/Unduh tidak terpotong di baris terakhir --}}
+        <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)]">
+            <div class="px-4 py-3 border-b border-outline-variant/40 flex items-center justify-between gap-3">
+                <h3 class="text-sm font-semibold flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px] text-brand">attach_file</span>
+                    Lampiran
+                </h3>
+                <span class="text-[11px] text-on-surface-variant">Dikirim oleh pemohon</span>
+            </div>
+            {{-- Klik kartu -> muncul menu kecil "Lihat" & "Unduh" --}}
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(9rem,11rem))] gap-4 p-4 pb-6">
+                @foreach ([
+                    'scan_ktp' => 'Scan KTP',
+                    'screenshot_dtsen' => 'Screenshot DTSEN',
+                ] as $field => $label)
+                    @php
+                        $file = $data->lampiran->$field ?? null;
+                        $fileUrl = $file ? asset('storage/' . $file) : null;
+                        $fileName = $file ? basename($file) : null;
+                        $isImage = $file && preg_match('/\.(jpe?g|png|gif|webp)$/i', $file);
+                    @endphp
 
-            <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden">
-                <div class="px-4 py-3 border-b border-outline-variant/40 flex items-center justify-between">
-                    <h3 class="text-sm font-semibold flex items-center gap-2">
-                        <span class="material-symbols-outlined text-[18px] text-brand">attach_file</span>
-                        Lampiran
-                    </h3>
-                    @if ($canUploadLampiran)
-                        <span class="text-[11px] text-on-surface-variant">Pilih file untuk mengunggah / mengganti
-                            (JPG, PNG, PDF, maks. 2 MB)</span>
-                    @endif
-                </div>
-                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 p-4">
-                    @foreach ([
-                        'scan_ktp' => ['label' => 'Scan KTP', 'required' => false],
-                        'screenshot_dtsen' => ['label' => 'Screenshot DTSEN', 'required' => true],
-                    ] as $field => $config)
-                        @php
-                            $file = $data->lampiran->$field ?? null;
-                            $isPdf = $file && strtolower(pathinfo($file, PATHINFO_EXTENSION)) === 'pdf';
-                        @endphp
-                        <div class="border border-outline-variant/40 rounded-lg overflow-hidden hover:border-brand transition-colors">
-                            <a @if ($file) href="{{ asset('storage/' . $file) }}" target="_blank" @endif
-                                class="block">
-                                <div class="aspect-square bg-surface-container flex items-center justify-center">
-                                    @if ($file && !$isPdf)
-                                        <img src="{{ asset('storage/' . $file) }}" class="w-full h-full object-cover"
-                                            alt="{{ $config['label'] }}">
-                                    @elseif ($file && $isPdf)
-                                        <span class="material-symbols-outlined text-[40px] text-error/70">picture_as_pdf</span>
+                    <div class="relative" data-lampiran-card>
+                        @if ($fileUrl)
+                            <button type="button" data-lampiran-toggle aria-haspopup="true" aria-expanded="false"
+                                class="group block w-full overflow-hidden rounded-2xl border border-outline-variant/40 bg-white text-left transition-colors hover:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30 aria-expanded:border-brand">
+                                <div class="flex aspect-[4/3] items-center justify-center overflow-hidden bg-surface-container p-2">
+                                    @if ($isImage)
+                                        <img src="{{ $fileUrl }}" alt="{{ $label }}" class="h-full w-full object-contain rounded-lg" loading="lazy">
                                     @else
-                                        <span
-                                            class="material-symbols-outlined text-[28px] text-on-surface-variant/50">image_not_supported</span>
+                                        <span class="material-symbols-outlined text-[48px] text-error/70">description</span>
                                     @endif
                                 </div>
-                            </a>
-                            <div class="px-1 py-1.5">
-                                <p class="text-[11px] text-center text-on-surface-variant">
-                                    {{ $config['label'] }}
-                                    @if ($config['required'])
-                                        <span class="text-error">*</span>
-                                    @endif
-                                </p>
-                                @if ($canUploadLampiran)
-                                    <input type="file" name="{{ $field }}" accept=".jpg,.jpeg,.png,.pdf"
-                                        class="{{ $inputFileClass }}" />
-                                @endif
+                                <div class="border-t border-outline-variant/30 px-3 py-2 text-center">
+                                    <p class="text-xs text-on-surface-variant">{{ $label }}</p>
+                                    <p class="mt-0.5 truncate text-[11px] font-semibold text-brand" title="{{ $fileName }}">{{ $fileName }}</p>
+                                </div>
+                            </button>
+
+                            <div data-lampiran-menu hidden
+                                class="absolute left-1/2 top-full z-30 mt-2 w-40 -translate-x-1/2 overflow-hidden rounded-xl border border-outline-variant/40 bg-white shadow-lg">
+                                <a href="{{ $fileUrl }}" target="_blank" rel="noopener"
+                                    class="flex items-center gap-2 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container">
+                                    <span class="material-symbols-outlined text-[18px]">visibility</span> Lihat
+                                </a>
+                                <a href="{{ $fileUrl }}" download="{{ $fileName }}"
+                                    class="flex items-center gap-2 border-t border-outline-variant/30 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container">
+                                    <span class="material-symbols-outlined text-[18px]">download</span> Unduh
+                                </a>
                             </div>
-                        </div>
-                    @endforeach
-                </div>
+                        @else
+                            <div class="overflow-hidden rounded-2xl border border-outline-variant/30 bg-white">
+                                <div class="flex aspect-[4/3] items-center justify-center bg-surface-container-lowest">
+                                    <span class="material-symbols-outlined text-[36px] text-outline-variant">image_not_supported</span>
+                                </div>
+                                <div class="border-t border-outline-variant/30 px-3 py-2 text-center">
+                                    <p class="text-xs text-on-surface-variant">{{ $label }}</p>
+                                    <p class="mt-0.5 text-[11px] text-on-surface-variant/70">Belum ada berkas</p>
+                                </div>
+                            </div>
+                        @endif
+                    </div>
+                @endforeach
             </div>
+        </div>
 
-            @if ($canUploadLampiran)
-                <div>
-                    <button type="submit"
-                        class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand text-white hover:bg-primary text-sm font-medium transition-colors">
-                        <span class="material-symbols-outlined text-[18px]">save</span>
-                        Simpan Lampiran
-                    </button>
-                </div>
-            @endif
-        </form>
+        {{-- 4. Dokumen Tambahan (gambar atau berkas apa pun yang diizinkan) --}}
+        <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden">
+            <div class="px-4 py-3 border-b border-outline-variant/40">
+                <h3 class="text-sm font-semibold flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px] text-brand">upload_file</span>
+                    Dokumen Tambahan
+                </h3>
+            </div>
+            <div class="p-4 space-y-4">
+                @php $dokTambahan = $bansos->upload_lainnya ?? null; @endphp
 
-        {{-- 4. Surat Keterangan DTSEN Dinas Sosial --}}
+                {{-- Kartu pratinjau hanya muncul kalau dokumennya sudah ada --}}
+                @if ($dokTambahan)
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                        <x-lampiran-preview
+                            :src="asset('storage/' . $dokTambahan)"
+                            label="Dokumen Tambahan" />
+                    </div>
+                @elseif (!$canUploadLampiran)
+                    <p class="text-sm text-on-surface-variant">Belum ada dokumen tambahan.</p>
+                @endif
+
+                @if ($canUploadLampiran)
+                    @if ($bansos)
+                        <form method="POST" action="{{ route('dtsen.dokumen-tambahan.update', $data) }}"
+                            enctype="multipart/form-data" class="space-y-2">
+                            @csrf
+                            @method('PUT')
+                            <p class="text-[11px] font-semibold text-on-surface-variant">
+                                {{ $dokTambahan ? 'Ganti dokumen tambahan' : 'Unggah dokumen tambahan' }}
+                            </p>
+                            <input type="file" name="upload_lainnya" required
+                                accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip"
+                                class="{{ $inputFileClass }}" />
+                            <p class="text-[11px] text-on-surface-variant">
+                                Gambar, PDF, Word, Excel, CSV, TXT, atau ZIP. Maksimal 5 MB.
+                            </p>
+                            <button type="submit"
+                                class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand text-white hover:bg-primary text-sm font-medium transition-colors">
+                                <span class="material-symbols-outlined text-[18px]">upload</span>
+                                Unggah
+                            </button>
+                        </form>
+                    @else
+                        <p class="text-xs text-on-surface-variant">
+                            Simpan Keterangan Penerima BANSOS terlebih dahulu untuk dapat mengunggah dokumen tambahan.
+                        </p>
+                    @endif
+                @endif
+            </div>
+        </div>
+
+        {{-- 5. Surat Keterangan DTSEN Dinas Sosial --}}
         <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden">
             <div class="px-4 py-3 border-b border-outline-variant/40">
                 <h3 class="text-sm font-semibold flex items-center gap-2">
@@ -307,20 +389,87 @@
                     Surat Keterangan DTSEN Dinas Sosial
                 </h3>
             </div>
-            <div class="p-4">
-                @php $suratDinsos = $data->surat->surat_keterangan_dtsen_digital ?? null; @endphp
-                <a @if ($suratDinsos) href="{{ asset('storage/' . $suratDinsos) }}" target="_blank" @endif
-                    class="flex items-center gap-2 border border-outline-variant/40 rounded-lg px-3 py-2 text-sm hover:border-brand transition-colors w-fit">
-                    <span class="material-symbols-outlined text-[18px] text-on-surface-variant">description</span>
-                    Surat Keterangan DTSEN Digital
-                    @unless ($suratDinsos)
-                        <span class="text-xs text-on-surface-variant">(belum ada)</span>
-                    @endunless
-                </a>
+            @php
+                $suratDinsos = $data->surat->surat_keterangan_dtsen_digital ?? null;
+                $suratAda = $suratDinsos && \Illuminate\Support\Facades\Storage::disk('public')->exists($suratDinsos);
+            @endphp
+            <div class="p-4" x-data="{ preview: false }">
+                @if ($suratAda)
+                    <div
+                        class="flex flex-wrap items-center gap-3 border border-outline-variant/40 rounded-xl px-4 py-3 w-fit">
+                        <span class="material-symbols-outlined text-[28px] text-error/70">picture_as_pdf</span>
+                        <div class="mr-2">
+                            <p class="text-sm font-semibold">Surat Keterangan DTSEN Digital</p>
+                            @if ($data->surat?->surat_keterangan_dtsen_digital_at)
+                                <p class="text-[11px] text-on-surface-variant">
+                                    Dibuat
+                                    {{ \Carbon\Carbon::parse($data->surat->surat_keterangan_dtsen_digital_at)->format('d M Y - H:i') }}
+                                </p>
+                            @endif
+                        </div>
+                        <button type="button" @click="preview = true" title="Lihat surat"
+                            class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-brand/10 text-brand hover:bg-brand hover:text-white text-xs font-semibold transition-colors">
+                            <span class="material-symbols-outlined text-[16px]">visibility</span> Lihat
+                        </button>
+                        <a href="{{ asset('storage/' . $suratDinsos) }}"
+                            download="Surat-Keterangan-DTSEN-{{ $data->no_permohonan }}.pdf" title="Unduh PDF"
+                            class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-brand/10 text-brand hover:bg-brand hover:text-white transition-colors">
+                            <span class="material-symbols-outlined text-[18px]">download</span>
+                        </a>
+                    </div>
+
+                    <div x-show="preview" x-cloak @keydown.escape.window="preview = false"
+                        class="fixed inset-0 z-[9000] flex items-center justify-center bg-black/50 p-4">
+                        <div @click.outside="preview = false"
+                            class="bg-white w-full max-w-4xl h-[90vh] rounded-2xl shadow-xl flex flex-col overflow-hidden">
+                            <div
+                                class="shrink-0 flex items-center justify-between px-5 py-3 border-b border-outline-variant/40">
+                                <h4 class="text-sm font-bold">Surat Keterangan DTSEN</h4>
+                                <div class="flex items-center gap-1">
+                                    <a href="{{ asset('storage/' . $suratDinsos) }}"
+                                        download="Surat-Keterangan-DTSEN-{{ $data->no_permohonan }}.pdf"
+                                        title="Unduh PDF"
+                                        class="w-9 h-9 rounded-full flex items-center justify-center text-brand hover:bg-brand/10 transition-colors">
+                                        <span class="material-symbols-outlined text-[22px]">download</span>
+                                    </a>
+                                    <button type="button" @click="preview = false" title="Tutup"
+                                        class="w-9 h-9 rounded-full flex items-center justify-center text-error hover:bg-error-container/50 transition-colors">
+                                        <span class="material-symbols-outlined text-[22px]">close</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <iframe x-show="preview" src="{{ asset('storage/' . $suratDinsos) }}" class="flex-1 w-full"
+                                title="Preview Surat Keterangan DTSEN"></iframe>
+                        </div>
+                    </div>
+                @else
+                    <div class="flex flex-wrap items-center gap-3">
+                        <div
+                            class="flex items-center gap-2 border border-dashed border-outline-variant/60 rounded-xl px-4 py-3 w-fit text-sm text-on-surface-variant">
+                            <span class="material-symbols-outlined text-[20px] opacity-50">description</span>
+                            @if ($bisaBuatSurat)
+                                Surat belum tersedia untuk ajuan ini.
+                            @else
+                                Surat dibuat otomatis setelah Kepala Dinas menyetujui.
+                            @endif
+                        </div>
+
+                        @if ($bisaBuatSurat)
+                            <form method="POST" action="{{ route('dtsen.surat.buat', $data) }}">
+                                @csrf
+                                <button type="submit"
+                                    class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand text-white hover:opacity-90 text-xs font-bold shadow-md transition-all">
+                                    <span class="material-symbols-outlined text-[16px]">description</span>
+                                    Buat Surat Sekarang
+                                </button>
+                            </form>
+                        @endif
+                    </div>
+                @endif
             </div>
         </div>
 
-        {{-- 5. Log Proses --}}
+        {{-- 6. Log Proses --}}
         <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden">
             <div class="px-5 py-4 border-b border-outline-variant/40">
                 <h3 class="text-sm font-bold flex items-center gap-2">
@@ -359,7 +508,7 @@
             </div>
         </div>
 
-        {{-- 6. Aksi & Catatan --}}
+        {{-- 7. Aksi & Catatan --}}
         <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden mb-10">
             <div class="px-5 py-4 border-b border-outline-variant/40 bg-[#eef4fd]">
                 <h3 class="text-sm font-bold flex items-center gap-2">
@@ -400,6 +549,15 @@
                         <textarea name="catatan" rows="3" required placeholder="Tulis catatan (wajib diisi untuk semua aksi)..."
                             class="w-full px-4 py-3 rounded-xl border border-outline-variant/40 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand shadow-sm">{{ old('catatan') }}</textarea>
                     </div>
+
+                    @if ($butuhTtd && $tteAktif)
+                        <div class="mb-5">
+                            <label class="block text-sm font-bold text-on-surface mb-2">Password TTE <span
+                                    class="text-error">*</span></label>
+                            <input type="password" name="password" autocomplete="off"
+                                class="w-full px-4 py-3 rounded-xl border border-outline-variant/40 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand shadow-sm" />
+                        </div>
+                    @endif
 
                     <div class="flex flex-col sm:flex-row flex-wrap items-center gap-3">
 
@@ -448,4 +606,51 @@
         </div>
 
     </div>
+
+    @push('scripts')
+        <script>
+            // Menu Lihat/Unduh pada kartu Lampiran: klik kartu untuk buka, klik di luar / Esc untuk tutup
+            (function () {
+                var cards = document.querySelectorAll('[data-lampiran-card]');
+                if (!cards.length) return;
+
+                function tutupSemua(kecuali) {
+                    cards.forEach(function (card) {
+                        if (card === kecuali) return;
+                        var menu = card.querySelector('[data-lampiran-menu]');
+                        var tombol = card.querySelector('[data-lampiran-toggle]');
+                        if (menu) menu.hidden = true;
+                        if (tombol) tombol.setAttribute('aria-expanded', 'false');
+                    });
+                }
+
+                cards.forEach(function (card) {
+                    var tombol = card.querySelector('[data-lampiran-toggle]');
+                    var menu = card.querySelector('[data-lampiran-menu]');
+                    if (!tombol || !menu) return;
+
+                    tombol.addEventListener('click', function (e) {
+                        e.stopPropagation();
+                        var buka = menu.hidden;
+                        tutupSemua(card);
+                        menu.hidden = !buka;
+                        tombol.setAttribute('aria-expanded', buka ? 'true' : 'false');
+                    });
+
+                    // Setelah memilih Lihat/Unduh, menu ditutup
+                    menu.querySelectorAll('a').forEach(function (a) {
+                        a.addEventListener('click', function () {
+                            menu.hidden = true;
+                            tombol.setAttribute('aria-expanded', 'false');
+                        });
+                    });
+                });
+
+                document.addEventListener('click', function () { tutupSemua(null); });
+                document.addEventListener('keydown', function (e) {
+                    if (e.key === 'Escape') tutupSemua(null);
+                });
+            })();
+        </script>
+    @endpush
 @endsection
