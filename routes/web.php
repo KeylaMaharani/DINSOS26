@@ -207,8 +207,12 @@ Route::middleware(['auth', 'staff'])->group(function () {
     // ==========================================
     // 3. PBI APBD — Ajuan / Arsip / Monitoring / Log (pintu masuk Super Admin, lintas tahap)
     // ==========================================
-    Route::prefix('pbi-apbd')->name('pbi-apbd.')->middleware('module:pbi-apbd')->group(function () {
-        Route::get('/ajuan', [PbiApbdController::class, 'ajuanIndex'])->middleware('module:pbi-apbd.ajuan')->name('ajuan.index');
+    Route::prefix('pbi-apbd')->name('pbi-apbd.')
+    ->middleware('module:pbi-apbd,pbi-kelurahan,pbi-lurah,pbi-operator,pbi-kabid,pbi-kadis,pbi-dinkes,pbi-bpjs')
+    ->group(function () {
+        Route::get('/ajuan', [PbiApbdController::class, 'ajuanIndex'])
+            ->middleware('module:pbi-apbd.ajuan,pbi-kelurahan.daftar,pbi-lurah.daftar,pbi-operator.daftar,pbi-kabid.daftar,pbi-kadis.daftar,pbi-dinkes.daftar,pbi-bpjs.daftar')
+            ->name('ajuan.index');
         Route::get('/ajuan/{pbiApbd}', [PbiApbdController::class, 'ajuanShow'])->middleware('module:pbi-apbd.ajuan')->name('ajuan.show');
         Route::post('/ajuan/{pbiApbd}/aksi', [PbiApbdController::class, 'ajuanAksi'])->middleware('module:pbi-apbd.ajuan.proses')->name('ajuan.aksi');
         Route::put('/ajuan/{pbiApbd}/tambahan', [PbiApbdController::class, 'ajuanUpdateTambahan'])->middleware('module:pbi-apbd.ajuan.ubah')->name('ajuan.updateTambahan');
@@ -354,6 +358,7 @@ Route::middleware(['auth', 'staff'])->group(function () {
         Route::put('/{permohonan}/bansos', [DtsenController::class, 'updateBansos'])->middleware('module:dtsen.ajuan.ubah')->name('bansos.update');
         Route::put('/{permohonan}/lampiran', [DtsenController::class, 'updateLampiran'])->middleware('module:dtsen.ajuan.ubah')->name('lampiran.update');
         Route::post('/{permohonan}/proses', [DtsenController::class, 'proses'])->middleware('module:dtsen.ajuan.proses')->name('proses');
+        Route::post('/{permohonan}/surat', [DtsenController::class, 'buatSurat'])->middleware('module:dtsen.ajuan.ubah')->name('surat.buat');
     });
 
     // ==========================================

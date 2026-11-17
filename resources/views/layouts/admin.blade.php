@@ -269,6 +269,14 @@
             $notif['dtsen_ajuan'] = $qDtsen->count();
         }
 
+        if ($currentRole && ! $currentRole->isSuperAdmin()) {
+            $notif['pbi_ajuan'] = max(
+                (int) ($notif['pbi_ajuan'] ?? 0),
+                collect(['pbi_kelurahan', 'pbi_lurah', 'pbi_operator', 'pbi_kabid', 'pbi_kadis', 'pbi_dinkes', 'pbi_bpjs'])
+                    ->sum(fn ($k) => (int) ($notif[$k] ?? 0))
+            );
+        }
+
         // URL file PDF panduan penggunaan yang akan ditampilkan sebagai flipbook.
         // Taruh file PDF-nya di public/assets/help/panduan-penggunaan.pdf,
         // atau ganti path di bawah ini sesuai lokasi file kamu.
@@ -406,14 +414,19 @@
                     ['label' => 'Beranda', 'route' => 'pfm.beranda', 'module' => ['pbi-apbd', 'kartu-kks', 'dtsen']],
                     [
                         'label' => 'PBI APBD',
-                        'module' => 'pbi-apbd',
+                        'module' => ['pbi-apbd', 'pbi-kelurahan', 'pbi-lurah', 'pbi-operator', 'pbi-kabid', 'pbi-kadis', 'pbi-dinkes', 'pbi-bpjs'],
                         'children' => [
                             [
                                 'label' => 'Ajuan',
                                 'route' => 'pbi-apbd.ajuan.index',
-                                'match' => ['pbi-apbd.ajuan.*'],
+                                // match: supaya menu Ajuan tetap menyala saat role membuka halaman kerja tahapnya
+                                'match' => ['pbi-apbd.ajuan.*', 'pbi-approval.*', 'pbi-kelurahan.*'],
                                 'badge' => 'pbi_ajuan',
-                                'module' => 'pbi-apbd.ajuan',
+                                'module' => [
+                                    'pbi-apbd.ajuan',
+                                    'pbi-kelurahan.daftar', 'pbi-lurah.daftar', 'pbi-operator.daftar',
+                                    'pbi-kabid.daftar', 'pbi-kadis.daftar', 'pbi-dinkes.daftar', 'pbi-bpjs.daftar',
+                                ],
                             ],
                             [
                                 'label' => 'Arsip',
@@ -528,64 +541,64 @@
             // Hak akses: '{modul}.daftar' (aksi diatur di Kelola Akses).
             ['separator' => 'Approval PBI APBD'],
 
-            [
-                'label' => 'Lurah',
-                'icon' => 'account_balance',
-                'route' => 'pbi-approval.lurah.index',
-                'match' => ['pbi-approval.lurah.*'],
-                'module' => 'pbi-lurah.daftar',
-                'badge' => 'pbi_lurah',
-            ],
-            [
-                'label' => 'Operator Dinas Sosial',
-                'icon' => 'support_agent',
-                'route' => 'pbi-approval.operator.index',
-                'match' => ['pbi-approval.operator.*'],
-                'module' => 'pbi-operator.daftar',
-                'badge' => 'pbi_operator',
-            ],
-            [
-                'label' => 'Kepala Bidang',
-                'icon' => 'supervisor_account',
-                'route' => 'pbi-approval.kabid.index',
-                'match' => ['pbi-approval.kabid.*'],
-                'module' => 'pbi-kabid.daftar',
-                'badge' => 'pbi_kabid',
-            ],
-            [
-                'label' => 'Kepala Dinas',
-                'icon' => 'verified_user',
-                'route' => 'pbi-approval.kadis.index',
-                'match' => ['pbi-approval.kadis.*'],
-                'module' => 'pbi-kadis.daftar',
-                'badge' => 'pbi_kadis',
-            ],
-            [
-                'label' => 'Dinas Kesehatan',
-                'icon' => 'local_hospital',
-                'route' => 'pbi-approval.dinkes.index',
-                'match' => ['pbi-approval.dinkes.*'],
-                'module' => 'pbi-dinkes.daftar',
-                'badge' => 'pbi_dinkes',
-            ],
-            [
-                'label' => 'BPJS',
-                'icon' => 'health_and_safety',
-                'route' => 'pbi-approval.bpjs.index',
-                'match' => ['pbi-approval.bpjs.*'],
-                'module' => 'pbi-bpjs.daftar',
-                'badge' => 'pbi_bpjs',
-            ],
+            // [
+            //     'label' => 'Lurah',
+            //     'icon' => 'account_balance',
+            //     'route' => 'pbi-approval.lurah.index',
+            //     'match' => ['pbi-approval.lurah.*'],
+            //     'module' => 'pbi-lurah.daftar',
+            //     'badge' => 'pbi_lurah',
+            // ],
+            // [
+            //     'label' => 'Operator Dinas Sosial',
+            //     'icon' => 'support_agent',
+            //     'route' => 'pbi-approval.operator.index',
+            //     'match' => ['pbi-approval.operator.*'],
+            //     'module' => 'pbi-operator.daftar',
+            //     'badge' => 'pbi_operator',
+            // ],
+            // [
+            //     'label' => 'Kepala Bidang',
+            //     'icon' => 'supervisor_account',
+            //     'route' => 'pbi-approval.kabid.index',
+            //     'match' => ['pbi-approval.kabid.*'],
+            //     'module' => 'pbi-kabid.daftar',
+            //     'badge' => 'pbi_kabid',
+            // ],
+            // [
+            //     'label' => 'Kepala Dinas',
+            //     'icon' => 'verified_user',
+            //     'route' => 'pbi-approval.kadis.index',
+            //     'match' => ['pbi-approval.kadis.*'],
+            //     'module' => 'pbi-kadis.daftar',
+            //     'badge' => 'pbi_kadis',
+            // ],
+            // [
+            //     'label' => 'Dinas Kesehatan',
+            //     'icon' => 'local_hospital',
+            //     'route' => 'pbi-approval.dinkes.index',
+            //     'match' => ['pbi-approval.dinkes.*'],
+            //     'module' => 'pbi-dinkes.daftar',
+            //     'badge' => 'pbi_dinkes',
+            // ],
+            // [
+            //     'label' => 'BPJS',
+            //     'icon' => 'health_and_safety',
+            //     'route' => 'pbi-approval.bpjs.index',
+            //     'match' => ['pbi-approval.bpjs.*'],
+            //     'module' => 'pbi-bpjs.daftar',
+            //     'badge' => 'pbi_bpjs',
+            // ],
 
             // ---------- Menu tunggal ----------
-            [
-                'label' => 'Verifikasi Kelurahan',
-                'icon' => 'home_work',
-                'route' => 'pbi-kelurahan.index',
-                'match' => ['pbi-kelurahan.*'],
-                'module' => 'pbi-kelurahan.daftar',
-                'badge' => 'pbi_kelurahan',
-            ],
+            // [
+            //     'label' => 'Verifikasi Kelurahan',
+            //     'icon' => 'home_work',
+            //     'route' => 'pbi-kelurahan.index',
+            //     'match' => ['pbi-kelurahan.*'],
+            //     'module' => 'pbi-kelurahan.daftar',
+            //     'badge' => 'pbi_kelurahan',
+            // ],
             // Kelurahan / OPD wilayah: HANYA satu menu ini untuk SIGAP
             [
                 'label' => 'Proses Bantuan Kebencanaan',
@@ -1081,36 +1094,15 @@
                          Isi & perilakunya ada di partials/lonceng.blade.php. --}}
                     @php
                         $daftarNotif = [];
-                        if (
-                            ($notif['pbi_kelurahan'] ?? 0) > 0 &&
-                            \Illuminate\Support\Facades\Route::has('pbi-kelurahan.index')
-                        ) {
-                            $daftarNotif[] = [
-                                'judul' => 'Verifikasi Kelurahan',
-                                'jumlah' => (int) $notif['pbi_kelurahan'],
-                                'url' => route('pbi-kelurahan.index'),
-                            ];
-                        }
-                        if (
-                            ($notif['pbi_lurah'] ?? 0) > 0 &&
-                            \Illuminate\Support\Facades\Route::has('pbi-approval.lurah.index')
-                        ) {
-                            $daftarNotif[] = [
-                                'judul' => 'Tanda Tangan Lurah',
-                                'jumlah' => (int) $notif['pbi_lurah'],
-                                'url' => route('pbi-approval.lurah.index'),
-                            ];
-                        }
-                        if (
-                            ($notif['pbi_ajuan'] ?? 0) > 0 &&
-                            \Illuminate\Support\Facades\Route::has('pbi-apbd.ajuan.index')
-                        ) {
+
+                        if (($notif['pbi_ajuan'] ?? 0) > 0 && \Illuminate\Support\Facades\Route::has('pbi-apbd.ajuan.index')) {
                             $daftarNotif[] = [
                                 'judul' => 'Ajuan PBI APBD',
                                 'jumlah' => (int) $notif['pbi_ajuan'],
                                 'url' => route('pbi-apbd.ajuan.index'),
                             ];
                         }
+
                         if (
                             ($notif['kesan_pilihan'] ?? 0) > 0 &&
                             \Illuminate\Support\Facades\Route::has('kesan-admin.pilihan.index')
