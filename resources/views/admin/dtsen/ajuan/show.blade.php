@@ -1,3 +1,4 @@
+{{-- alin --}}
 @extends('layouts.admin')
 
 @section('title', 'Detail Ajuan DTSEN')
@@ -10,8 +11,8 @@
         default => 'bg-secondary-fixed text-on-secondary-container',
     };
 
-    $detail = $data->detail;
-    $bansos = $data->bansos;
+    $detail = $data->detail ?? new \App\Models\DtsenDetail();
+    $bansos = $data->bansos ?? new \App\Models\DtsenBansos();
 
     $inputFileClass =
         'mt-2 block w-full text-[10px] text-on-surface-variant file:mr-2 file:rounded file:border-0 file:bg-brand/10 file:px-2 file:py-1 file:text-brand';
@@ -55,21 +56,24 @@
                 </h3>
                 <div class="flex items-center gap-3">
                     @if ($canAct)
-                        <span class="text-[11px] text-on-surface-variant"><span class="text-error">*</span> wajib diisi</span>
+                        <span class="text-[11px] text-on-surface-variant"><span class="text-error">*</span> wajib
+                            diisi</span>
                         <span class="text-xs text-brand">Dapat diedit</span>
                     @endif
                 </div>
             </div>
 
-            <form method="POST" action="{{ route('dtsen.bansos.update', $data) }}" class="p-4">
+            <form method="POST" action="{{ route('dtsen.bansos.update', $data) }}" enctype="multipart/form-data" class="p-4">
                 @csrf
                 @method('PUT')
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
                     <div>
-                        <label class="block text-xs text-on-surface-variant mb-1">Peringkat Kesejahteraan Keluarga (Desil) <span class="text-error">*</span></label>
+                        <label class="block text-xs text-on-surface-variant mb-1">Peringkat Kesejahteraan Keluarga (Desil)
+                            <span class="text-error">*</span></label>
                         @if (!$canAct)
-                            <p class="font-medium text-sm px-1 py-1.5">{{ $bansos->peringkat_kesejahteraan_keluarga ?? '-' }}</p>
+                            <p class="font-medium text-sm px-1 py-1.5">
+                                {{ $bansos->peringkat_kesejahteraan_keluarga ?? '-' }}</p>
                         @else
                             <input type="text" name="peringkat_kesejahteraan_keluarga" required
                                 value="{{ old('peringkat_kesejahteraan_keluarga', $bansos->peringkat_kesejahteraan_keluarga ?? '') }}"
@@ -78,7 +82,8 @@
                     </div>
 
                     <div>
-                        <label class="block text-xs text-on-surface-variant mb-1">Dicetak Oleh <span class="text-error">*</span></label>
+                        <label class="block text-xs text-on-surface-variant mb-1">Dicetak Oleh <span
+                                class="text-error">*</span></label>
                         @if (!$canAct)
                             <p class="font-medium text-sm px-1 py-1.5">{{ $bansos->dicetak_oleh ?? '-' }}</p>
                         @else
@@ -90,9 +95,11 @@
 
                     @foreach (['bnpt' => 'BNPT', 'pkh' => 'PKH', 'pbi' => 'PBI', 'yatim_piatu' => 'Yatim Piatu'] as $field => $label)
                         <div>
-                            <label class="block text-xs text-on-surface-variant mb-1">{{ $label }} <span class="text-error">*</span></label>
+                            <label class="block text-xs text-on-surface-variant mb-1">{{ $label }} <span
+                                    class="text-error">*</span></label>
                             @if (!$canAct)
-                                <p class="font-medium text-sm px-1 py-1.5">{{ ($bansos->$field ?? false) ? 'Ya' : 'Tidak' }}</p>
+                                <p class="font-medium text-sm px-1 py-1.5">
+                                    {{ $bansos->$field ?? false ? 'Ya' : 'Tidak' }}</p>
                             @else
                                 <select name="{{ $field }}" required
                                     class="w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30">
@@ -104,7 +111,8 @@
                     @endforeach
 
                     <div>
-                        <label class="block text-xs text-on-surface-variant mb-1">Tanggal Cetak <span class="text-error">*</span></label>
+                        <label class="block text-xs text-on-surface-variant mb-1">Tanggal Cetak <span
+                                class="text-error">*</span></label>
                         @if (!$canAct)
                             <p class="font-medium text-sm px-1 py-1.5">
                                 {{ $bansos->tanggal_cetak ? $bansos->tanggal_cetak->format('d-m-Y') : '-' }}</p>
@@ -116,7 +124,8 @@
                     </div>
 
                     <div>
-                        <label class="block text-xs text-on-surface-variant mb-1">Berlaku Sampai <span class="text-error">*</span></label>
+                        <label class="block text-xs text-on-surface-variant mb-1">Berlaku Sampai <span
+                                class="text-error">*</span></label>
                         @if (!$canAct)
                             <p class="font-medium text-sm px-1 py-1.5">
                                 {{ $bansos->berlaku_sampai ? $bansos->berlaku_sampai->format('d-m-Y') : '-' }}
@@ -136,14 +145,28 @@
                 <div class="pt-4">
                     <label class="block text-xs text-on-surface-variant mb-1">Upload Lainnya</label>
                     @php $uploadLainnya = $bansos->upload_lainnya ?? null; @endphp
-                    <a @if ($uploadLainnya) href="{{ asset('storage/' . $uploadLainnya) }}" target="_blank" @endif
-                        class="inline-flex items-center gap-2 border border-outline-variant/40 rounded-lg px-3 py-2 text-sm hover:border-brand transition-colors w-fit">
-                        <span class="material-symbols-outlined text-[18px] text-on-surface-variant">upload_file</span>
-                        Dokumen Tambahan
-                        @unless ($uploadLainnya)
-                            <span class="text-xs text-on-surface-variant">(belum ada)</span>
-                        @endunless
-                    </a>
+
+                    @if ($uploadLainnya)
+                        <a href="{{ asset('storage/' . $uploadLainnya) }}" target="_blank"
+                            class="inline-flex items-center gap-2 border border-outline-variant/40 rounded-lg px-3 py-2 text-sm hover:border-brand transition-colors w-fit mb-2">
+                            <span class="material-symbols-outlined text-[18px] text-on-surface-variant">upload_file</span>
+                            Dokumen Tambahan
+                            <span class="text-xs text-brand">(lihat file)</span>
+                        </a>
+                    @elseif (!$canAct)
+                        <p class="font-medium text-sm px-1 py-1.5">-</p>
+                    @endif
+
+                    @if ($canAct)
+                        <input type="file" name="upload_lainnya" accept=".jpg,.jpeg,.png,.pdf"
+                            class="block w-full max-w-md text-xs text-on-surface-variant file:mr-3 file:rounded-lg file:border-0 file:bg-brand/10 file:px-3 file:py-2 file:text-brand file:font-medium" />
+                        <p class="text-[11px] text-on-surface-variant mt-1">
+                            JPG, PNG, atau PDF, maks. 2 MB. {{ $uploadLainnya ? 'Pilih file baru untuk mengganti.' : '' }}
+                        </p>
+                        @error('upload_lainnya')
+                            <p class="text-xs text-error mt-1">{{ $message }}</p>
+                        @enderror
+                    @endif
                 </div>
 
                 @if ($canAct)
@@ -167,13 +190,14 @@
                 </h3>
                 <div class="flex items-center gap-3">
                     @if ($canAct)
-                        <span class="text-[11px] text-on-surface-variant"><span class="text-error">*</span> wajib diisi</span>
+                        <span class="text-[11px] text-on-surface-variant"><span class="text-error">*</span> wajib
+                            diisi</span>
                         <span class="text-xs text-brand">Dapat diedit</span>
                     @endif
                 </div>
             </div>
 
-            <form method="POST" action="{{ route('dtsen.detail.update', $data) }}" class="p-4">
+            <form method="POST" action="{{ route('dtsen.bansos.update', $data) }}" enctype="multipart/form-data" class="p-4">
                 @csrf
                 @method('PUT')
 
@@ -184,7 +208,11 @@
                         'no_kk' => ['label' => 'No KK', 'type' => 'text', 'required' => true],
                         'tanggal_lahir' => ['label' => 'Tanggal Lahir', 'type' => 'date', 'required' => true],
                         'alamat' => ['label' => 'Alamat', 'type' => 'textarea', 'required' => true],
-                        'alasan_keputusan_cetak' => ['label' => 'Alasan Keputusan Cetak', 'type' => 'textarea', 'required' => true],
+                        'alasan_keputusan_cetak' => [
+                            'label' => 'Alasan Keputusan Cetak',
+                            'type' => 'textarea',
+                            'required' => true,
+                        ],
                     ];
                 @endphp
 
@@ -249,14 +277,15 @@
                 </div>
                 <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 p-4">
                     @foreach ([
-                        'scan_ktp' => ['label' => 'Scan KTP', 'required' => false],
-                        'screenshot_dtsen' => ['label' => 'Screenshot DTSEN', 'required' => true],
-                    ] as $field => $config)
+            'scan_ktp' => ['label' => 'Scan KTP', 'required' => false],
+            'screenshot_dtsen' => ['label' => 'Screenshot DTSEN', 'required' => true],
+        ] as $field => $config)
                         @php
                             $file = $data->lampiran->$field ?? null;
                             $isPdf = $file && strtolower(pathinfo($file, PATHINFO_EXTENSION)) === 'pdf';
                         @endphp
-                        <div class="border border-outline-variant/40 rounded-lg overflow-hidden hover:border-brand transition-colors">
+                        <div
+                            class="border border-outline-variant/40 rounded-lg overflow-hidden hover:border-brand transition-colors">
                             <a @if ($file) href="{{ asset('storage/' . $file) }}" target="_blank" @endif
                                 class="block">
                                 <div class="aspect-square bg-surface-container flex items-center justify-center">
@@ -264,7 +293,8 @@
                                         <img src="{{ asset('storage/' . $file) }}" class="w-full h-full object-cover"
                                             alt="{{ $config['label'] }}">
                                     @elseif ($file && $isPdf)
-                                        <span class="material-symbols-outlined text-[40px] text-error/70">picture_as_pdf</span>
+                                        <span
+                                            class="material-symbols-outlined text-[40px] text-error/70">picture_as_pdf</span>
                                     @else
                                         <span
                                             class="material-symbols-outlined text-[28px] text-on-surface-variant/50">image_not_supported</span>
@@ -307,16 +337,83 @@
                     Surat Keterangan DTSEN Dinas Sosial
                 </h3>
             </div>
-            <div class="p-4">
-                @php $suratDinsos = $data->surat->surat_keterangan_dtsen_digital ?? null; @endphp
-                <a @if ($suratDinsos) href="{{ asset('storage/' . $suratDinsos) }}" target="_blank" @endif
-                    class="flex items-center gap-2 border border-outline-variant/40 rounded-lg px-3 py-2 text-sm hover:border-brand transition-colors w-fit">
-                    <span class="material-symbols-outlined text-[18px] text-on-surface-variant">description</span>
-                    Surat Keterangan DTSEN Digital
-                    @unless ($suratDinsos)
-                        <span class="text-xs text-on-surface-variant">(belum ada)</span>
-                    @endunless
-                </a>
+            @php
+                $suratDinsos = $data->surat->surat_keterangan_dtsen_digital ?? null;
+                $suratAda = $suratDinsos && \Illuminate\Support\Facades\Storage::disk('public')->exists($suratDinsos);
+            @endphp
+            <div class="p-4" x-data="{ preview: false }">
+                @if ($suratAda)
+                    <div
+                        class="flex flex-wrap items-center gap-3 border border-outline-variant/40 rounded-xl px-4 py-3 w-fit">
+                        <span class="material-symbols-outlined text-[28px] text-error/70">picture_as_pdf</span>
+                        <div class="mr-2">
+                            <p class="text-sm font-semibold">Surat Keterangan DTSEN Digital</p>
+                            @if ($data->surat?->surat_keterangan_dtsen_digital_at)
+                                <p class="text-[11px] text-on-surface-variant">
+                                    Dibuat
+                                    {{ \Carbon\Carbon::parse($data->surat->surat_keterangan_dtsen_digital_at)->format('d M Y - H:i') }}
+                                </p>
+                            @endif
+                        </div>
+                        <button type="button" @click="preview = true" title="Lihat surat"
+                            class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-brand/10 text-brand hover:bg-brand hover:text-white text-xs font-semibold transition-colors">
+                            <span class="material-symbols-outlined text-[16px]">visibility</span> Lihat
+                        </button>
+                        <a href="{{ asset('storage/' . $suratDinsos) }}"
+                            download="Surat-Keterangan-DTSEN-{{ $data->no_permohonan }}.pdf" title="Unduh PDF"
+                            class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-brand/10 text-brand hover:bg-brand hover:text-white transition-colors">
+                            <span class="material-symbols-outlined text-[18px]">download</span>
+                        </a>
+                    </div>
+
+                    <div x-show="preview" x-cloak @keydown.escape.window="preview = false"
+                        class="fixed inset-0 z-[9000] flex items-center justify-center bg-black/50 p-4">
+                        <div @click.outside="preview = false"
+                            class="bg-white w-full max-w-4xl h-[90vh] rounded-2xl shadow-xl flex flex-col overflow-hidden">
+                            <div
+                                class="shrink-0 flex items-center justify-between px-5 py-3 border-b border-outline-variant/40">
+                                <h4 class="text-sm font-bold">Surat Keterangan DTSEN</h4>
+                                <div class="flex items-center gap-1">
+                                    <a href="{{ asset('storage/' . $suratDinsos) }}"
+                                        download="Surat-Keterangan-DTSEN-{{ $data->no_permohonan }}.pdf"
+                                        title="Unduh PDF"
+                                        class="w-9 h-9 rounded-full flex items-center justify-center text-brand hover:bg-brand/10 transition-colors">
+                                        <span class="material-symbols-outlined text-[22px]">download</span>
+                                    </a>
+                                    <button type="button" @click="preview = false" title="Tutup"
+                                        class="w-9 h-9 rounded-full flex items-center justify-center text-error hover:bg-error-container/50 transition-colors">
+                                        <span class="material-symbols-outlined text-[22px]">close</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <iframe x-show="preview" src="{{ asset('storage/' . $suratDinsos) }}" class="flex-1 w-full"
+                                title="Preview Surat Keterangan DTSEN"></iframe>
+                        </div>
+                    </div>
+                @else
+                    <div class="flex flex-wrap items-center gap-3">
+                        <div
+                            class="flex items-center gap-2 border border-dashed border-outline-variant/60 rounded-xl px-4 py-3 w-fit text-sm text-on-surface-variant">
+                            <span class="material-symbols-outlined text-[20px] opacity-50">description</span>
+                            @if ($bisaBuatSurat)
+                                Surat belum tersedia untuk ajuan ini.
+                            @else
+                                Surat dibuat otomatis setelah Kepala Dinas menyetujui.
+                            @endif
+                        </div>
+
+                        @if ($bisaBuatSurat)
+                            <form method="POST" action="{{ route('dtsen.surat.buat', $data) }}">
+                                @csrf
+                                <button type="submit"
+                                    class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand text-white hover:opacity-90 text-xs font-bold shadow-md transition-all">
+                                    <span class="material-symbols-outlined text-[16px]">description</span>
+                                    Buat Surat Sekarang
+                                </button>
+                            </form>
+                        @endif
+                    </div>
+                @endif
             </div>
         </div>
 
@@ -345,13 +442,16 @@
                                 <td class="px-5 py-3 whitespace-nowrap text-on-surface-variant">
                                     {{ \Carbon\Carbon::parse($log->tanggal_proses)->format('d M Y - H:i') }}</td>
                                 <td class="px-5 py-3 font-medium text-on-surface">{{ $log->username }}</td>
-                                <td class="px-5 py-3"><span class="bg-surface-container px-2 py-1 rounded text-xs">{{ $log->rolename }}</span></td>
+                                <td class="px-5 py-3"><span
+                                        class="bg-surface-container px-2 py-1 rounded text-xs">{{ $log->rolename }}</span>
+                                </td>
                                 <td class="px-5 py-3 font-medium">{{ $log->taskname }}</td>
                                 <td class="px-5 py-3 text-on-surface-variant">{{ $log->catatan ?: '-' }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="px-5 py-6 text-center text-on-surface-variant">Belum ada log proses.</td>
+                                <td colspan="5" class="px-5 py-6 text-center text-on-surface-variant">Belum ada log
+                                    proses.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -370,8 +470,10 @@
 
             @if ($isFinal)
                 <div class="p-6 text-center bg-surface-container-lowest">
-                    <div class="inline-flex items-center justify-center w-12 h-12 rounded-full {{ $data->status === \App\Models\DtsenPermohonan::STATUS_SELESAI ? 'bg-success/20 text-success' : 'bg-error/20 text-error' }} mb-3">
-                        <span class="material-symbols-outlined text-[24px]">{{ $data->status === \App\Models\DtsenPermohonan::STATUS_SELESAI ? 'check_circle' : 'cancel' }}</span>
+                    <div
+                        class="inline-flex items-center justify-center w-12 h-12 rounded-full {{ $data->status === \App\Models\DtsenPermohonan::STATUS_SELESAI ? 'bg-success/20 text-success' : 'bg-error/20 text-error' }} mb-3">
+                        <span
+                            class="material-symbols-outlined text-[24px]">{{ $data->status === \App\Models\DtsenPermohonan::STATUS_SELESAI ? 'check_circle' : 'cancel' }}</span>
                     </div>
                     <h4 class="text-lg font-bold mb-1">Permohonan Final</h4>
                     <p class="text-sm text-on-surface-variant">
@@ -381,7 +483,8 @@
                 </div>
             @elseif (!$canAct)
                 <div class="p-6 text-center bg-surface-container-lowest">
-                    <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-warning/20 text-warning mb-3">
+                    <div
+                        class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-warning/20 text-warning mb-3">
                         <span class="material-symbols-outlined text-[24px]">hourglass_empty</span>
                     </div>
                     <h4 class="text-lg font-bold mb-1">Menunggu Tahap Selanjutnya</h4>
@@ -396,17 +499,26 @@
                     @csrf
 
                     <div class="mb-5">
-                        <label class="block text-sm font-bold text-on-surface mb-2">Catatan Proses <span class="text-error">*</span></label>
+                        <label class="block text-sm font-bold text-on-surface mb-2">Catatan Proses <span
+                                class="text-error">*</span></label>
                         <textarea name="catatan" rows="3" required placeholder="Tulis catatan (wajib diisi untuk semua aksi)..."
                             class="w-full px-4 py-3 rounded-xl border border-outline-variant/40 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand shadow-sm">{{ old('catatan') }}</textarea>
                     </div>
+
+                    @if ($butuhTtd && $tteAktif)
+                        <div class="mb-5">
+                            <label class="block text-sm font-bold text-on-surface mb-2">Password TTE <span
+                                    class="text-error">*</span></label>
+                            <input type="password" name="password" autocomplete="off"
+                                class="w-full px-4 py-3 rounded-xl border border-outline-variant/40 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand shadow-sm" />
+                        </div>
+                    @endif
 
                     <div class="flex flex-col sm:flex-row flex-wrap items-center gap-3">
 
                         @if ($returnLabel)
                             <button type="submit" name="action" value="kembalikan"
-                                data-confirm="{{ $returnLabel }}?"
-                                data-confirm-variant="primary"
+                                data-confirm="{{ $returnLabel }}?" data-confirm-variant="primary"
                                 class="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-5 py-2.5 rounded-lg border border-outline-variant hover:bg-surface-container-highest text-on-surface text-sm font-bold transition-all">
                                 <span class="material-symbols-outlined text-[18px]">undo</span>
                                 {{ $returnLabel }}
