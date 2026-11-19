@@ -7,6 +7,7 @@ use App\Models\KartuKksPermohonan;
 use App\Models\KartuKksLog;
 use App\Models\Role;
 use App\Support\KartuKksSurat;
+use App\Support\KartuKksSuratPengantar;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,7 @@ class KartuKksController extends Controller
      * Dipakai juga untuk mencari "siapa yang TTD" di show().
      */
     public const TASK_TTD_KADIS = 'Disetujui Kadis (TTD Digital)';
+    public const TASK_TTD_LURAH = 'Disetujui Lurah (TTD Digital)';
 
     /**
      * GET /kartu-kks/log
@@ -100,10 +102,24 @@ class KartuKksController extends Controller
     }
 
     /**
+     * Petugas wilayah (Kelurahan & Lurah): hanya melihat / memproses
+     * ajuan dari kelurahannya sendiri.
+     */
+    private function isPetugasWilayah($role): bool
+    {
+        return in_array($this->roleSlug($role), ['kelurahan', 'lurah'], true);
+    }
+
+    /**
      * Pastikan petugas Kelurahan (akun lama) hanya bisa membuka / mengubah /
      * memproses permohonan dari wilayah kelurahannya sendiri. Admin & role
      * Dinsos lainnya tidak dibatasi wilayah (mereka dibatasi oleh tahap/role).
      */
+    private function normWilayah(?string $nilai): string
+    {
+        return Str::lower(preg_replace('/\s+/', ' ', trim((string) $nilai)));
+    }
+
     private function pastikanWilayah(KartuKksPermohonan $permohonan): void
     {
         $user = Auth::user();
@@ -113,9 +129,10 @@ class KartuKksController extends Controller
             return;
         }
 
-        if ($this->roleSlug($role) === 'kelurahan') {
+        if ($this->isPetugasWilayah($role)) {
             abort_unless(
-                filled($user->kelurahan) && $permohonan->kelurahan === $user->kelurahan,
+                filled($user->kelurahan)
+                    && $this->normWilayah($permohonan->kelurahan) === $this->normWilayah($user->kelurahan),
                 403,
                 'Pengajuan ini bukan dari wilayah kelurahan Anda.'
             );
@@ -129,6 +146,7 @@ class KartuKksController extends Controller
     {
         return match ($slug) {
             'kelurahan' => 'Kelurahan',
+            'lurah' => 'Lurah',
             'operator_dinsos' => 'Operator Dinsos',
             'kabin' => 'Kepala Bidang',
             'kadis' => 'Kepala Dinas',
@@ -143,6 +161,7 @@ class KartuKksController extends Controller
     private function statusAlur(): array
     {
         return [
+            KartuKksPermohonan::STATUS_TTD_LURAH,
             KartuKksPermohonan::STATUS_DIAJUKAN,
             KartuKksPermohonan::STATUS_DIPROSES_KABIN,
             KartuKksPermohonan::STATUS_DISETUJUI_KADIS,
@@ -166,6 +185,15 @@ class KartuKksController extends Controller
     private function transitions(): array
     {
         return [
+            KartuKksPermohonan::STATUS_TTD_LURAH => [
+                'allowed_role' => 'lurah',
+                'task_lanjut' => self::TASK_TTD_LURAH,
+                'tombol_lanjut' => 'Setujui & Tanda Tangani Surat Pengantar (TTD Digital)',
+                'next' => KartuKksPermohonan::STATUS_DIAJUKAN,
+                'next_role' => 'operator_dinsos',
+                'butuh_ttd' => true,
+                'jenis_surat' => 'pengantar',
+            ],
             KartuKksPermohonan::STATUS_DIAJUKAN => [
                 'allowed_role' => 'operator_dinsos',
                 'task_lanjut' => 'Diteruskan ke Kabid',
@@ -245,15 +273,16 @@ class KartuKksController extends Controller
 
         // Superadmin/admin bisa melihat SEMUA data tanpa dibatasi role/tahap.
         if (! $isAdmin) {
-            $query->whereHas('currentRole', fn($q) => $q->where('slug', $roleSlug));
-
-            // Petugas Kelurahan (akun lama) hanya melihat ajuan dari kelurahannya sendiri.
-            if ($roleSlug === 'kelurahan') {
+            if ($this->isPetugasWilayah($user->role)) {
+                // Kelurahan melihat SEMUA ajuan wilayahnya (di tahap manapun, read-only),
+                // bukan hanya yang sedang dipegang rolenya.
                 $query->when(
                     filled($user->kelurahan),
                     fn($q) => $q->where('kelurahan', $user->kelurahan),
-                    fn($q) => $q->whereRaw('1 = 0') // wilayah belum diatur -> tidak tampil apa pun
+                    fn($q) => $q->whereRaw('1 = 0')
                 );
+            } else {
+                $query->whereHas('currentRole', fn($q) => $q->where('slug', $roleSlug));
             }
         }
 
@@ -316,6 +345,11 @@ class KartuKksController extends Controller
         $query = KartuKksPermohonan::query()
             ->whereIn('status', $statusArsip);
 
+        $u = Auth::user();
+        if (! $this->isAdmin($u->role) && $this->isPetugasWilayah($u->role)) {
+            $query->where('kelurahan', filled($u->kelurahan) ? $u->kelurahan : '__none__');
+        }
+
         if ($request->filled('tanggal_awal')) {
             $query->whereDate('tanggal_insert', '>=', $request->date('tanggal_awal'));
         }
@@ -366,6 +400,11 @@ class KartuKksController extends Controller
         // Menarik SEMUA LOG secara urut layaknya DTSEN, bukan cuma 1
         $query = KartuKksPermohonan::with(['currentRole', 'logs' => fn($q) => $q->orderBy('tanggal_proses')])
             ->where('status', '!=', KartuKksPermohonan::STATUS_SELESAI);
+
+        $u = Auth::user();
+        if (! $this->isAdmin($u->role) && $this->isPetugasWilayah($u->role)) {
+            $query->where('kelurahan', filled($u->kelurahan) ? $u->kelurahan : '__none__');
+        }
 
         if ($request->filled('tanggal_awal')) {
             $query->whereDate('tanggal_insert', '>=', $request->date('tanggal_awal'));
@@ -454,6 +493,16 @@ class KartuKksController extends Controller
             'tanggal' => $logTtd->tanggal_proses,
         ] : null;
 
+        $logTtdLurah = $permohonan->logs->first(fn($l) => $l->taskname === self::TASK_TTD_LURAH);
+        $ttdLurah = $logTtdLurah ? [
+            'path' => $logTtdLurah->user?->ttd_path,
+            'nama' => $logTtdLurah->user?->name ?? $logTtdLurah->username,
+            'tanggal' => $logTtdLurah->tanggal_proses,
+        ] : null;
+
+        $suratPengantar = $permohonan->surat?->surat_pengantar_kelurahan;
+        $suratPengantarAda = $suratPengantar && Storage::disk('public')->exists($suratPengantar);
+
         return view('admin.kartu-kks.ajuan.show', [
             'data' => $permohonan,
             'statusLabels' => KartuKksPermohonan::statusLabels(),
@@ -477,6 +526,9 @@ class KartuKksController extends Controller
                     KartuKksPermohonan::STATUS_SELESAI,
                 ], true)
                 && ($isSuperAdmin || $roleSlug === 'operator_dinsos'),
+            'ttdLurah' => $ttdLurah,
+            'suratPengantar' => $suratPengantar,
+            'suratPengantarAda' => $suratPengantarAda,
         ]);
     }
 
@@ -485,6 +537,8 @@ class KartuKksController extends Controller
      */
     public function detail(KartuKksPermohonan $permohonan)
     {
+        $this->pastikanWilayah($permohonan);
+
         $permohonan->load(['detail', 'lampiran', 'surat', 'logs.user', 'currentRole']);
 
         return response()->json($permohonan);
@@ -769,7 +823,11 @@ class KartuKksController extends Controller
                         ]);
 
                         if (! empty($rule['butuh_ttd'])) {
-                            KartuKksSurat::buatDanSimpan($permohonan, $user, $passphrase);
+                            if (($rule['jenis_surat'] ?? null) === 'pengantar') {
+                                KartuKksSuratPengantar::buatDanSimpan($permohonan, $user, $passphrase);
+                            } else {
+                                KartuKksSurat::buatDanSimpan($permohonan, $user, $passphrase);
+                            }
                         }
                     });
                 } catch (\Throwable $e) {

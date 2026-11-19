@@ -2,22 +2,27 @@
 
 use App\Http\Controllers\Admin\AkunMasyarakatController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\DataDesilController;
+use App\Http\Controllers\Admin\DayasosDashboardController;
 use App\Http\Controllers\Admin\DokumenController;
 use App\Http\Controllers\Admin\DtsenController;
 use App\Http\Controllers\Admin\GcKeterampilanController;
 use App\Http\Controllers\Admin\GcKriteriaController;
 use App\Http\Controllers\Admin\GcLapanganUsahaController;
 use App\Http\Controllers\Admin\GcPenyakitKronisController;
+use App\Http\Controllers\Admin\GcPetugasController;
 use App\Http\Controllers\Admin\GroundCheckController;
 use App\Http\Controllers\Admin\KartuKksController;
 use App\Http\Controllers\Admin\KriteriaController;
 use App\Http\Controllers\Admin\MenuPlaceholderController;
+// --- Ngopi Pagi ---
 use App\Http\Controllers\Admin\NgopiPagiController as NgopiPagiAdminController;
 use App\Http\Controllers\Admin\NgopiPagiKonselorController;
 use App\Http\Controllers\Admin\NgopiPagiSpesialisasiController;
 use App\Http\Controllers\Admin\PbiApbdController;
 use App\Http\Controllers\Admin\PbiApprovalController;
 use App\Http\Controllers\Admin\PbiKelurahanController;
+use App\Http\Controllers\Admin\PerlinsosDashboardController;
 use App\Http\Controllers\Admin\PfmDashboardController;
 use App\Http\Controllers\Admin\PlaceholderController;
 use App\Http\Controllers\Admin\RehabsosController;
@@ -28,6 +33,7 @@ use App\Http\Controllers\Auth\LoginAdminController;
 use App\Http\Controllers\Auth\ProfileController;
 use App\Http\Controllers\Auth\ProfilTtdController;
 use App\Http\Controllers\Auth\UserController;
+use App\Http\Controllers\KartuKksVerifikasiController;
 use App\Http\Controllers\Layanan\DtsenAjuanController;
 use App\Http\Controllers\Layanan\KartuKksAjuanController;
 use App\Http\Controllers\Masyarakat\MasyarakatController;
@@ -38,6 +44,7 @@ use App\Http\Controllers\NgopiPagiPublikController;
 use App\Http\Controllers\NotifikasiController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\RegistrasiController;
+use App\Http\Middleware\GcPetugasProfil;
 use App\Models\NgopiPagiKonsultasi;
 use Illuminate\Support\Facades\Route;
 
@@ -110,6 +117,13 @@ Route::get('/ganti-tampilan/{mode}', function (string $mode) {
     session(['view_mode' => $mode]);   // mobile | desktop | auto
     return back();
 })->whereIn('mode', ['mobile', 'desktop', 'auto'])->name('ganti-tampilan');
+
+Route::get('/verifikasi/surat-pengantar-kks/{permohonan}', [KartuKksVerifikasiController::class, 'pengantar'])
+    ->middleware('signed')
+    ->name('kks.pengantar.verifikasi');
+Route::get('/verifikasi/surat-keterangan-kks/{permohonan}', [KartuKksVerifikasiController::class, 'keterangan'])
+    ->middleware('signed')
+    ->name('kks.keterangan.verifikasi');
 
 // ==========================================
 // KEMBALI KE SUPER ADMIN (setelah "Masuk sebagai")
@@ -211,18 +225,18 @@ Route::middleware(['auth', 'staff'])->group(function () {
     //   ke tampilan tahapnya (dikenali dari slug role, lihat PbiApbd::tahapUntukRole()).
     // ==========================================
     Route::prefix('pbi-apbd')->name('pbi-apbd.')
-    ->middleware('module:pbi-apbd')
-    ->group(function () {
-        Route::get('/ajuan', [PbiApbdController::class, 'ajuanIndex'])->middleware('module:pbi-apbd.ajuan')->name('ajuan.index');
-        Route::get('/ajuan/{pbiApbd}', [PbiApbdController::class, 'ajuanShow'])->middleware('module:pbi-apbd.ajuan')->name('ajuan.show');
-        Route::post('/ajuan/{pbiApbd}/aksi', [PbiApbdController::class, 'ajuanAksi'])->middleware('module:pbi-apbd.ajuan.proses')->name('ajuan.aksi');
-        Route::put('/ajuan/{pbiApbd}/tambahan', [PbiApbdController::class, 'ajuanUpdateTambahan'])->middleware('module:pbi-apbd.ajuan.ubah')->name('ajuan.updateTambahan');
+        ->middleware('module:pbi-apbd')
+        ->group(function () {
+            Route::get('/ajuan', [PbiApbdController::class, 'ajuanIndex'])->middleware('module:pbi-apbd.ajuan')->name('ajuan.index');
+            Route::get('/ajuan/{pbiApbd}', [PbiApbdController::class, 'ajuanShow'])->middleware('module:pbi-apbd.ajuan')->name('ajuan.show');
+            Route::post('/ajuan/{pbiApbd}/aksi', [PbiApbdController::class, 'ajuanAksi'])->middleware('module:pbi-apbd.ajuan.proses')->name('ajuan.aksi');
+            Route::put('/ajuan/{pbiApbd}/tambahan', [PbiApbdController::class, 'ajuanUpdateTambahan'])->middleware('module:pbi-apbd.ajuan.ubah')->name('ajuan.updateTambahan');
 
-        Route::get('/arsip', [PbiApbdController::class, 'arsipIndex'])->middleware('module:pbi-apbd.arsip')->name('arsip.index');
-        Route::get('/arsip/{pbiApbd}/detail', [PbiApbdController::class, 'arsipDetail'])->middleware('module:pbi-apbd.arsip')->name('arsip.detail');
-        Route::get('/monitoring', [PbiApbdController::class, 'monitoringIndex'])->middleware('module:pbi-apbd.monitoring')->name('monitoring.index');
-        Route::get('/log', [PbiApbdController::class, 'logIndex'])->middleware('module:pbi-apbd.log')->name('log.index');
-    });
+            Route::get('/arsip', [PbiApbdController::class, 'arsipIndex'])->middleware('module:pbi-apbd.arsip')->name('arsip.index');
+            Route::get('/arsip/{pbiApbd}/detail', [PbiApbdController::class, 'arsipDetail'])->middleware('module:pbi-apbd.arsip')->name('arsip.detail');
+            Route::get('/monitoring', [PbiApbdController::class, 'monitoringIndex'])->middleware('module:pbi-apbd.monitoring')->name('monitoring.index');
+            Route::get('/log', [PbiApbdController::class, 'logIndex'])->middleware('module:pbi-apbd.log')->name('log.index');
+        });
 
     // Halaman kerja Kelurahan (PBI APBD) — nama route tetap pbi-kelurahan.*
     Route::prefix('pbi-kelurahan')->name('pbi-kelurahan.')->middleware('module:pbi-apbd.ajuan')->group(function () {
@@ -302,18 +316,32 @@ Route::middleware(['auth', 'staff'])->group(function () {
     });
 
     // ==========================================
+    // GROUND CHECK PETUGAS (menu mandiri, tidak masuk bidang apa pun)
+    //   Home = isi data petugas + unduh dokumen. Ground Check-nya memakai rute
+    //   ground-check.* di bawah. Unduh dokumen baru terbuka setelah data lengkap.
+    // ==========================================
+    Route::prefix('gc')->name('gc.')->middleware('module:gc-petugas')->group(function () {
+        Route::get('/home', [GcPetugasController::class, 'home'])->name('home');
+        Route::put('/profil', [GcPetugasController::class, 'profilUpdate'])->name('profil.update');
+        Route::get('/dokumen/{kode}', [GcPetugasController::class, 'dokumen'])
+            ->middleware(GcPetugasProfil::class)->name('dokumen');
+    });
+
+    // ==========================================
     // GROUND CHECK 2026
     //   Rute statis (/keluarga/...) HARUS sebelum rute wildcard {sasaran}.
     //   Hak akses: ground-check.daftar = buka, .tambah = tambah sasaran, .ubah = isi form & ubah status.
     // ==========================================
-    Route::prefix('ground-check')->name('ground-check.')->middleware('module:ground-check')->group(function () {
-        Route::get('/', [GroundCheckController::class, 'index'])->middleware('module:ground-check.daftar')->name('index');
-        Route::get('/keluarga/{noKk}', [GroundCheckController::class, 'keluarga'])->middleware('module:ground-check.daftar')->name('keluarga');
-        Route::post('/{sasaran}/status', [GroundCheckController::class, 'statusStore'])->whereNumber('sasaran')->middleware('module:ground-check.daftar.ubah')->name('status');
-        Route::get('/{sasaran}/form', [GroundCheckController::class, 'form'])->whereNumber('sasaran')->middleware('module:ground-check.daftar')->name('form');
-        Route::post('/{sasaran}/form', [GroundCheckController::class, 'simpan'])->whereNumber('sasaran')->middleware('module:ground-check.daftar.ubah')->name('simpan');
-        Route::post('/', [GroundCheckController::class, 'store'])->middleware('module:ground-check.daftar.tambah')->name('store');
-    });
+    Route::prefix('ground-check')->name('ground-check.')
+        ->middleware(['module:ground-check,gc-petugas', GcPetugasProfil::class])
+        ->group(function () {
+            Route::get('/', [GroundCheckController::class, 'index'])->middleware('module:ground-check.daftar,gc-petugas')->name('index');
+            Route::get('/keluarga/{noKk}', [GroundCheckController::class, 'keluarga'])->middleware('module:ground-check.daftar,gc-petugas')->name('keluarga');
+            Route::post('/{sasaran}/status', [GroundCheckController::class, 'statusStore'])->whereNumber('sasaran')->middleware('module:ground-check.daftar.ubah,gc-petugas')->name('status');
+            Route::get('/{sasaran}/form', [GroundCheckController::class, 'form'])->whereNumber('sasaran')->middleware('module:ground-check.daftar,gc-petugas')->name('form');
+            Route::post('/{sasaran}/form', [GroundCheckController::class, 'simpan'])->whereNumber('sasaran')->middleware('module:ground-check.daftar.ubah,gc-petugas')->name('simpan');
+            Route::post('/', [GroundCheckController::class, 'store'])->middleware('module:ground-check.daftar.tambah,gc-petugas')->name('store');
+        });
 
     // ==========================================
     // 4. Kartu KKS
@@ -415,9 +443,8 @@ Route::middleware(['auth', 'staff'])->group(function () {
     // ==========================================
     // PERLINSOS -- menu tambahan (kerangka)
     // ==========================================
-    Route::get('/perlinsos/dashboard', [MenuPlaceholderController::class, 'show'])
+    Route::get('/perlinsos/dashboard', [PerlinsosDashboardController::class, 'index'])
         ->middleware('module:sigap-bencana')
-        ->defaults('judul', 'Perlinsos')->defaults('label', 'Beranda')
         ->name('perlinsos.dashboard');
 
     Route::get('/perlinsos/laporan', [MenuPlaceholderController::class, 'show'])
@@ -487,7 +514,11 @@ Route::middleware(['auth', 'staff'])->group(function () {
                 continue;
             }
 
-            Route::get('/' . $n['url'], [MenuPlaceholderController::class, 'show'])
+            $handler = ($n['url'] === 'dayasos/dashboard')
+                ? [DayasosDashboardController::class, 'index']
+                : [MenuPlaceholderController::class, 'show'];
+
+            Route::get('/' . $n['url'], $handler)
                 ->middleware('module:' . implode(',', (array) $module))
                 ->defaults('judul', 'Dayasos')
                 ->defaults('label', $n['label'])
@@ -544,6 +575,16 @@ Route::middleware(['auth', 'staff'])->group(function () {
                 }
             });
         }
+    });
+
+    // ==========================================
+    // ENTRI DATA -- Data Desil Kependudukan
+    //   Sumber: tabel data_penduduk_asli. Akses: Super Admin (otomatis) + role yang
+    //   dicentang modul 'data-desil' di Kelola Akses (mis. Kadis).
+    // ==========================================
+    Route::prefix('entri-data/data-desil')->name('data-desil.')->middleware('module:data-desil')->group(function () {
+        Route::get('/', [DataDesilController::class, 'index'])->name('index');
+        Route::get('/export', [DataDesilController::class, 'export'])->name('export');
     });
 
     // ==========================================

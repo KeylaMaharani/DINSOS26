@@ -209,7 +209,7 @@
         // Badge Ground Check: jumlah keluarga (No KK) yang belum selesai di-ground check.
         // Dihitung langsung di sini (tanpa kelas tambahan); tahun Ground Check = 2026.
         $notif = (array) $notif;
-        $punyaGc = $currentRole && ($currentRole->isSuperAdmin() || $currentRole->hasModule('ground-check'));
+        $punyaGc = $currentRole && ($currentRole->isSuperAdmin() || $currentRole->hasModule('ground-check') || $currentRole->hasModule('gc-petugas'));
         $notif['ground_check'] = $punyaGc
             ? \App\Models\GcSasaran::query()
                 ->whereDoesntHave('verifikasis', fn($v) => $v->where('tahun', 2026)->where('status_entry', 'submit'))
@@ -262,6 +262,44 @@
             }
 
             $notif['dtsen_ajuan'] = $qDtsen->count();
+        }
+
+        // Badge Kartu KKS Ajuan
+        $notif['kks_ajuan'] = 0;
+        if ($currentRole && ($currentRole->isSuperAdmin() || $currentRole->hasModule('kartu-kks.ajuan'))) {
+            $slugKks = strtolower(str_replace(['-', ' '], '_', (string) ($currentRole->slug ?: $currentRole->name)));
+            $adminKks = $currentRole->isSuperAdmin()
+                || str_contains(strtolower($currentRole->name ?? ''), 'admin')
+                || in_array($slugKks, ['admin', 'super_admin', 'superadmin'], true);
+
+            $qKks = \App\Models\KartuKksPermohonan::query()->whereNotIn('status', [
+                \App\Models\KartuKksPermohonan::STATUS_SELESAI,
+                \App\Models\KartuKksPermohonan::STATUS_DITOLAK,
+            ]);
+
+            if ($slugKks === 'kelurahan' && ! $adminKks) {
+                $qKks->whereRaw('1 = 0');
+            } elseif (! $adminKks) {
+                $qKks->whereHas('currentRole', fn($q) => $q->where('slug', $slugKks));
+
+                // Lurah hanya menghitung ajuan di kelurahannya sendiri
+                if ($slugKks === 'lurah') {
+                    filled(auth()->user()->kelurahan)
+                        ? $qKks->where('kelurahan', auth()->user()->kelurahan)
+                        : $qKks->whereRaw('1 = 0');
+                }
+            }
+
+            $notif['kks_ajuan'] = $qKks->count();
+        }
+
+        // Badge PBI APBD Ajuan: gabungan badge per tahap (role non-Super Admin)
+        if ($currentRole && ! $currentRole->isSuperAdmin()) {
+            $notif['pbi_ajuan'] = max(
+                (int) ($notif['pbi_ajuan'] ?? 0),
+                collect(['pbi_kelurahan', 'pbi_lurah', 'pbi_operator', 'pbi_kabid', 'pbi_kadis', 'pbi_dinkes', 'pbi_bpjs'])
+                    ->sum(fn ($k) => (int) ($notif[$k] ?? 0))
+            );
         }
 
         // URL file PDF panduan penggunaan yang akan ditampilkan sebagai flipbook.
@@ -374,6 +412,7 @@
                     'route' => 'kartu-kks.ajuan',
                     'match' => ['kartu-kks.show', 'kartu-kks.detail*', 'kartu-kks.proses', 'kartu-kks.surat.*'],
                     'module' => 'kartu-kks.ajuan',
+                    'badge' => 'kks_ajuan',
                 ],
                 ['label' => 'Arsip', 'route' => 'kartu-kks.arsip', 'module' => 'kartu-kks.arsip'],
                 ['label' => 'Monitoring', 'route' => 'kartu-kks.monitoring', 'module' => 'kartu-kks.monitoring'],
@@ -443,6 +482,25 @@
                 'icon' => 'dashboard',
                 'route' => 'dashboard',
                 'module' => 'beranda',
+            ],
+
+            // ==================== GROUND CHECK PETUGAS (mandiri) ====================
+            // Tidak masuk bidang mana pun. Super Admin tidak perlu melihatnya
+            // (sudah punya Ground Check di PFM).
+            [
+                'label' => 'Ground Check',
+                'icon' => 'travel_explore',
+                'module' => 'gc-petugas',
+                // 'hide_for_superadmin' => true,
+                'children' => [
+                    ['label' => 'Home', 'route' => 'gc.home', 'match' => ['gc.*']],
+                    [
+                        'label' => 'Ground Check 2026',
+                        'route' => 'ground-check.index',
+                        'match' => ['ground-check.*'],
+                        'badge' => 'ground_check',
+                    ],
+                ],
             ],
 
             // ==================== PORTAL ====================
@@ -574,6 +632,15 @@
                 'route' => 'dokumen.index',
                 'match' => ['dokumen.*'],
                 'module' => 'dokumen.daftar',
+            ],
+
+            ['separator' => 'Entri Data'],
+            [
+                'label' => 'Data Desil',
+                'icon' => 'database',
+                'route' => 'data-desil.index',
+                'match' => ['data-desil.*'],
+                'module' => 'data-desil',
             ],
 
             // ==================== DATA MASTER ====================

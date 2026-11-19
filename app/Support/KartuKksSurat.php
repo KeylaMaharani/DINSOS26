@@ -8,6 +8,8 @@ use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
 use chillerlan\QRCode\QRCode;
 use chillerlan\QRCode\QROptions;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use PhpOffice\PhpWord\Settings;
@@ -25,8 +27,9 @@ class KartuKksSurat
 
         $nomor = '400.9.11.3/' . str_pad((string) $p->id, 6, '0', STR_PAD_LEFT) . ' - PFM';
 
+        // QR berisi URL publik (signed, tanpa kedaluwarsa) yang membuka PDF surat keterangan.
         $qr = self::buatQr(
-            'Surat Keterangan KKS ' . $p->no_permohonan . ' | ' . $nomor . ' | ' . ($kadis->name ?? '')
+            URL::signedRoute('kks.keterangan.verifikasi', ['permohonan' => $p])
         );
 
         $template = Dokumen::where('kode', self::KODE_TEMPLATE)->first();
@@ -100,14 +103,26 @@ class KartuKksSurat
             ]);
 
             // Gambar: di docx tulis ${qrcode} dan ${logo} (menggantikan teks "Qrcode" / "Logo").
-            $qrFile = $tmpDir . DIRECTORY_SEPARATOR . 'qr.png';
-            file_put_contents($qrFile, base64_decode(preg_replace('#^data:image/\w+;base64,#', '', $qrDataUri)));
+            $png = base64_decode(preg_replace('#^data:image/[\w.+-]+;base64,#', '', $qrDataUri), true);
+            if ($png === false || substr($png, 0, 4) !== "\x89PNG") {
+                throw new \RuntimeException('buatQr() tidak menghasilkan PNG yang valid.');
+            }
 
-            try {
-                $tpl->setImageValue('qrcode', ['path' => $qrFile, 'width' => 80, 'height' => 80, 'ratio' => true]);
+            $qrFile = $tmpDir . DIRECTORY_SEPARATOR . 'qr.png';
+            file_put_contents($qrFile, $png);
+
+            $variabel = $tpl->getVariables();
+
+            $namaQr = collect(['qr_code', 'qrcode'])->first(fn ($n) => in_array($n, $variabel, true));
+
+            if ($namaQr) {
+                $tpl->setImageValue($namaQr, ['path' => $qrFile, 'width' => 100, 'height' => 100, 'ratio' => true]);
+            } else {
+                Log::warning('Surat keterangan KKS: placeholder QR (${qr_code}/${qrcode}) tidak terbaca di template.', ['terbaca' => $variabel]);
+            }
+
+            if (in_array('logo', $variabel, true)) {
                 $tpl->setImageValue('logo', ['path' => self::logoPath(), 'width' => 60, 'height' => 60, 'ratio' => true]);
-            } catch (\Throwable $e) {
-                // Placeholder gambar tidak ada di template -> abaikan.
             }
 
             $docx = $tmpDir . DIRECTORY_SEPARATOR . 'surat.docx';
@@ -127,7 +142,7 @@ class KartuKksSurat
         }
     }
 
-        private static function docxKePdf(string $docx, string $outDir): string
+        public static function docxKePdf(string $docx, string $outDir): string
     {
         $norm = fn (string $p) => str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $p);
 
@@ -185,7 +200,7 @@ class KartuKksSurat
      * Render QR menjadi data-URI PNG. Kompatibel dengan
      * chillerlan/php-qrcode v4, v5, dan v6.
      */
-    private static function buatQr(string $data): string
+    public static function buatQr(string $data): string
     {
         if (defined('chillerlan\QRCode\Output\QROutputInterface::GDIMAGE_PNG')) {
             // v5
