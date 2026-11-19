@@ -11,8 +11,8 @@ use Throwable;
  * Angka badge merah di sidebar admin = jumlah permohonan yang SEDANG MENUNGGU
  * tindakan role yang login DAN belum pernah dibuka detailnya oleh user tsb pada tahap ini.
  *
- * Key hasil dipakai di layouts/admin.blade.php lewat 'badge' => '<key>':
- *   pbi_kelurahan, pbi_ajuan, pbi_operator, pbi_kabid, pbi_kadis, pbi_dinkes, pbi_bpjs
+ * Semua role PBI APBD memakai SATU menu "Ajuan", jadi hanya key 'pbi_ajuan' yang dipakai sidebar.
+ * Angkanya mengikuti tahap milik role (Role::tahapPbi()).
  */
 class MenuBadge
 {
@@ -31,20 +31,12 @@ class MenuBadge
             $user->loadMissing('role');
             $role = $user->role;
 
-            if (! $role) {
+            if (! $role || ! $role->hasModule('pbi-apbd.ajuan')) {
                 return $kosong;
             }
 
-            $hasil = [
-                'pbi_kelurahan' => $role->hasModule('pbi-kelurahan') ? self::pbiKelurahan($user) : 0,
-                'pbi_ajuan' => $role->hasModule('pbi-apbd') ? self::pbiAjuan($role, $user) : 0,
-            ];
-
-            foreach (PbiApbd::TAHAP as $t => $cfg) {
-                $hasil['pbi_' . $t] = $role->hasModule($cfg['module'])
-                    ? self::pbiTahap($user, $cfg['status'])
-                    : 0;
-            }
+            $hasil = $kosong;
+            $hasil['pbi_ajuan'] = self::pbiAjuan($role, $user);
 
             return $hasil;
         } catch (Throwable $e) {
@@ -80,40 +72,43 @@ class MenuBadge
         return self::belumDilihat($query, $user)->count();
     }
 
-    /** Menunggu tindakan di satu tahap approval (operator/kabid/kadis/dinkes/bpjs). */
-    private static function pbiTahap(User $user, string $status): int
+    /** Menunggu tindakan di satu tahap approval (lurah/operator/kabid/kadis/dinkes/bpjs). */
+    private static function pbiTahap(User $user, string $status, bool $batasiWilayah = false): int
     {
         $query = PbiApbd::query()->where('status', $status);
+
+        // Lurah hanya melihat ajuan di kelurahannya (sama seperti PbiApprovalController::index)
+        if ($batasiWilayah) {
+            $query->untukKelurahan($user);
+        }
 
         return self::belumDilihat($query, $user)->count();
     }
 
     /**
-     * Menu "Ajuan" lama (lintas tahap). Super Admin = semua yang berjalan.
-     * Role lain dihitung sesuai tahap yang role-nya cocok.
+     * Badge menu "Ajuan". Super Admin = semua yang masih berjalan.
+     * Role lain = antrean tahap milik role-nya.
      */
     private static function pbiAjuan($role, User $user): int
     {
-        $query = PbiApbd::query()
-            ->whereNotIn('status', ['disetujui', 'ditolak'])
-            ->where(fn ($q) => $q->where('status', '!=', 'kelurahan')->orWhereNotNull('data_diisi_at'));
+        if ($role->isSuperAdmin()) {
+            $query = PbiApbd::query()
+                ->whereNotIn('status', ['disetujui', 'ditolak'])
+                ->where(fn ($q) => $q->where('status', '!=', 'kelurahan')->orWhereNotNull('data_diisi_at'));
 
-        if (! $role->isSuperAdmin()) {
-            $slug = $role->normalizedSlug();
-
-            $tahap = collect(PbiApbd::STAGES)
-                ->reject(fn ($s, $key) => $key === 'kelurahan')
-                ->filter(fn ($s) => strtolower(str_replace(['-', ' '], '_', $s['role'])) === $slug)
-                ->keys()
-                ->all();
-
-            if (! $tahap) {
-                return 0;
-            }
-
-            $query->whereIn('status', $tahap);
+            return self::belumDilihat($query, $user)->count();
         }
 
-        return self::belumDilihat($query, $user)->count();
+        $tahap = $role->tahapPbi();
+
+        if ($tahap === 'kelurahan') {
+            return self::pbiKelurahan($user);
+        }
+
+        if ($tahap !== null) {
+            return self::pbiTahap($user, PbiApbd::TAHAP[$tahap]['status'], $tahap === 'lurah');
+        }
+
+        return 0;
     }
 }

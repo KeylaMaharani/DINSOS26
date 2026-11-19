@@ -532,4 +532,31 @@ class PbiApbd extends Model
 
         return $steps;
     }
+
+     public static function tahapUntukRole(?string $normalizedSlug): ?string
+    {
+        if (! $normalizedSlug) {
+            return null;
+        }
+
+        if ($normalizedSlug === self::STAGES['kelurahan']['role']) {
+            return 'kelurahan';
+        }
+
+        foreach (self::STAGES as $status => $stage) {
+            if ($status === 'kelurahan') {
+                continue;
+            }
+            if (strtolower(str_replace(['-', ' '], '_', $stage['role'])) !== $normalizedSlug) {
+                continue;
+            }
+            foreach (self::TAHAP as $key => $t) {
+                if ($t['status'] === $status) {
+                    return $key;
+                }
+            }
+        }
+
+        return null;
+    }
 }

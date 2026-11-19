@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['name', 'slug', 'description', 'permissions'])]
+#[Fillable(['name', 'slug', 'description', 'permissions', 'tahap_pbi'])]
 class Role extends Model
 {
     protected $casts = [
@@ -15,10 +15,13 @@ class Role extends Model
 
     /**
      * Daftar modul yang bisa dicentang di form "Kelola Hak Akses".
-     * (Key lama TIDAK diubah, jadi hak akses role yang sudah tersimpan tetap berlaku.)
+     * (Key TIDAK diubah, jadi hak akses role yang sudah tersimpan tetap berlaku.)
      *
      * Modul yang ada di config/akses.php punya hak akses DETAIL (submenu + aksi);
      * modul lainnya tetap satu centang per modul.
+     *
+     * PBI APBD: semua role (Kelurahan, Lurah, Operator, Kabid, Kadis, Dinkes, BPJS) memakai
+     * satu menu "Ajuan" (pbi-apbd.ajuan). Modul approval per tahap sudah dihapus.
      */
     public const MODULES = [
         'beranda' => 'Beranda',
@@ -27,28 +30,19 @@ class Role extends Model
         'menu-frontend' => 'Portal - Kelola Menu Website',
 
         // --- KESAN (Kolaborasi Entaskan Kemiskinan / Filantropi) ---
-        // Submenu & aksi detailnya ada di config/akses.php (kunci 'kesan').
         'kesan' => 'KESAN - Verifikasi Pilihan, Calon Penerima, Kategori, Data Filantropi',
 
         // --- PFM (Monitoring) ---
-        'pbi-apbd' => 'PFM - PBI APBD (Super Admin: Ajuan, Arsip, Monitoring)',
-        'kartu-kks' => 'PFM - Kartu KKS',
-        'dtsen' => 'PFM - DTSEN',
-
-        // --- PFM: halaman approval PBI APBD per tahap ---
-        'pbi-lurah' => 'PFM - Approval PBI APBD: Lurah',
-        'pbi-operator' => 'PFM - Approval PBI APBD: Operator Dinsos',
-        'pbi-kabid' => 'PFM - Approval PBI APBD: Kepala Bidang',
-        'pbi-kadis' => 'PFM - Approval PBI APBD: Kepala Dinas',
-        'pbi-dinkes' => 'PFM - Approval PBI APBD: Dinas Kesehatan',
-        'pbi-bpjs' => 'PFM - Approval PBI APBD: BPJS Kesehatan',
+        'pbi-apbd' => 'PFM - PBI APBD (Ajuan, Arsip, Monitoring, Log)',
+        'kartu-kks' => 'PFM - Kartu KKS (Ajuan, Arsip, Monitoring, Log)',
+        'dtsen' => 'PFM - DTSEN (Ajuan, Arsip, Monitoring)',
 
         // --- Dayasos ---
-        // Admin Ngopi Pagi: melihat SEMUA kasus + Rekapitulasi, Data Konselor, Spesialisasi.
         'dayasos-ngopi-pagi' => 'Dayasos - Ngopi Pagi (Admin: semua kasus, rekap, konselor, spesialisasi)',
         // Konselor: HANYA halaman kerja kasus miliknya. Jangan dicentang bersamaan dengan modul admin di atas.
         'dayasos-ngopi-konselor' => 'Dayasos - Ngopi Pagi (Konselor: hanya kasus miliknya)',
         'dayasos-kesan' => 'Dayasos - Kesan',
+        'dayasos-lks' => 'Dayasos - LKS',
 
         // --- Perlinsos ---
         'sigap-bencana' => 'Perlinsos - SIGAP Bencana (Dinsos)',
@@ -64,7 +58,6 @@ class Role extends Model
         'ground-check' => 'Ground Check - Entry Data Ground Check 2026',
 
         // --- Kelurahan ---
-        'pbi-kelurahan' => 'Verifikasi Kelurahan - PBI APBD',
         'layanan-kartu-kks' => 'Layanan Kelurahan - Pengajuan Kartu KKS',
         'layanan-dtsen' => 'Layanan Kelurahan - Pengajuan DTSEN',
 
@@ -90,6 +83,8 @@ class Role extends Model
         $kunci = array_keys(self::MODULES);
 
         foreach (self::katalog() as $modul => $submenus) {
+            $kunci[] = $modul;
+
             foreach ($submenus as $sub => $cfg) {
                 $kunci[] = "{$modul}.{$sub}";
                 foreach (array_keys($cfg['aksi'] ?? []) as $aksi) {
@@ -98,7 +93,7 @@ class Role extends Model
             }
         }
 
-        return $kunci;
+        return array_values(array_unique($kunci));
     }
 
     /**
@@ -158,6 +153,48 @@ class Role extends Model
     public function normalizedSlug(): string
     {
         return strtolower(str_replace(['-', ' '], '_', $this->slug ?? ''));
+    }
+
+    /** Kata kunci (nama/slug role) untuk menebak tahap PBI APBD bila kolom tahap_pbi kosong. */
+    private const ALIAS_TAHAP_PBI = [
+        'kelurahan' => ['kelurahan', 'petugas kelurahan'],
+        'lurah'     => ['lurah'],
+        'dinkes'    => ['dinkes', 'dinas kesehatan'],
+        'bpjs'      => ['bpjs'],
+        'operator'  => ['operator', 'dayasos'],
+        'kabid'     => ['kabid', 'kabin', 'kepala bidang'],
+        'kadis'     => ['kadis', 'kepala dinas'],
+    ];
+
+    /**
+     * Tahap kerja PBI APBD untuk role ini:
+     * 'kelurahan' | 'lurah' | 'operator' | 'kabid' | 'kadis' | 'dinkes' | 'bpjs' | null.
+     * Null = tampilan admin lintas tahap (Super Admin atau role non-tahap).
+     * Urutan: kolom roles.tahap_pbi (bila diisi) -> tebakan dari nama/slug role.
+     */
+    public function tahapPbi(): ?string
+    {
+        if ($this->isSuperAdmin()) {
+            return null;
+        }
+
+        $valid = array_merge(['kelurahan'], array_keys(\App\Models\PbiApbd::TAHAP));
+
+        $diset = $this->getAttribute('tahap_pbi');
+        if (filled($diset)) {
+            return in_array($diset, $valid, true) ? $diset : null; // 'admin' / nilai lain = tampilan admin
+        }
+
+        $teks = ' ' . trim(preg_replace('/[^a-z0-9]+/', ' ', strtolower(($this->slug ?? '') . ' ' . ($this->name ?? '')))) . ' ';
+        foreach (self::ALIAS_TAHAP_PBI as $tahap => $kataKunci) {
+            foreach ($kataKunci as $kata) {
+                if (str_contains($teks, " {$kata} ")) {
+                    return $tahap;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**

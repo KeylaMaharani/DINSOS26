@@ -22,16 +22,6 @@
         <span class="material-symbols-outlined text-[18px]">arrow_back</span> Kembali ke daftar Ajuan
     </a>
 
-    @if (session('success'))
-        <div class="px-4 py-3 rounded-lg bg-success-container text-on-success-container text-sm shadow-sm">
-            {{ session('success') }}
-        </div>
-    @endif
-    @if (session('error'))
-        <div class="px-4 py-3 rounded-lg bg-error-container text-on-error-container text-sm shadow-sm">
-            {{ session('error') }}
-        </div>
-    @endif
 
     {{-- Header ringkas --}}
     <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm">
@@ -266,7 +256,7 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-outline-variant/30">
-                    @forelse ($data->logs as $log)
+                    @forelse ($data->logs->sortBy([['created_at', 'asc'], ['id', 'asc']]) as $log)
                         <tr class="hover:bg-surface-container-lowest/50 transition-colors">
                             <td class="px-5 py-3 whitespace-nowrap text-on-surface-variant">{{ $log->created_at->format('d M Y - H:i') }}</td>
                             <td class="px-5 py-3 font-medium text-on-surface">{{ $log->username }}</td>

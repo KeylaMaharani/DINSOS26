@@ -21,7 +21,8 @@ use Illuminate\Validation\Rule;
  *   admin/pbi-dinkes/index.blade.php    &  show.blade.php
  *   admin/pbi-bpjs/index.blade.php      &  show.blade.php
  * Tahap dibaca dari nama route: pbi-approval.{tahap}.xxx
- * Akses route dibatasi middleware module:pbi-{tahap}.
+ * Akses route dibatasi middleware module:pbi-apbd.ajuan (lihat routes/web.php),
+ * dan tiap role hanya boleh membuka halaman tahapnya sendiri (Role::tahapPbi()).
  */
 class PbiApprovalController extends Controller
 {
@@ -29,6 +30,12 @@ class PbiApprovalController extends Controller
     {
         $t = explode('.', (string) $request->route()->getName())[1] ?? '';
         abort_unless(isset(PbiApbd::TAHAP[$t]), 404);
+
+        // Role non Super Admin hanya boleh membuka halaman tahap miliknya sendiri
+        $role = Auth::user()?->role;
+        if ($role && ! $role->isSuperAdmin()) {
+            abort_unless($role->tahapPbi() === $t, 403, 'Halaman ini bukan untuk tahap role Anda.');
+        }
 
         return $t;
     }
@@ -249,7 +256,7 @@ class PbiApprovalController extends Controller
         }
     }
 
-        /**
+    /**
      * Hanya tahap Operator (route PUT hanya didaftarkan untuk tahap dengan edit = true).
      * Operator hanya boleh mengisi Desil Nasional dan Catatan Kelengkapan/Kekurangan Berkas;
      * field lain tidak disentuh walau dikirim.

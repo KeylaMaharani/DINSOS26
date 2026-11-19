@@ -38,18 +38,17 @@ class PbiApbdController extends Controller
 
     /**
      * ================= AJUAN =================
-     * List permohonan yang masih berjalan (belum final), lintas semua tahap.
+     * Satu pintu untuk SEMUA role. Hak akses cukup 'pbi-apbd.ajuan' (diatur Super Admin).
+     * Role tahap (Kelurahan, Lurah, Operator, Kabid, Kadis, Dinkes, BPJS) otomatis diarahkan
+     * ke halaman kerja tahapnya (Role::tahapPbi()). Super Admin / role lain
+     * memakai tampilan admin lintas tahap.
      */
     public function ajuanIndex(Request $request)
     {
         $user = Auth::user()->loadMissing('role');
+
         if ($halaman = $this->halamanKerjaRole($user)) {
             return redirect()->route($halaman[0], $request->except('status'));
-        }
-
-        $user = Auth::user()->loadMissing('role');
-        if (! $user->role?->isSuperAdmin() && ($route = $this->rutePekerjaanRole($user))) {
-            return redirect()->route($route, $request->except('status'));
         }
 
         $query = PbiApbd::query()
@@ -85,38 +84,33 @@ class PbiApbdController extends Controller
     }
 
     /**
-     * Cari halaman kerja untuk role user berdasarkan tahap (PbiApbd::STAGES).
-     * Null bila role bukan role tahap, atau tidak punya akses ke halaman tahapnya.
+     * Cari halaman kerja untuk role user, berdasarkan Role::tahapPbi()
+     * (kolom roles.tahap_pbi, atau tebakan dari nama/slug role).
+     * Null bila Super Admin atau role bukan role tahap.
+     * Hasil: [nama route index, nama route show].
      */
     private function halamanKerjaRole($user): ?array
-{
-    $role = $user->role;
-    if (! $role || $role->isSuperAdmin()) {
-        return null;
-    }
-
-    $kandidat = [];
-    if ($role->hasModule('pbi-kelurahan.daftar')) {
-        $kandidat[] = ['pbi-kelurahan.index', 'pbi-kelurahan.show'];
-    }
-    foreach (PbiApbd::TAHAP as $t => $cfg) {
-        if ($role->hasModule($cfg['module'] . '.daftar')) {
-            $kandidat[] = ["pbi-approval.{$t}.index", "pbi-approval.{$t}.show"];
+    {
+        $role = $user->role;
+        if (! $role || $role->isSuperAdmin()) {
+            return null;
         }
-    }
 
-    foreach ($kandidat as [$index, $show]) {
-        if (Route::has($index) && Route::has($show)) {
-            return [$index, $show];
-        }
-    }
+        $tahap = $role->tahapPbi();
 
-    return null;
-}
+        return match (true) {
+            $tahap === 'kelurahan' && Route::has('pbi-kelurahan.index') && Route::has('pbi-kelurahan.show')
+                => ['pbi-kelurahan.index', 'pbi-kelurahan.show'],
+            $tahap !== null && $tahap !== 'kelurahan'
+                && Route::has("pbi-approval.{$tahap}.index") && Route::has("pbi-approval.{$tahap}.show")
+                => ["pbi-approval.{$tahap}.index", "pbi-approval.{$tahap}.show"],
+            default => null,
+        };
+    }
 
     public function ajuanShow(PbiApbd $pbiApbd)
     {
-         $user = Auth::user()->loadMissing('role');
+        $user = Auth::user()->loadMissing('role');
         if ($halaman = $this->halamanKerjaRole($user)) {
             return redirect()->route($halaman[1], $pbiApbd);
         }

@@ -6,10 +6,10 @@
  *            Anak menu otomatis mengikuti module induknya.
  *   custom = true -> rute TIDAK dibuat oleh loop placeholder di web.php (sudah ada controller sendiri).
  *
- * Ngopi Pagi: submenu mengikuti alur layanan LK3 (lihat NgopiPagiKonsultasi::TAHAP),
- * ditambah Data Konselor dan Spesialisasi. Tiap submenu punya hak akses sendiri
- * (dayasos-ngopi-pagi.{submenu}), diatur di Kelola Akses.
- * Rute-nya ada di routes/web.php (blok "NGOPI PAGI (admin)").
+ * Hak akses detail (config/akses.php):
+ *   dayasos-ngopi-pagi.{submenu}[.aksi]
+ *   dayasos-kesan.{data-warga|pengelolaan-bantuan|filantropi}[.aksi]
+ *   dayasos-lks.{pendaftaran|data-lks|pelaporan|panduan}[.aksi]
  */
 $leaf = fn (string $label, string $path) => [
     'label' => $label,
@@ -72,6 +72,7 @@ return [
         'children' => [
             [
                 'label'    => 'Data Warga',
+                'module'   => 'dayasos-kesan.data-warga',
                 'children' => [
                     $leaf('Daftar Warga', 'kesan/data-warga/daftar-warga'),
                     $leaf('Riwayat Bantuan Warga', 'kesan/data-warga/riwayat-bantuan-warga'),
@@ -80,6 +81,7 @@ return [
             ],
             [
                 'label'    => 'Pengelolaan Bantuan',
+                'module'   => 'dayasos-kesan.pengelolaan-bantuan',
                 'children' => [
                     $leaf('Jenis Bantuan', 'kesan/pengelolaan-bantuan/jenis-bantuan'),
                     $leaf('Pengajuan Penerima', 'kesan/pengelolaan-bantuan/pengajuan-penerima'),
@@ -87,6 +89,7 @@ return [
             ],
             [
                 'label'    => 'Filantropi',
+                'module'   => 'dayasos-kesan.filantropi',
                 'children' => [
                     $leaf('Salurkan Bantuan', 'kesan/filantropi/salurkan-bantuan'),
                     $leaf('Tracking Penyaluran', 'kesan/filantropi/tracking-penyaluran'),
@@ -101,6 +104,7 @@ return [
         'children' => [
             [
                 'label'    => 'Pendaftaran',
+                'module'   => 'dayasos-lks.pendaftaran',
                 'children' => [
                     $leaf('Ajuan', 'lks/pendaftaran/ajuan'),
                     $leaf('Verifikasi Berkas', 'lks/pendaftaran/verifikasi-berkas'),
@@ -110,6 +114,7 @@ return [
             ],
             [
                 'label'    => 'Data LKS',
+                'module'   => 'dayasos-lks.data-lks',
                 'children' => [
                     $leaf('Daftar LKS', 'lks/data-lks/daftar-lks'),
                     $leaf('Perpanjangan Legalitas', 'lks/data-lks/perpanjangan'),
@@ -117,12 +122,13 @@ return [
             ],
             [
                 'label'    => 'Pelaporan',
+                'module'   => 'dayasos-lks.pelaporan',
                 'children' => [
                     $leaf('Laporan Kegiatan LKS', 'lks/pelaporan/laporan-kegiatan'),
                     $leaf('Pemantauan', 'lks/pelaporan/monitoring'),
                 ],
             ],
-            $leaf('Panduan & Format Surat', 'lks/panduan'),
+            $leaf('Panduan & Format Surat', 'lks/panduan') + ['module' => 'dayasos-lks.panduan'],
         ],
     ],
 ];

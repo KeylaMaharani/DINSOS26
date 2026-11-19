@@ -171,13 +171,9 @@
             background-color: #ffffff;
             overflow: hidden;
             box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.03);
-            /* Tambahan shadow tipis di dalam buku */
             border-right: 1px solid rgba(0, 0, 0, 0.05);
-            /* Batas lipatan tengah */
         }
 
-        /* page-flip me-render tiap halaman sebagai <img> ketika dimuat lewat
-           loadFromImages()/updateFromImages() -- jaga rasio asli, tidak digepengkan */
         #help-flipbook img {
             display: block;
             width: 100%;
@@ -185,7 +181,6 @@
             object-fit: contain;
         }
 
-        /* Buku terasa lebih natural: sudut sedikit membulat & rasio halaman dijaga */
         #help-flipbook {
             border-radius: 6px;
         }
@@ -269,17 +264,7 @@
             $notif['dtsen_ajuan'] = $qDtsen->count();
         }
 
-        if ($currentRole && ! $currentRole->isSuperAdmin()) {
-            $notif['pbi_ajuan'] = max(
-                (int) ($notif['pbi_ajuan'] ?? 0),
-                collect(['pbi_kelurahan', 'pbi_lurah', 'pbi_operator', 'pbi_kabid', 'pbi_kadis', 'pbi_dinkes', 'pbi_bpjs'])
-                    ->sum(fn ($k) => (int) ($notif[$k] ?? 0))
-            );
-        }
-
         // URL file PDF panduan penggunaan yang akan ditampilkan sebagai flipbook.
-        // Taruh file PDF-nya di public/assets/help/panduan-penggunaan.pdf,
-        // atau ganti path di bawah ini sesuai lokasi file kamu.
         $helpPdfUrl = asset('assets/help/panduan-penggunaan.pdf');
 
         /* ====================================================================
@@ -287,24 +272,22 @@
          |
          |  Satu node bisa berisi:
          |    label            teks menu
-         |    icon             ikon (hanya untuk menu paling atas; jika kosong
-         |                     otomatis memakai ikon 'circle')
+         |    icon             ikon (hanya untuk menu paling atas)
          |    route            nama route -> node ini menjadi LINK
-         |    match            pola route tambahan agar menu tetap "aktif" (opsional)
+         |    match            pola route tambahan agar menu tetap "aktif"
          |    children         anak menu -> node ini menjadi FOLDER
          |    module           key hak akses (string / array = salah satu).
          |                     Bisa key modul ('pbi-apbd') ATAU key submenu detail
          |                     ('pbi-apbd.ajuan', lihat config/akses.php).
-         |                     Anak menu otomatis mengikuti modul induknya.
          |    superadmin_only  hanya Super Admin
          |    hide_for_superadmin  disembunyikan untuk Super Admin
-         |    separator        node PEMISAH grup (hanya berisi teks label, mis.
-         |                     ['separator' => 'Data Master']). Tampil hanya jika
-         |                     ada menu di bawahnya yang boleh dilihat role.
+         |    separator        node PEMISAH grup (hanya berisi teks label).
+         |                     Tampil hanya jika ada menu di bawahnya yang boleh dilihat.
          |  Menu yang route-nya belum terdaftar otomatis disembunyikan.
          * ==================================================================== */
 
-        // --- Rehabsos: anak menu dibaca dari config/rehabsos.php ---
+        // --- Rehabsos: anak menu dibaca dari config/rehabsos.php.
+        //     Tiap submenu punya hak akses sendiri: '{modul}.{submenu}' (lihat config/akses.php).
         $rehabChildren = [
             [
                 'label' => 'Beranda',
@@ -317,21 +300,144 @@
                 'label' => $g['label'],
                 'module' => $g['module'],
                 'children' => collect($g['items'])
-                    ->map(fn($label, $ik) => ['label' => $label, 'route' => "rehabsos.{$gk}.{$ik}"])
+                    ->map(fn($label, $ik) => [
+                        'label' => $label,
+                        'route' => "rehabsos.{$gk}.{$ik}",
+                        'module' => $g['module'] . '.' . $ik,
+                    ])
                     ->values()
                     ->all(),
             ];
         }
-        // Ground Check khusus data Rehabsos (posisi sama seperti di PFM: paling bawah).
-        // Hak akses terpisah lewat modul 'rehabsos-ground-check'.
         $rehabChildren[] = [
             'label' => 'Ground Check',
             'route' => 'rehabsos.ground-check',
             'match' => ['rehabsos.ground-check*'],
-            'module' => 'rehabsos-ground-check',
+            'module' => 'rehabsos-ground-check.daftar',
         ];
 
-        $sidebar = [
+        // ==================== PFM (PBI APBD, Kartu KKS, DTSEN, Ground Check) ====================
+        // Folder "Bidang P. Fakir Miskin" HANYA muncul untuk Super Admin atau role yang diberi
+        // SEMUA modul PFM. Role lain: menu PFM yang dicentang tampil langsung di sidebar
+        // (di bawah pemisah "Layanan"), yang tidak dicentang tidak muncul.
+        $modulPfm = ['pbi-apbd', 'kartu-kks', 'dtsen', 'ground-check'];
+        $punyaSemuaPfm = $currentRole && collect($modulPfm)->every(fn ($m) => $currentRole->hasModule($m));
+        $isKelurahan = $currentRole && ! $currentRole->isSuperAdmin() && ! $punyaSemuaPfm;
+
+        $pfmPbi = [
+            'label' => 'PBI APBD',
+            'icon' => 'health_and_safety',
+            'module' => 'pbi-apbd',
+            'children' => [
+                [
+                    'label' => 'Ajuan',
+                    'route' => 'pbi-apbd.ajuan.index',
+                    // match: supaya menu Ajuan tetap menyala saat role membuka halaman kerja tahapnya
+                    'match' => ['pbi-apbd.ajuan.*', 'pbi-approval.*', 'pbi-kelurahan.*'],
+                    'badge' => 'pbi_ajuan',
+                    'module' => 'pbi-apbd.ajuan',
+                ],
+                [
+                    'label' => 'Arsip',
+                    'route' => 'pbi-apbd.arsip.index',
+                    'match' => ['pbi-apbd.arsip.*'],
+                    'module' => 'pbi-apbd.arsip',
+                ],
+                [
+                    'label' => 'Monitoring',
+                    'route' => 'pbi-apbd.monitoring.index',
+                    'module' => 'pbi-apbd.monitoring',
+                ],
+            ],
+        ];
+
+        $pfmKks = [
+            'label' => 'Kartu KKS',
+            'icon' => 'credit_card',
+            'module' => ['kartu-kks', 'layanan-kartu-kks'],
+            'children' => [
+                // Pengajuan oleh petugas kelurahan
+                [
+                    'label' => 'Ajukan KKS',
+                    'route' => 'layanan.kartu-kks.ajukan',
+                    'match' => ['layanan.kartu-kks.ajukan*'],
+                    'module' => 'layanan-kartu-kks.ajukan',
+                ],
+                [
+                    'label' => 'Riwayat Pengajuan',
+                    'route' => 'layanan.kartu-kks.riwayat',
+                    'module' => 'layanan-kartu-kks.riwayat',
+                ],
+                // Pemrosesan oleh Dinsos
+                [
+                    'label' => 'Ajuan',
+                    'route' => 'kartu-kks.ajuan',
+                    'match' => ['kartu-kks.show', 'kartu-kks.detail*', 'kartu-kks.proses', 'kartu-kks.surat.*'],
+                    'module' => 'kartu-kks.ajuan',
+                ],
+                ['label' => 'Arsip', 'route' => 'kartu-kks.arsip', 'module' => 'kartu-kks.arsip'],
+                ['label' => 'Monitoring', 'route' => 'kartu-kks.monitoring', 'module' => 'kartu-kks.monitoring'],
+            ],
+        ];
+
+        $pfmDtsen = [
+            'label' => 'DTSEN',
+            'icon' => 'badge',
+            'module' => ['dtsen', 'layanan-dtsen'],
+            'children' => [
+                [
+                    'label' => 'Ajukan DTSEN',
+                    'route' => 'layanan.dtsen.ajukan',
+                    'match' => ['layanan.dtsen.ajukan*'],
+                    'module' => 'layanan-dtsen.ajukan',
+                ],
+                [
+                    'label' => 'Riwayat Pengajuan',
+                    'route' => 'layanan.dtsen.riwayat',
+                    'module' => 'layanan-dtsen.riwayat',
+                ],
+                [
+                    'label' => 'Ajuan',
+                    'route' => 'dtsen.ajuan',
+                    'match' => ['dtsen.show', 'dtsen.detail*', 'dtsen.bansos.*', 'dtsen.lampiran.*', 'dtsen.proses', 'dtsen.surat.*'],
+                    'module' => 'dtsen.ajuan',
+                    'badge' => 'dtsen_ajuan',
+                ],
+                ['label' => 'Arsip', 'route' => 'dtsen.arsip', 'module' => 'dtsen.arsip'],
+                ['label' => 'Monitoring', 'route' => 'dtsen.monitoring', 'module' => 'dtsen.monitoring'],
+            ],
+        ];
+
+        $pfmGc = [
+            'label' => 'Ground Check',
+            'icon' => 'travel_explore',
+            'route' => 'ground-check.index',
+            'match' => ['ground-check.*'],
+            'module' => 'ground-check.daftar',
+            'badge' => 'ground_check',
+        ];
+
+        // Role yang tidak diberi semua modul PFM: menu PFM yang boleh dilihat tampil langsung, tanpa folder
+        $menuPfmLangsung = $isKelurahan
+            ? [['separator' => 'Layanan'], $pfmPbi, $pfmKks, $pfmDtsen, $pfmGc]
+            : [];
+
+        // Super Admin / role dengan semua modul PFM: dibungkus folder "Bidang P. Fakir Miskin"
+        $menuPfmFolder = $isKelurahan
+            ? []
+            : [[
+                'label' => 'Bidang P. Fakir Miskin',
+                'icon' => 'account_balance_wallet',
+                'children' => [
+                    ['label' => 'Beranda', 'route' => 'pfm.beranda', 'module' => ['pbi-apbd', 'kartu-kks', 'dtsen']],
+                    $pfmPbi,
+                    $pfmKks,
+                    $pfmDtsen,
+                    $pfmGc,
+                ],
+            ]];
+
+        $menuAtas = [
             [
                 'label' => 'Beranda',
                 'icon' => 'dashboard',
@@ -340,9 +446,6 @@
             ],
 
             // ==================== PORTAL ====================
-            // Semua menu website (dulu "Front End") dibungkus satu folder "Portal".
-            // Isinya dibaca dari config/portal.php; kedalaman bertingkat tetap jalan
-            // karena renderer sidebar bersifat rekursif.
             [
                 'label' => 'Portal',
                 'icon' => 'language',
@@ -351,9 +454,6 @@
             ],
 
             // ==================== KESAN ====================
-            // Kolaborasi Entaskan Kemiskinan (Filantropi). Hak akses detail
-            // ('kesan.pilihan', 'kesan.penerima', dst) diatur di Kelola Akses
-            // lewat config/akses.php. Badge = pilihan donatur yang menunggu verifikasi.
             [
                 'label' => 'KESAN',
                 'icon' => 'volunteer_activism',
@@ -386,231 +486,88 @@
                     ],
                 ],
             ],
+        ];
 
-            // ==================== BIDANG ====================
-            // Bukan folder lagi: cukup separator, lalu kelima menu bidang berdiri
-            // sendiri sebagai menu tingkat atas (lengkap dengan ikon).
-            // Separator hanya tampil jika ada menu di bawahnya yang boleh dilihat role.
-            ['separator' => 'Bidang'],
-
-            // ---------- Asesmen SPMB ----------
+        $menuBidang = array_merge(
             [
-                'label' => 'Bidang Asesmen SPMB',
-                'icon' => 'fact_check',
-                'route' => 'asesmen_spmb.ajuan',
-                'match' => ['asesmen_spmb.*'],
-                'module' => 'asesmen-spmb',
-            ],
+                ['separator' => 'Bidang'],
 
-            // ---------- PFM ----------
-            // Catatan: "Approval PBI APBD" TIDAK lagi di dalam folder PFM.
-            // Tiap tahap approval (Operator, Kabid, Kadis, Dinkes, BPJS) sekarang jadi
-            // menu tingkat atas sendiri di grup "Approval PBI APBD" (lihat di bawah).
-            // Submenu (Ajuan/Arsip/Monitoring) punya hak akses sendiri: 'modul.submenu'.
-            [
-                'label' => 'Bidang P. Fakir Miskin',
-                'icon' => 'account_balance_wallet',
-                'children' => [
-                    ['label' => 'Beranda', 'route' => 'pfm.beranda', 'module' => ['pbi-apbd', 'kartu-kks', 'dtsen']],
-                    [
-                        'label' => 'PBI APBD',
-                        'module' => ['pbi-apbd', 'pbi-kelurahan', 'pbi-lurah', 'pbi-operator', 'pbi-kabid', 'pbi-kadis', 'pbi-dinkes', 'pbi-bpjs'],
-                        'children' => [
-                            [
-                                'label' => 'Ajuan',
-                                'route' => 'pbi-apbd.ajuan.index',
-                                // match: supaya menu Ajuan tetap menyala saat role membuka halaman kerja tahapnya
-                                'match' => ['pbi-apbd.ajuan.*', 'pbi-approval.*', 'pbi-kelurahan.*'],
-                                'badge' => 'pbi_ajuan',
-                                'module' => [
-                                    'pbi-apbd.ajuan',
-                                    'pbi-kelurahan.daftar', 'pbi-lurah.daftar', 'pbi-operator.daftar',
-                                    'pbi-kabid.daftar', 'pbi-kadis.daftar', 'pbi-dinkes.daftar', 'pbi-bpjs.daftar',
-                                ],
-                            ],
-                            [
-                                'label' => 'Arsip',
-                                'route' => 'pbi-apbd.arsip.index',
-                                'match' => ['pbi-apbd.arsip.*'],
-                                'module' => 'pbi-apbd.arsip',
-                            ],
-                            [
-                                'label' => 'Monitoring',
-                                'route' => 'pbi-apbd.monitoring.index',
-                                'module' => 'pbi-apbd.monitoring',
-                            ],
-                        ],
-                    ],
-                    [
-                        'label' => 'Kartu KKS',
-                        'module' => 'kartu-kks',
-                        'children' => [
-                            [
-                                'label' => 'Ajuan',
-                                'route' => 'kartu-kks.ajuan',
-                                'match' => ['kartu-kks.show', 'kartu-kks.detail*', 'kartu-kks.proses', 'layanan.kartu-kks.*'],
-                                'module' => 'kartu-kks.ajuan',
-                            ],
-                            ['label' => 'Arsip', 'route' => 'kartu-kks.arsip', 'module' => 'kartu-kks.arsip'],
-                            [
-                                'label' => 'Monitoring',
-                                'route' => 'kartu-kks.monitoring',
-                                'module' => 'kartu-kks.monitoring',
-                            ],
-                        ],
-                    ],
-                    [
-                        'label' => 'DTSEN',
-                        'module' => 'dtsen',
-                        'children' => [
-                            [
-                                'label' => 'Ajuan',
-                                'route' => 'dtsen.ajuan',
-                                'match' => [
-                                    'dtsen.show',
-                                    'dtsen.detail*',
-                                    'dtsen.bansos.*',
-                                    'dtsen.lampiran.*',
-                                    'dtsen.proses',
-                                ],
-                                'module' => 'dtsen.ajuan',
-                                'badge' => 'dtsen_ajuan',
-                            ],
-                            ['label' => 'Arsip', 'route' => 'dtsen.arsip', 'module' => 'dtsen.arsip'],
-                            ['label' => 'Monitoring', 'route' => 'dtsen.monitoring', 'module' => 'dtsen.monitoring'],
-                        ],
-                    ],
-                    // Ground Check ada di dalam modul PFM (hak akses 'ground-check.daftar')
-                    [
-                        'label' => 'Ground Check',
-                        'route' => 'ground-check.index',
-                        'match' => ['ground-check.*'],
-                        'module' => 'ground-check.daftar',
-                        'badge' => 'ground_check',
-                    ],
+                // ---------- Asesmen SPMB ----------
+                [
+                    'label' => 'Bidang Asesmen SPMB',
+                    'icon' => 'fact_check',
+                    'route' => 'asesmen_spmb.ajuan',
+                    'match' => ['asesmen_spmb.*'],
+                    'module' => 'asesmen-spmb',
                 ],
             ],
 
-            // ---------- Dayasos (kerangka menu, dibaca dari config/dayasos.php) ----------
-            [
-                'label' => 'Bidang Dayasos',
-                'icon' => 'groups',
-                'children' => config('dayasos', []),
-            ],
+            // ---------- PFM (folder; kosong untuk role yang tidak punya semua modul PFM) ----------
+            $menuPfmFolder,
 
-            // ---------- Perlinsos ----------
             [
-                'label' => 'Bidang Perlinsos',
-                'icon' => 'crisis_alert',
-                'children' => [
-                    ['label' => 'Beranda', 'route' => 'perlinsos.dashboard', 'module' => 'sigap-bencana'],
-                    [
-                        'label' => 'Sigap Bencana',
-                        'module' => 'sigap-bencana',
-                        'children' => [
-                            [
-                                'label' => 'Laporan Bantuan Bencana',
-                                'route' => 'sigap.index',
-                                'match' => ['sigap.show', 'sigap.create'],
-                                'module' => 'sigap-bencana.laporan',
+                // ---------- Dayasos (dibaca dari config/dayasos.php) ----------
+                [
+                    'label' => 'Bidang Dayasos',
+                    'icon' => 'groups',
+                    'children' => config('dayasos', []),
+                ],
+
+                // ---------- Perlinsos ----------
+                [
+                    'label' => 'Bidang Perlinsos',
+                    'icon' => 'crisis_alert',
+                    'children' => [
+                        ['label' => 'Beranda', 'route' => 'perlinsos.dashboard', 'module' => 'sigap-bencana'],
+                        [
+                            'label' => 'Sigap Bencana',
+                            'module' => 'sigap-bencana',
+                            'children' => [
+                                [
+                                    'label' => 'Laporan Bantuan Bencana',
+                                    'route' => 'sigap.index',
+                                    'match' => ['sigap.show', 'sigap.create'],
+                                    'module' => 'sigap-bencana.laporan',
+                                ],
+                                [
+                                    'label' => 'Stock Barang',
+                                    'route' => 'sigap.stok.index',
+                                    'match' => ['sigap.stok.*'],
+                                    'module' => 'sigap-bencana.stok',
+                                ],
+                                [
+                                    'label' => 'Laporan',
+                                    'route' => 'perlinsos.laporan',
+                                    'module' => 'sigap-bencana.rekap',
+                                ],
                             ],
-                            [
-                                'label' => 'Stock Barang',
-                                'route' => 'sigap.stok.index',
-                                'match' => ['sigap.stok.*'],
-                                'module' => 'sigap-bencana.stok',
-                            ],
-                            ['label' => 'Laporan', 'route' => 'perlinsos.laporan'],
                         ],
                     ],
                 ],
-            ],
 
-            // ---------- Rehabsos ----------
-            [
-                'label' => 'Bidang Rehabsos',
-                'icon' => 'diversity_1',
-                'children' => $rehabChildren,
-            ],
+                // ---------- Rehabsos ----------
+                [
+                    'label' => 'Bidang Rehabsos',
+                    'icon' => 'diversity_1',
+                    'children' => $rehabChildren,
+                ],
+            ]
+        );
 
-            // ==================== APPROVAL PBI APBD ====================
-            // Dulu satu folder "Approval PBI APBD"; sekarang tiap tahap berdiri
-            // sendiri sebagai menu tingkat atas, sama seperti "Verifikasi Kelurahan".
-            // Nama route TIDAK berubah (pbi-approval.{tahap}.*), jadi routes/web.php
-            // dan controller tidak perlu diubah selain nama view-nya.
-            // Hak akses: '{modul}.daftar' (aksi diatur di Kelola Akses).
-            ['separator' => 'Approval PBI APBD'],
+        $menuBawah = [
+            ['separator' => 'Menu Lainnya'],
 
-            // [
-            //     'label' => 'Lurah',
-            //     'icon' => 'account_balance',
-            //     'route' => 'pbi-approval.lurah.index',
-            //     'match' => ['pbi-approval.lurah.*'],
-            //     'module' => 'pbi-lurah.daftar',
-            //     'badge' => 'pbi_lurah',
-            // ],
-            // [
-            //     'label' => 'Operator Dinas Sosial',
-            //     'icon' => 'support_agent',
-            //     'route' => 'pbi-approval.operator.index',
-            //     'match' => ['pbi-approval.operator.*'],
-            //     'module' => 'pbi-operator.daftar',
-            //     'badge' => 'pbi_operator',
-            // ],
-            // [
-            //     'label' => 'Kepala Bidang',
-            //     'icon' => 'supervisor_account',
-            //     'route' => 'pbi-approval.kabid.index',
-            //     'match' => ['pbi-approval.kabid.*'],
-            //     'module' => 'pbi-kabid.daftar',
-            //     'badge' => 'pbi_kabid',
-            // ],
-            // [
-            //     'label' => 'Kepala Dinas',
-            //     'icon' => 'verified_user',
-            //     'route' => 'pbi-approval.kadis.index',
-            //     'match' => ['pbi-approval.kadis.*'],
-            //     'module' => 'pbi-kadis.daftar',
-            //     'badge' => 'pbi_kadis',
-            // ],
-            // [
-            //     'label' => 'Dinas Kesehatan',
-            //     'icon' => 'local_hospital',
-            //     'route' => 'pbi-approval.dinkes.index',
-            //     'match' => ['pbi-approval.dinkes.*'],
-            //     'module' => 'pbi-dinkes.daftar',
-            //     'badge' => 'pbi_dinkes',
-            // ],
-            // [
-            //     'label' => 'BPJS',
-            //     'icon' => 'health_and_safety',
-            //     'route' => 'pbi-approval.bpjs.index',
-            //     'match' => ['pbi-approval.bpjs.*'],
-            //     'module' => 'pbi-bpjs.daftar',
-            //     'badge' => 'pbi_bpjs',
-            // ],
-
-            // ---------- Menu tunggal ----------
-            // [
-            //     'label' => 'Verifikasi Kelurahan',
-            //     'icon' => 'home_work',
-            //     'route' => 'pbi-kelurahan.index',
-            //     'match' => ['pbi-kelurahan.*'],
-            //     'module' => 'pbi-kelurahan.daftar',
-            //     'badge' => 'pbi_kelurahan',
-            // ],
             // Kelurahan / OPD wilayah: HANYA satu menu ini untuk SIGAP
             [
                 'label' => 'Proses Bantuan Kebencanaan',
                 'icon' => 'volunteer_activism',
                 'route' => 'sigap.proses.index',
                 'match' => ['sigap.proses.*', 'sigap.show'],
-                'module' => 'sigap-proses',
+                'module' => 'sigap-proses.proses',
                 'hide_for_superadmin' => true,
             ],
 
-            // Template dokumen: semua role ber-hak 'dokumen.daftar' bisa lihat & preview, unduh butuh
-            // 'dokumen.daftar.unduh'; tambah/hapus hanya Super Admin (diatur di DokumenController & routes).
+            // Template dokumen: lihat & preview butuh 'dokumen.daftar', unduh butuh 'dokumen.daftar.unduh'.
             [
                 'label' => 'Dokumen',
                 'icon' => 'folder_open',
@@ -630,7 +587,6 @@
                 'match' => ['akun.*'],
                 'superadmin_only' => true,
             ],
-            // Daftar akun warga (No, Nama, NIK, No. Telp) -- dipisah dari Kelola Akses staf
             [
                 'label' => 'Kelola Akses Masyarakat',
                 'icon' => 'supervised_user_circle',
@@ -668,6 +624,8 @@
             ],
         ];
 
+        $sidebar = array_merge($menuAtas, $menuPfmLangsung, $menuBidang, $menuBawah);
+
         // ---------- Fungsi bantu render menu ----------
         $hasMod = fn($m) => $currentRole && collect((array) $m)->contains(fn($k) => $currentRole->hasModule($k));
 
@@ -692,8 +650,7 @@
             return isset($n['route']) && \Illuminate\Support\Facades\Route::has($n['route']);
         };
 
-        // Jumlah badge sebuah node: link = angka miliknya ('badge' => key di $notif),
-        // folder = jumlah semua anak yang tampil (supaya angka juga terlihat di menu induk).
+        // Jumlah badge sebuah node: link = angka miliknya, folder = jumlah semua anak yang tampil.
         $badgeOf = function (array $n) use (&$badgeOf, $notif, $visible) {
             if (!$visible($n)) {
                 return 0;
@@ -724,8 +681,7 @@
         };
 
         // Susun daftar menu yang benar-benar ditampilkan di sidebar.
-        // Separator hanya ikut jika ada menu yang lolos $visible sesudahnya
-        // (sebelum separator berikutnya), jadi tidak ada label "kosong".
+        // Separator hanya ikut jika ada menu yang lolos $visible sesudahnya.
         $menuItems = [];
         $pendingSeparator = null;
         foreach ($sidebar as $node) {
@@ -871,18 +827,7 @@
                 <span class="material-symbols-outlined text-[20px]">chevron_right</span>
             </button>
 
-            {{-- ========== MENU (dibangun dari $menuItems di atas) ==========
-                 - Sidebar lebar : folder membuka ke bawah (accordion bertingkat)
-                 - Sidebar ciut  : isi folder muncul sebagai panel melayang di samping ikon
-                                   (position: fixed, acuannya <aside>, jadi tidak terpotong
-                                   oleh overflow nav)
-                 - Nav SELALU bisa di-scroll vertikal agar ikon tidak tumpah keluar card
-                 - Class `sidebar-scroll` memunculkan scrollbar tipis (lihat <style> di atas)
-                 - Separator     : label grup (Bidang / Approval PBI APBD / Data Master) saat lebar, garis tipis saat ciut --}}
-            {{-- Pembungkus nav + indikator scroll:
-                 - up/down   : true jika masih ada menu tersembunyi di atas/bawah
-                 - check()   : dihitung ulang saat scroll, resize, accordion dibuka/ditutup,
-                               atau sidebar diciutkan/dilebarkan --}}
+            {{-- ========== MENU (dibangun dari $menuItems di atas) ========== --}}
             <div class="relative flex-1 min-h-0" x-data="{
                 up: false,
                 down: false,
@@ -938,7 +883,7 @@
                                 @endif
                             </a>
                         @else
-                            {{-- Folder (Portal, KESAN, PFM, Dayasos, Perlinsos, Rehabsos, Master Kriteria) --}}
+                            {{-- Folder (Portal, KESAN, PBI APBD, Kartu KKS, DTSEN, Dayasos, Perlinsos, Rehabsos, Master Kriteria) --}}
                             <div class="relative" x-data="{ open: false, top: 0, maxH: 400 }" x-init="open = {{ $isAct ? 'true' : 'false' }} && !collapsed;
                             $watch('collapsed', function(v) { open = v ? false : {{ $isAct ? 'true' : 'false' }}; })"
                                 @click.outside="if (collapsed) open = false">
@@ -982,10 +927,7 @@
                                     {!! $renderChildren($top['children'], false) !!}
                                 </div>
 
-                                {{-- Panel melayang (sidebar ciut).
-                                 `fixed` + <aside> ber-transform => posisinya mengacu ke aside,
-                                 sehingga top dihitung relatif terhadap aside (lihat @click tombol di atas).
-                                 Class `sidebar-scroll-light` = scrollbar tipis untuk latar putih. --}}
+                                {{-- Panel melayang (sidebar ciut). --}}
                                 <div x-show="open && collapsed" x-cloak :style="`top:${top}px; max-height:${maxH}px`"
                                     x-transition:enter="transition ease-out duration-150"
                                     x-transition:enter-start="opacity-0 -translate-x-1"
@@ -999,12 +941,12 @@
                     @endforeach
                 </nav>
 
-                {{-- Indikator: masih ada menu di ATAS (muncul setelah di-scroll ke bawah) --}}
+                {{-- Indikator: masih ada menu di ATAS --}}
                 <div x-show="up" x-cloak x-transition.opacity
                     class="pointer-events-none absolute top-0 inset-x-0 h-8 bg-gradient-to-b from-brand to-transparent z-10">
                 </div>
 
-                {{-- Indikator: masih ada menu di BAWAH (pudar + panah naik-turun, bisa diklik) --}}
+                {{-- Indikator: masih ada menu di BAWAH --}}
                 <div x-show="down" x-cloak x-transition.opacity
                     class="pointer-events-none absolute bottom-0 inset-x-0 h-14 bg-gradient-to-t from-brand via-brand/90 to-transparent z-10 flex items-end justify-center pb-1.5">
                     <button type="button" @click="$refs.nav.scrollBy({ top: 220, behavior: 'smooth' })"
@@ -1088,10 +1030,9 @@
                         </div>
                     </div>
 
-                    {{-- Lonceng: gabungan (1) permohonan yang menunggu tindakan (badge lama)
-                         dan (2) notifikasi dari tabel notifikasis, termasuk permintaan izin
-                         "Masuk sebagai" dari Super Admin (Setujui / Tolak + OTP).
-                         Isi & perilakunya ada di partials/lonceng.blade.php. --}}
+                    {{-- Lonceng: gabungan (1) permohonan yang menunggu tindakan dan
+                         (2) notifikasi dari tabel notifikasis, termasuk permintaan izin
+                         "Masuk sebagai" dari Super Admin. Isi & perilakunya ada di partials/lonceng.blade.php. --}}
                     @php
                         $daftarNotif = [];
 
@@ -1116,7 +1057,7 @@
                     @endphp
                     @include('partials.lonceng', ['extra' => $daftarNotif])
 
-                    {{-- ===== Dropdown user + Edit Profil (pop-up, tidak lewat halaman Kelola Akses) ===== --}}
+                    {{-- ===== Dropdown user + Edit Profil (pop-up) ===== --}}
                     <div class="shrink-0" x-data="{ userMenuOpen: false, profileModalOpen: {{ $errors->profil->any() || $errors->has('ttd') ? 'true' : 'false' }} }">
                         <div class="relative">
                             <button @click="userMenuOpen = !userMenuOpen" @click.outside="userMenuOpen = false"
@@ -1332,9 +1273,6 @@
             x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0"
             x-transition:enter-end="opacity-100" class="fixed inset-0 z-[9990] bg-[#101418] overflow-hidden">
 
-            {{-- Header — bar tipis tembus pandang, melayang di atas buku
-                 (absolute, tidak mereservasi ruang lewat padding) supaya
-                 area buku di bawahnya bisa penuh setinggi layar. --}}
             <div
                 class="absolute top-0 left-0 right-0 flex items-center justify-between px-4 py-2 gap-3 bg-white/85 backdrop-blur z-30 shadow-sm">
                 <h3 class="text-sm font-bold text-on-surface flex items-center gap-2 min-w-0">
@@ -1359,10 +1297,6 @@
                 </div>
             </div>
 
-            {{-- Container Flipbook — full-bleed, memakai hampir seluruh layar.
-                 Header & kontrol di bawah melayang TEMBUS PANDANG di atasnya
-                 (bukan mendorong/mengecilkan area buku), jadi bukunya bisa
-                 setinggi & sebesar mungkin. --}}
             <div class="absolute inset-0 w-full h-full flex items-center justify-center p-2">
 
                 <div id="help-flipbook-loading"
@@ -1376,12 +1310,9 @@
                     <div id="help-flipbook" class="hidden shadow-2xl"></div>
                 </div>
 
-                {{-- Kontrol Navigasi + Pencarian (Absolute di bagian bawah) --}}
                 <div id="help-flipbook-controls"
                     class="hidden absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex-col sm:flex-row items-center gap-2 sm:gap-3 bg-white/90 backdrop-blur px-3 py-1.5 rounded-2xl sm:rounded-full shadow-lg border border-outline-variant/30 max-w-[92%] w-max">
 
-
-                    {{-- Pencarian --}}
                     <div class="flex items-center gap-1.5">
                         <input type="text" id="help-flipbook-search-input" placeholder="Cari kata..."
                             class="w-28 sm:w-40 text-xs px-2.5 py-1.5 rounded-full border border-outline-variant/50 focus:outline-none focus:ring-1 focus:ring-primary" />
@@ -1395,7 +1326,6 @@
 
                     <div class="hidden sm:block w-px h-5 bg-outline-variant/40"></div>
 
-                    {{-- Navigasi halaman --}}
                     <div class="flex items-center gap-3">
                         <button type="button" id="help-flipbook-prev"
                             class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center hover:bg-primary hover:text-white transition-all">
@@ -1425,17 +1355,13 @@
     </div>
     {{-- ====== Akhir tombol bantuan & modal flipbook ====== --}}
 
-    {{-- Kotak highlight hasil pencarian pada flipbook. Diletakkan di level
-         body supaya `position: fixed`-nya selalu mengacu ke viewport, aman
-         dari elemen ancestor mana pun yang mungkin memakai transform. --}}
     <div id="help-flipbook-search-highlight"
         class="hidden fixed pointer-events-none border-2 border-yellow-400 bg-yellow-300/40 rounded shadow-[0_0_10px_rgba(250,204,21,0.75)] z-[9995]">
     </div>
 
-
     {{-- pdf.js: merender tiap halaman PDF ke <canvas> lalu dikonversi ke gambar --}}
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    {{-- page-flip: efek membalik halaman seperti buku, dari gambar yang sudah dirender --}}
+    {{-- page-flip: efek membalik halaman seperti buku --}}
     <script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.js"></script>
 
     {{-- ====== Modal konfirmasi bertema (menggantikan confirm() bawaan browser) ====== --}}
@@ -1572,10 +1498,7 @@
     </script>
     {{-- ====== Akhir blok modal konfirmasi ====== --}}
 
-    {{-- ====== Flipbook PDF untuk tombol bantuan (pdf.js + page-flip) ======
-         Dirapikan seperti contoh viewer manual-book: rendering per-halaman
-         bertahap (tidak memblokir modal), navigasi lewat input nomor halaman,
-         indikator progres pemuatan, dan pencarian kata dengan highlight. --}}
+    {{-- ====== Flipbook PDF untuk tombol bantuan (pdf.js + page-flip) ====== --}}
     <script>
         (function() {
             const PDF_URL = @json($helpPdfUrl);
@@ -1586,7 +1509,7 @@
             let pdfDocRef = null;
             let totalPages = 0;
             let loadedCount = 0;
-            let renderScale = 2; // nilai awal, dihitung ulang secara dinamis di initFlipbook()
+            let renderScale = 2;
 
             let pageImages = [];
             let pageTexts = [];
@@ -1851,7 +1774,6 @@
                     totalPages = pdfDocRef.numPages;
                     if (!totalPages) throw new Error('PDF tidak memiliki halaman');
 
-                    // Dapatkan rasio dasar PDF dari halaman 1
                     const firstPage = await pdfDocRef.getPage(1);
                     const viewportRaw = firstPage.getViewport({
                         scale: 1
@@ -1859,15 +1781,6 @@
                     const baseWidth = viewportRaw.width;
                     const baseHeight = viewportRaw.height;
 
-                    // Hitung ukuran TAMPIL buku dulu (berdasarkan ruang modal yang
-                    // tersedia), sebelum merender halaman apa pun. Ini penting:
-                    // skala render PDF di bawah diturunkan dari ukuran tampil ini,
-                    // supaya resolusi gambar selalu cukup tinggi untuk ukuran
-                    // sebesar apa pun buku ini ditampilkan (termasuk saat full-bleed
-                    // di layar besar) — kalau urutannya dibalik, gambar hasil render
-                    // beresolusi tetap akan di-upscale oleh browser untuk memenuhi
-                    // ukuran tampil yang lebih besar, dan itulah yang bikin teksnya
-                    // buram.
                     function computeSpreadSize() {
                         const rect = wrapEl.getBoundingClientRect();
                         const availW = Math.max(rect.width - 8, 280);
@@ -1894,9 +1807,6 @@
                         pageH
                     } = computeSpreadSize();
 
-                    // Turunkan skala render PDF dari ukuran tampil x devicePixelRatio
-                    // (supaya tajam di layar retina/HiDPI juga), dibatasi 1x–3x agar
-                    // memori & waktu render tetap wajar untuk PDF yang panjang.
                     const dpr = window.devicePixelRatio || 1;
                     renderScale = Math.min(Math.max((pageW * dpr) / baseWidth, 1.2), 3);
 
@@ -1906,9 +1816,6 @@
                     pageImages = new Array(totalPages).fill(createPlaceholder(placeholderVp.width, placeholderVp
                         .height));
 
-                    // Render halaman pertama dulu (dengan skala yang sudah pas)
-                    // supaya buku bisa langsung tampil, sisanya dimuat bertahap di
-                    // latar belakang (lihat di bawah).
                     pageImages[0] = await renderSinglePage(1);
                     loadedCount = 1;
 
@@ -1941,7 +1848,6 @@
                         pageFlipInstance.flipNext();
                     });
 
-                    // Navigasi lewat input nomor halaman
                     const pageInputEl = document.getElementById('help-flipbook-page-input');
                     const pageTotalEl = document.getElementById('help-flipbook-page-total');
                     pageInputEl.max = totalPages;
@@ -1963,7 +1869,6 @@
                     });
                     pageInputEl.addEventListener('blur', goToPage);
 
-                    // Pencarian kata
                     document.getElementById('help-flipbook-search-btn').addEventListener('click', doSearch);
                     const searchInputEl = document.getElementById('help-flipbook-search-input');
                     searchInputEl.addEventListener('keydown', function(e) {
@@ -1976,7 +1881,6 @@
                         lastQuery = null;
                     });
 
-                    // Navigasi keyboard (dinonaktifkan saat sedang mengetik di input)
                     document.addEventListener('keydown', function(e) {
                         if (!pageFlipInstance) return;
                         if (!flipbookEl || flipbookEl.classList.contains('hidden')) return;
@@ -1986,8 +1890,6 @@
                         if (e.key === 'ArrowRight') pageFlipInstance.flipNext();
                     });
 
-                    // Hitung ulang & terapkan ukuran saat jendela/modal berganti ukuran,
-                    // supaya buku tetap proporsional di layar apa pun.
                     let resizeTimeout = null;
                     window.addEventListener('resize', function() {
                         if (!pageFlipInstance) return;
@@ -2003,13 +1905,11 @@
                     loadingEl.classList.add('hidden');
                     flipbookEl.classList.remove('hidden');
                     controlsEl.classList.remove('hidden');
-                    controlsEl.classList.add('flex'); // munculkan kontrol melayang
+                    controlsEl.classList.add('flex');
 
                     updatePageIndicator();
                     loaded = true;
 
-                    // Muat sisa halaman secara bertahap di latar belakang, tidak
-                    // memblokir tampilan buku yang sudah bisa dibuka dari halaman 1.
                     loadRemainingPagesInBackground();
                 } catch (err) {
                     console.error('Gagal memuat flipbook panduan:', err);
