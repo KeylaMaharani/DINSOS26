@@ -95,7 +95,7 @@ class KartuKksPermohonan extends Model
 
             // --- Status alur lama (hanya untuk data lama) ---
             self::STATUS_VERIFIKASI_KELURAHAN => 'Verifikasi Kelurahan (alur lama)',
-            self::STATUS_TTD_LURAH => 'TTD Lurah (alur lama)',
+            self::STATUS_TTD_LURAH => 'Menunggu TTD Lurah',
         ];
     }
 

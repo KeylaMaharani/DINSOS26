@@ -22,6 +22,14 @@
 
     $inputFileClass =
         'mt-2 block w-full text-[10px] text-on-surface-variant file:mr-2 file:rounded file:border-0 file:bg-brand/10 file:px-2 file:py-1 file:text-brand';
+
+    $templateCatatan = config('catatan_kks.' . $data->status, []);
+    $labelAksiTemplate = [
+        'lanjut' => 'Teruskan',
+        'simpan' => 'Simpan',
+        'kembalikan' => 'Kembalikan',
+        'tolak' => 'Tolak',
+    ];
 @endphp
 
 @section('content')
@@ -236,6 +244,73 @@
             @endif
         </form>
 
+        {{-- 3b. Surat Pengantar Kelurahan (dibuat otomatis saat Lurah menandatangani) --}}
+        <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden mb-5">
+            <div class="px-4 py-3 border-b border-outline-variant/40">
+                <h3 class="text-sm font-semibold flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px] text-brand">mail</span>
+                    Surat Pengantar Kelurahan
+                </h3>
+            </div>
+            <div class="p-4" x-data="{ preview: false }">
+                @if ($suratPengantarAda)
+                    <div class="flex flex-wrap items-center gap-3 border border-outline-variant/40 rounded-xl px-4 py-3 w-fit">
+                        <span class="material-symbols-outlined text-[28px] text-error/70">picture_as_pdf</span>
+                        <div class="mr-2">
+                            <p class="text-sm font-semibold">Surat Pengantar Kelurahan {{ $data->kelurahan }}</p>
+                            <p class="text-[11px] text-on-surface-variant">
+                                Ditandatangani secara elektronik
+                                @if ($data->surat?->surat_pengantar_kelurahan_at)
+                                    &middot; {{ $data->surat->surat_pengantar_kelurahan_at->format('d M Y - H:i') }}
+                                @endif
+                            </p>
+                        </div>
+                        <button type="button" @click="preview = true" title="Lihat surat"
+                            class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-brand/10 text-brand hover:bg-brand hover:text-white text-xs font-semibold transition-colors">
+                            <span class="material-symbols-outlined text-[16px]">visibility</span> Lihat
+                        </button>
+                        <a href="{{ asset('storage/' . $suratPengantar) }}"
+                            download="Surat-Pengantar-KKS-{{ $data->no_permohonan }}.pdf" title="Unduh PDF"
+                            class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-brand/10 text-brand hover:bg-brand hover:text-white transition-colors">
+                            <span class="material-symbols-outlined text-[18px]">download</span>
+                        </a>
+                    </div>
+
+                    <div x-show="preview" x-cloak @keydown.escape.window="preview = false"
+                        class="fixed inset-0 z-[9000] flex items-center justify-center bg-black/50 p-4">
+                        <div @click.outside="preview = false"
+                            class="bg-white w-full max-w-4xl h-[90vh] rounded-2xl shadow-xl flex flex-col overflow-hidden">
+                            <div class="shrink-0 flex items-center justify-between px-5 py-3 border-b border-outline-variant/40">
+                                <h4 class="text-sm font-bold">Surat Pengantar Kelurahan</h4>
+                                <div class="flex items-center gap-1">
+                                    <a href="{{ asset('storage/' . $suratPengantar) }}"
+                                        download="Surat-Pengantar-KKS-{{ $data->no_permohonan }}.pdf" title="Unduh PDF"
+                                        class="w-9 h-9 rounded-full flex items-center justify-center text-brand hover:bg-brand/10 transition-colors">
+                                        <span class="material-symbols-outlined text-[22px]">download</span>
+                                    </a>
+                                    <button type="button" @click="preview = false" title="Tutup"
+                                        class="w-9 h-9 rounded-full flex items-center justify-center text-error hover:bg-error-container/50 transition-colors">
+                                        <span class="material-symbols-outlined text-[22px]">close</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <iframe x-show="preview" src="{{ asset('storage/' . $suratPengantar) }}"
+                                class="flex-1 w-full" title="Preview Surat Pengantar Kelurahan"></iframe>
+                        </div>
+                    </div>
+                @else
+                    <div class="flex items-center gap-2 border border-dashed border-outline-variant/60 rounded-xl px-4 py-3 w-fit text-sm text-on-surface-variant">
+                        <span class="material-symbols-outlined text-[20px] opacity-50">description</span>
+                        @if ($data->status === \App\Models\KartuKksPermohonan::STATUS_TTD_LURAH)
+                            Surat dibuat otomatis setelah Lurah menandatangani.
+                        @else
+                            Surat pengantar tidak tersedia untuk ajuan ini.
+                        @endif
+                    </div>
+                @endif
+            </div>
+        </div>
+
         {{-- 4. Surat Keterangan KKS Dinas Sosial --}}
         <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden mb-5">
                 <div class="px-4 py-3 border-b border-outline-variant/40">
@@ -323,6 +398,34 @@
             <form id="form-buat-surat" method="POST" action="{{ route('kartu-kks.surat.buat', $data) }}" class="hidden">
                 @csrf
             </form>
+        @endif
+
+        {{-- Tanda Tangan Digital Lurah (muncul setelah Lurah menyetujui) --}}
+        @if ($ttdLurah)
+            <div class="bg-white rounded-3xl shadow-[0_8px_24px_rgba(10,92,168,0.10)] overflow-hidden mb-5">
+                <div class="px-5 py-4 border-b border-outline-variant/40">
+                    <h3 class="text-sm font-bold flex items-center gap-2">
+                        <span class="material-symbols-outlined text-[20px] text-brand">draw</span>
+                        Tanda Tangan Digital Lurah
+                    </h3>
+                </div>
+                <div class="p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+                    @if ($ttdLurah['path'])
+                        <img src="{{ asset('storage/' . $ttdLurah['path']) }}" alt="Tanda tangan Lurah"
+                            class="h-20 max-w-[12rem] object-contain rounded border border-outline-variant/40 bg-white p-2">
+                    @else
+                        <div class="h-20 w-48 flex items-center justify-center rounded border border-dashed border-outline-variant/60 text-xs text-on-surface-variant">
+                            Gambar TTD tidak tersedia
+                        </div>
+                    @endif
+                    <div class="text-sm">
+                        <p class="font-semibold">{{ $ttdLurah['nama'] }}</p>
+                        <p class="text-xs text-on-surface-variant">
+                            Disetujui pada {{ \Carbon\Carbon::parse($ttdLurah['tanggal'])->format('d M Y - H:i') }}
+                        </p>
+                    </div>
+                </div>
+            </div>
         @endif
 
                 {{-- 5. Tanda Tangan Digital Kepala Dinas (muncul setelah disetujui) --}}
@@ -461,10 +564,32 @@
                         </div>
                     @endif
 
-                    <div class="mb-5">
+                                        <div class="mb-5">
                         <label class="block text-sm font-bold text-on-surface mb-2">Catatan Proses <span class="text-error">*</span></label>
-                        <textarea name="catatan" rows="3" required placeholder="Tulis catatan (wajib diisi untuk semua aksi)..."
-                            class="w-full px-4 py-3 rounded-xl border border-outline-variant/40 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand shadow-sm">{{ old('catatan') }}</textarea>
+
+                        @if (!empty($templateCatatan))
+                            <p class="text-xs text-on-surface-variant mb-2">Pilih template catatan (bisa diedit setelah dipilih):</p>
+                            <div class="space-y-2 mb-3">
+                                @foreach ($templateCatatan as $aksiKey => $daftar)
+                                    @continue($aksiKey === 'kembalikan' && !$returnLabel)
+                                    <div>
+                                        <p class="text-[11px] font-semibold text-on-surface mb-1">{{ $labelAksiTemplate[$aksiKey] ?? $aksiKey }}</p>
+                                        <div class="flex flex-wrap gap-2">
+                                            @foreach ($daftar as $teks)
+                                                <button type="button"
+                                                    onclick="var el=document.getElementById('catatan'); el.value=@js($teks); el.focus();"
+                                                    class="px-3.5 py-1.5 rounded-full border border-secondary/40 bg-white text-xs text-on-surface text-left hover:bg-secondary/10 hover:border-secondary transition-colors">
+                                                    {{ $teks }}
+                                                </button>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+
+                        <textarea id="catatan" name="catatan" rows="3" required
+                            class="w-full px-4 py-3 rounded-lg border border-outline-variant/60 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary">{{ old('catatan') }}</textarea>
                     </div>
 
                     <div class="flex flex-col sm:flex-row flex-wrap items-center gap-3">

@@ -2,6 +2,7 @@
 
 @section('title', 'Ajuan Kartu KKS - SOLID Dinas Sosial Kota Bogor')
 @section('page_title', 'Kartu KKS — Ajuan')
+@section('tanpa_alert_global', '1')
 
 @php
     $roleSaatIni = auth()->user()->role ?? null;

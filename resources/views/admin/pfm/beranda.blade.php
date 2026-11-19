@@ -26,14 +26,14 @@
     }
 
     // Aksi cepat
-    $quick = [
-        ['key' => 'pbi-apbd', 'label' => 'Ajuan PBI APBD', 'icon' => 'health_and_safety', 'route' => 'pbi-apbd.ajuan.index', 'tone' => 'text-primary bg-primary-fixed-dim/40'],
-        ['key' => 'kartu-kks', 'label' => 'Ajuan Kartu KKS', 'icon' => 'credit_card', 'route' => 'kartu-kks.ajuan', 'tone' => 'text-warning bg-warning-container'],
-        ['key' => 'dtsen', 'label' => 'Ajuan DTSEN', 'icon' => 'database', 'route' => 'dtsen.ajuan', 'tone' => 'text-success bg-success-container'],
-        ['key' => 'ground-check.daftar', 'label' => 'Ground Check', 'icon' => 'fact_check', 'route' => 'ground-check.index', 'tone' => 'text-error bg-error-container'],
-        ['key' => 'kartu-kks.monitoring', 'label' => 'Monitoring KKS', 'icon' => 'monitoring', 'route' => 'kartu-kks.monitoring', 'tone' => 'text-secondary bg-secondary-fixed'],
-        ['key' => 'kartu-kks.arsip', 'label' => 'Arsip KKS', 'icon' => 'inventory_2', 'route' => 'kartu-kks.arsip', 'tone' => 'text-on-surface-variant bg-surface-container'],
-    ];
+    // $quick = [
+    //     ['key' => 'pbi-apbd', 'label' => 'Ajuan PBI APBD', 'icon' => 'health_and_safety', 'route' => 'pbi-apbd.ajuan.index', 'tone' => 'text-primary bg-primary-fixed-dim/40'],
+    //     ['key' => 'kartu-kks', 'label' => 'Ajuan Kartu KKS', 'icon' => 'credit_card', 'route' => 'kartu-kks.ajuan', 'tone' => 'text-warning bg-warning-container'],
+    //     ['key' => 'dtsen', 'label' => 'Ajuan DTSEN', 'icon' => 'database', 'route' => 'dtsen.ajuan', 'tone' => 'text-success bg-success-container'],
+    //     ['key' => 'ground-check.daftar', 'label' => 'Ground Check', 'icon' => 'fact_check', 'route' => 'ground-check.index', 'tone' => 'text-error bg-error-container'],
+    //     ['key' => 'kartu-kks.monitoring', 'label' => 'Monitoring KKS', 'icon' => 'monitoring', 'route' => 'kartu-kks.monitoring', 'tone' => 'text-secondary bg-secondary-fixed'],
+    //     ['key' => 'kartu-kks.arsip', 'label' => 'Arsip KKS', 'icon' => 'inventory_2', 'route' => 'kartu-kks.arsip', 'tone' => 'text-on-surface-variant bg-surface-container'],
+    // ];
 
     $statusTone = [
         'diajukan' => 'bg-warning-container text-on-warning-container',
@@ -49,6 +49,7 @@
 
 @section('content')
     <div class="space-y-6">
+        @include('partials.sapaan', ['konteks' => 'Bidang Pelayanan Fakir Miskin'])
 
         {{-- ===== Ringkasan angka ===== --}}
         @if (count($kpis))
@@ -121,7 +122,7 @@
         </section>
 
         {{-- ===== Aksi cepat ===== --}}
-        <section>
+        {{-- <section>
             <h2 class="text-lg font-bold text-on-surface mb-4">Aksi Cepat</h2>
             <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
                 @foreach ($quick as $q)
@@ -135,7 +136,7 @@
                     </a>
                 @endforeach
             </div>
-        </section>
+        </section> --}}
 
         {{-- ===== Rincian status per layanan ===== --}}
         <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">

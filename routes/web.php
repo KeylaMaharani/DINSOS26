@@ -17,6 +17,7 @@ use App\Http\Controllers\Auth\UserController;
 use App\Http\Controllers\NotifikasiController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\RegistrasiController;
+use App\Http\Controllers\KartuKksVerifikasiController;
 use App\Http\Controllers\Layanan\KartuKksAjuanController;
 use App\Http\Controllers\Layanan\DtsenAjuanController;
 use App\Http\Controllers\Masyarakat\MasyarakatController;
@@ -33,6 +34,8 @@ use App\Http\Controllers\Admin\SigapBencanaController;
 use App\Http\Controllers\Admin\GcLapanganUsahaController;
 use App\Http\Controllers\Admin\GcKeterampilanController;
 use App\Http\Controllers\Admin\GcPenyakitKronisController;
+use App\Http\Controllers\Admin\DayasosDashboardController;
+use App\Http\Controllers\Admin\PerlinsosDashboardController;
 // --- Ngopi Pagi ---
 use App\Http\Controllers\Admin\NgopiPagiController as NgopiPagiAdminController;
 use App\Http\Controllers\Admin\NgopiPagiKonselorController;
@@ -112,6 +115,12 @@ Route::get('/ganti-tampilan/{mode}', function (string $mode) {
     return back();
 })->whereIn('mode', ['mobile', 'desktop', 'auto'])->name('ganti-tampilan');
 
+Route::get('/verifikasi/surat-pengantar-kks/{permohonan}', [KartuKksVerifikasiController::class, 'pengantar'])
+    ->middleware('signed')
+    ->name('kks.pengantar.verifikasi');
+Route::get('/verifikasi/surat-keterangan-kks/{permohonan}', [KartuKksVerifikasiController::class, 'keterangan'])
+    ->middleware('signed')
+    ->name('kks.keterangan.verifikasi');
 // ==========================================
 // KEMBALI KE SUPER ADMIN (setelah "Masuk sebagai")
 //   Sengaja HANYA middleware 'auth' -- keamanannya dijaga di controller:
@@ -418,9 +427,8 @@ Route::middleware(['auth', 'staff'])->group(function () {
     // ==========================================
     // PERLINSOS -- menu tambahan (kerangka)
     // ==========================================
-    Route::get('/perlinsos/dashboard', [MenuPlaceholderController::class, 'show'])
+    Route::get('/perlinsos/dashboard', [PerlinsosDashboardController::class, 'index'])
         ->middleware('module:sigap-bencana')
-        ->defaults('judul', 'Perlinsos')->defaults('label', 'Beranda')
         ->name('perlinsos.dashboard');
 
     Route::get('/perlinsos/laporan', [MenuPlaceholderController::class, 'show'])
@@ -489,7 +497,11 @@ Route::middleware(['auth', 'staff'])->group(function () {
                 continue;
             }
 
-            Route::get('/' . $n['url'], [MenuPlaceholderController::class, 'show'])
+            $handler = ($n['url'] === 'dayasos/dashboard')
+                ? [DayasosDashboardController::class, 'index']
+                : [MenuPlaceholderController::class, 'show'];
+
+            Route::get('/' . $n['url'], $handler)
                 ->middleware('module:' . implode(',', (array) $module))
                 ->defaults('judul', 'Dayasos')
                 ->defaults('label', $n['label'])
