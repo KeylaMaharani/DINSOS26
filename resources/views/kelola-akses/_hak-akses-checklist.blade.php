@@ -2,9 +2,11 @@
     Checklist "Hak Akses Menu" di modal Tambah/Edit Hak Akses (dipakai di kelola-akses/index.blade.php).
     Harus berada di dalam scope roleManager() (memakai form.permissions & isSuperAdminEdit).
 
-    - Modul berkatalog (config/akses.php): submenu (= boleh membuka halaman) + aksi per submenu.
-      Aksi baru bisa dicentang setelah submenunya dicentang. Mencabut submenu ikut mencabut aksinya.
-    - Modul lain (belum ada halamannya): satu centang per modul seperti sebelumnya.
+    - Modul berkatalog (config/akses.php): submenu (= BISA LIHAT) + aksi per submenu
+      (tambah, edit, hapus, proses, export Excel). Aksi baru bisa dicentang setelah
+      submenunya dicentang. Mencabut submenu ikut mencabut aksinya.
+    - Tombol "Hanya lihat" per modul: mencentang semua submenu dan mencabut semua aksinya.
+    - Modul lain (belum ada halamannya): satu centang per modul.
 --}}
 @php
     $katalog = config('akses', []);
@@ -36,6 +38,7 @@
     toggleSub(sub, aksi, on) { on ? this.setMany([sub], true) : this.setMany([sub, ...aksi], false); },
     allOn(keys) { return keys.length > 0 && keys.every(k => this.has(k)); },
     toggleAll(keys) { this.setMany(keys, !this.allOn(keys)); },
+    onlyView(subs, aksi) { this.setMany(aksi, false); this.setMany(subs, true); },
 }">
     <div class="flex items-center justify-between mb-2">
         <label class="block text-sm font-medium">Hak Akses Menu</label>
@@ -53,27 +56,35 @@
 
     <div x-show="!isSuperAdminEdit" class="space-y-3">
         <p class="text-xs text-on-surface-variant">
-            Centang submenu agar halamannya bisa dibuka. Aksi (tambah, ubah, hapus, proses, dst) baru bisa dipilih
-            setelah submenunya dicentang.
+            Centang submenu agar halamannya <b>bisa dilihat</b>. Pilihan lain (tambah data, edit, memproses,
+            export Excel, hapus) baru bisa dipilih setelah submenunya dicentang.
         </p>
 
         {{-- ===== Modul dengan hak akses detail ===== --}}
         @foreach ($katalog as $modul => $submenus)
             @php
                 $semuaKunci = [];
+                $kunciSubSemua = [];
+                $kunciAksiSemua = [];
                 foreach ($submenus as $s => $c) {
                     $semuaKunci[] = "{$modul}.{$s}";
+                    $kunciSubSemua[] = "{$modul}.{$s}";
                     foreach (array_keys($c['aksi'] ?? []) as $a) {
                         $semuaKunci[] = "{$modul}.{$s}.{$a}";
+                        $kunciAksiSemua[] = "{$modul}.{$s}.{$a}";
                     }
                 }
             @endphp
             <div class="rounded-lg border border-outline-variant/40 overflow-hidden">
                 <div class="flex items-center justify-between px-3 py-2 bg-surface-container-low border-b border-outline-variant/40">
                     <span class="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">{{ $labelModul[$modul] ?? $modul }}</span>
-                    <button type="button" @click="toggleAll(@js($semuaKunci))"
-                        class="text-xs font-medium text-primary hover:underline"
-                        x-text="allOn(@js($semuaKunci)) ? 'Batalkan semua' : 'Pilih semua'"></button>
+                    <div class="flex items-center gap-3">
+                        <button type="button" @click="onlyView(@js($kunciSubSemua), @js($kunciAksiSemua))"
+                            class="text-xs font-medium text-primary hover:underline">Hanya lihat</button>
+                        <button type="button" @click="toggleAll(@js($semuaKunci))"
+                            class="text-xs font-medium text-primary hover:underline"
+                            x-text="allOn(@js($semuaKunci)) ? 'Batalkan semua' : 'Pilih semua'"></button>
+                    </div>
                 </div>
 
                 <div class="divide-y divide-outline-variant/20">
@@ -88,7 +99,7 @@
                                     :checked="has('{{ $kunciSub }}')"
                                     @change="toggleSub('{{ $kunciSub }}', @js($kunciAksi), $event.target.checked)"
                                     class="shrink-0 rounded border-outline-variant/50 text-primary focus:ring-primary" />
-                                <span>{{ $c['label'] }}</span>
+                                <span>{{ $c['label'] }} <em class="text-xs text-on-surface-variant font-normal">(bisa lihat)</em></span>
                             </label>
 
                             @if (! empty($c['aksi']))

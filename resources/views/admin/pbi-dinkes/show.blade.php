@@ -125,7 +125,7 @@
                     <tr><th class="px-5 py-3">Tanggal</th><th class="px-5 py-3">Username</th><th class="px-5 py-3">Role</th><th class="px-5 py-3">Aktivitas</th><th class="px-5 py-3">Catatan</th></tr>
                 </thead>
                 <tbody class="divide-y divide-outline-variant/30">
-                    @forelse ($data->logs as $log)
+                    @forelse ($data->logs->sortBy([['created_at', 'asc'], ['id', 'asc']]) as $log)
                         <tr>
                             <td class="px-5 py-3 whitespace-nowrap text-on-surface-variant">{{ $log->created_at->format('d M Y - H:i') }}</td>
                             <td class="px-5 py-3 font-medium">{{ $log->username }}</td>
