@@ -73,8 +73,8 @@ class LoginAdminController
 
             $request->session()->regenerate();
 
-            // Role yang tidak punya modul Beranda (mis. Kelurahan SIGAP) tidak
-            // boleh dikirim ke /dashboard (akan 403). Buang juga tujuan
+            // Role yang tidak punya modul Beranda (mis. Kelurahan SIGAP, Petugas Ground Check)
+            // tidak boleh dikirim ke /dashboard (akan 403). Buang juga tujuan
             // "intended" yang tersimpan, karena bisa saja isinya /dashboard.
             if (! ($user->role?->hasModule('beranda'))) {
                 $request->session()->forget('url.intended');
@@ -99,6 +99,7 @@ class LoginAdminController
     private function halamanAwal($role): string
     {
         $urutan = [
+            'gc-petugas' => 'gc.home',
             'sigap-proses' => 'sigap.proses.index',
             'sigap-bencana' => 'sigap.index',
             'pbi-kelurahan' => 'pbi-kelurahan.index',

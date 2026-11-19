@@ -62,6 +62,9 @@ class Role extends Model
 
         // --- Ground Check ---
         'ground-check' => 'Ground Check - Entry Data Ground Check 2026',
+        // Menu Ground Check MANDIRI untuk petugas (tidak masuk bidang apa pun): Home (isi data petugas,
+        // unduh dokumen) + Ground Check 2026. Satu centang = semua akses Ground Check petugas.
+        'gc-petugas' => 'Ground Check Petugas - Menu mandiri (Home + Ground Check 2026)',
 
         // --- Kelurahan ---
         'pbi-kelurahan' => 'Verifikasi Kelurahan - PBI APBD',
@@ -72,6 +75,7 @@ class Role extends Model
         'asesmen-spmb' => 'Asesmen SPMB',
         'kedaruratan-medis' => 'Kedaruratan Medis (belum ada di menu)',
         'dokumen' => 'Dokumen - Lihat & Unduh Template',
+        'data-desil' => 'Entri Data - Data Desil Kependudukan',
     ];
 
     /**

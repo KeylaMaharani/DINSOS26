@@ -214,7 +214,7 @@
         // Badge Ground Check: jumlah keluarga (No KK) yang belum selesai di-ground check.
         // Dihitung langsung di sini (tanpa kelas tambahan); tahun Ground Check = 2026.
         $notif = (array) $notif;
-        $punyaGc = $currentRole && ($currentRole->isSuperAdmin() || $currentRole->hasModule('ground-check'));
+        $punyaGc = $currentRole && ($currentRole->isSuperAdmin() || $currentRole->hasModule('ground-check') || $currentRole->hasModule('gc-petugas'));
         $notif['ground_check'] = $punyaGc
             ? \App\Models\GcSasaran::query()
                 ->whereDoesntHave('verifikasis', fn($v) => $v->where('tahun', 2026)->where('status_entry', 'submit'))
@@ -338,6 +338,28 @@
                 'route' => 'dashboard',
                 'module' => 'beranda',
             ],
+
+
+                        // ==================== GROUND CHECK PETUGAS (mandiri) ====================
+            // Tidak masuk bidang mana pun. Super Admin tidak perlu melihatnya
+            // (sudah punya Ground Check di PFM).
+            [
+                'label' => 'Ground Check',
+                'icon' => 'travel_explore',
+                'module' => 'gc-petugas',
+                // 'hide_for_superadmin' => true,
+                'children' => [
+                    ['label' => 'Home', 'route' => 'gc.home', 'match' => ['gc.*']],
+                    [
+                        'label' => 'Ground Check 2026',
+                        'route' => 'ground-check.index',
+                        'match' => ['ground-check.*'],
+                        'badge' => 'ground_check',
+                    ],
+                ],
+            ],
+
+            
 
             // ==================== PORTAL ====================
             // Semua menu website (dulu "Front End") dibungkus satu folder "Portal".
@@ -617,6 +639,15 @@
                 'route' => 'dokumen.index',
                 'match' => ['dokumen.*'],
                 'module' => 'dokumen.daftar',
+            ],
+
+            ['separator' => 'Entri Data'],
+            [
+                'label' => 'Data Desil',
+                'icon' => 'database',
+                'route' => 'data-desil.index',
+                'match' => ['data-desil.*'],
+                'module' => 'data-desil',
             ],
 
             // ==================== DATA MASTER ====================

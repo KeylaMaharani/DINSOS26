@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AkunMasyarakatController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\DataDesilController;
 use App\Http\Controllers\Admin\DokumenController;
 use App\Http\Controllers\Admin\DtsenController;
 use App\Http\Controllers\Admin\KartuKksController;
@@ -39,6 +40,8 @@ use App\Http\Controllers\Admin\NgopiPagiKonselorController;
 use App\Http\Controllers\Admin\NgopiPagiSpesialisasiController;
 use App\Http\Controllers\NgopiPagiPublikController;
 use App\Http\Controllers\Admin\PfmDashboardController;
+use App\Http\Controllers\Admin\GcPetugasController;
+use App\Http\Middleware\GcPetugasProfil;    
 use App\Models\NgopiPagiKonsultasi;
 use Illuminate\Support\Facades\Route;
 
@@ -312,19 +315,33 @@ Route::middleware(['auth', 'staff'])->group(function () {
         Route::delete('/{penyakit}', [GcPenyakitKronisController::class, 'destroy'])->name('destroy');
     });
 
+        // ==========================================
+    // GROUND CHECK PETUGAS (menu mandiri, tidak masuk bidang apa pun)
+    //   Home = isi data petugas + unduh dokumen. Ground Check-nya memakai rute
+    //   ground-check.* di bawah. Unduh dokumen baru terbuka setelah data lengkap.
+    // ==========================================
+    Route::prefix('gc')->name('gc.')->middleware('module:gc-petugas')->group(function () {
+        Route::get('/home', [GcPetugasController::class, 'home'])->name('home');
+        Route::put('/profil', [GcPetugasController::class, 'profilUpdate'])->name('profil.update');
+        Route::get('/dokumen/{kode}', [GcPetugasController::class, 'dokumen'])
+            ->middleware(GcPetugasProfil::class)->name('dokumen');
+    });
+
     // ==========================================
     // GROUND CHECK 2026
     //   Rute statis (/keluarga/...) HARUS sebelum rute wildcard {sasaran}.
     //   Hak akses: ground-check.daftar = buka, .tambah = tambah sasaran, .ubah = isi form & ubah status.
     // ==========================================
-    Route::prefix('ground-check')->name('ground-check.')->middleware('module:ground-check')->group(function () {
-        Route::get('/', [GroundCheckController::class, 'index'])->middleware('module:ground-check.daftar')->name('index');
-        Route::get('/keluarga/{noKk}', [GroundCheckController::class, 'keluarga'])->middleware('module:ground-check.daftar')->name('keluarga');
-        Route::post('/{sasaran}/status', [GroundCheckController::class, 'statusStore'])->whereNumber('sasaran')->middleware('module:ground-check.daftar.ubah')->name('status');
-        Route::get('/{sasaran}/form', [GroundCheckController::class, 'form'])->whereNumber('sasaran')->middleware('module:ground-check.daftar')->name('form');
-        Route::post('/{sasaran}/form', [GroundCheckController::class, 'simpan'])->whereNumber('sasaran')->middleware('module:ground-check.daftar.ubah')->name('simpan');
-        Route::post('/', [GroundCheckController::class, 'store'])->middleware('module:ground-check.daftar.tambah')->name('store');
-    });
+        Route::prefix('ground-check')->name('ground-check.')
+        ->middleware(['module:ground-check,gc-petugas', GcPetugasProfil::class])
+        ->group(function () {
+            Route::get('/', [GroundCheckController::class, 'index'])->middleware('module:ground-check.daftar,gc-petugas')->name('index');
+            Route::get('/keluarga/{noKk}', [GroundCheckController::class, 'keluarga'])->middleware('module:ground-check.daftar,gc-petugas')->name('keluarga');
+            Route::post('/{sasaran}/status', [GroundCheckController::class, 'statusStore'])->whereNumber('sasaran')->middleware('module:ground-check.daftar.ubah,gc-petugas')->name('status');
+            Route::get('/{sasaran}/form', [GroundCheckController::class, 'form'])->whereNumber('sasaran')->middleware('module:ground-check.daftar,gc-petugas')->name('form');
+            Route::post('/{sasaran}/form', [GroundCheckController::class, 'simpan'])->whereNumber('sasaran')->middleware('module:ground-check.daftar.ubah,gc-petugas')->name('simpan');
+            Route::post('/', [GroundCheckController::class, 'store'])->middleware('module:ground-check.daftar.tambah,gc-petugas')->name('store');
+        });
 
     // ==========================================
     // 4. Kartu KKS
@@ -335,7 +352,7 @@ Route::middleware(['auth', 'staff'])->group(function () {
         Route::get('/arsip', [KartuKksController::class, 'arsip'])->middleware('module:kartu-kks.arsip')->name('arsip');
         Route::get('/monitoring', [KartuKksController::class, 'monitoring'])->middleware('module:kartu-kks.monitoring')->name('monitoring');
         Route::get('/log', [KartuKksController::class, 'logIndex'])->middleware('module:kartu-kks.log')->name('log');
-        
+
         Route::get('/{permohonan}', [KartuKksController::class, 'show'])->middleware('module:kartu-kks.ajuan')->name('show');
         Route::get('/{permohonan}/detail', [KartuKksController::class, 'detail'])->middleware('module:kartu-kks.ajuan')->name('detail');
         Route::put('/{permohonan}/detail', [KartuKksController::class, 'updateDetail'])->middleware('module:kartu-kks.ajuan.ubah')->name('detail.update');
@@ -544,6 +561,16 @@ Route::middleware(['auth', 'staff'])->group(function () {
                 }
             });
         }
+    });
+
+    // ==========================================
+    // ENTRI DATA -- Data Desil Kependudukan
+    //   Sumber: tabel data_penduduk_asli. Akses: Super Admin (otomatis) + role yang
+    //   dicentang modul 'data-desil' di Kelola Akses (mis. Kadis).
+    // ==========================================
+    Route::prefix('entri-data/data-desil')->name('data-desil.')->middleware('module:data-desil')->group(function () {
+        Route::get('/', [DataDesilController::class, 'index'])->name('index');
+        Route::get('/export', [DataDesilController::class, 'export'])->name('export');
     });
 
     // ==========================================
