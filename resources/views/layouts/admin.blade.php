@@ -269,6 +269,35 @@
             $notif['dtsen_ajuan'] = $qDtsen->count();
         }
 
+        // Badge Kartu KKS Ajuan
+        $notif['kks_ajuan'] = 0;
+        if ($currentRole && ($currentRole->isSuperAdmin() || $currentRole->hasModule('kartu-kks.ajuan'))) {
+            $slugKks = strtolower(str_replace(['-', ' '], '_', (string) ($currentRole->slug ?: $currentRole->name)));
+            $adminKks = $currentRole->isSuperAdmin()
+                || str_contains(strtolower($currentRole->name ?? ''), 'admin')
+                || in_array($slugKks, ['admin', 'super_admin', 'superadmin'], true);
+
+            $qKks = \App\Models\KartuKksPermohonan::query()->whereNotIn('status', [
+                \App\Models\KartuKksPermohonan::STATUS_SELESAI,
+                \App\Models\KartuKksPermohonan::STATUS_DITOLAK,
+            ]);
+
+            if ($slugKks === 'kelurahan' && ! $adminKks) {
+                $qKks->whereRaw('1 = 0');
+            } elseif (! $adminKks) {
+                $qKks->whereHas('currentRole', fn($q) => $q->where('slug', $slugKks));
+
+                // Lurah hanya menghitung ajuan di kelurahannya sendiri
+                if ($slugKks === 'lurah') {
+                    filled(auth()->user()->kelurahan)
+                        ? $qKks->where('kelurahan', auth()->user()->kelurahan)
+                        : $qKks->whereRaw('1 = 0');
+                }
+            }
+
+            $notif['kks_ajuan'] = $qKks->count();
+        }
+
         if ($currentRole && ! $currentRole->isSuperAdmin()) {
             $notif['pbi_ajuan'] = max(
                 (int) ($notif['pbi_ajuan'] ?? 0),
@@ -472,6 +501,7 @@
                                 'route' => 'kartu-kks.ajuan',
                                 'match' => ['kartu-kks.show', 'kartu-kks.detail*', 'kartu-kks.proses', 'layanan.kartu-kks.*'],
                                 'module' => 'kartu-kks.ajuan',
+                                'badge' => 'kks_ajuan',
                             ],
                             ['label' => 'Arsip', 'route' => 'kartu-kks.arsip', 'module' => 'kartu-kks.arsip'],
                             [

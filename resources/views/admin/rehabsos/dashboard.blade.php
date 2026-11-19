@@ -7,6 +7,9 @@
 
 @section('content')
     <div class="space-y-6">
+
+        @include('partials.sapaan', ['konteks' => 'Bidang Rehabsos'])
+        
         @foreach ($groups as $key => $g)
             <section class="{{ $card }} p-4 sm:p-6">
                 <div class="flex items-center gap-2 mb-4">
