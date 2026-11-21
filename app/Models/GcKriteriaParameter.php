@@ -16,13 +16,14 @@ class GcKriteriaParameter extends Model
 
     protected $fillable = [
         'kelompok', 'target', 'urutan', 'nama', 'bobot', 'tipe_input', 'sumber',
-        'pbi_parameter_id', 'keterangan', 'aktif', 'wajib',
+        'pbi_parameter_id', 'keterangan', 'aktif', 'wajib', 'induk_id', 'induk_nilai'
     ];
 
     protected $casts = [
         'bobot' => 'float',
         'aktif' => 'boolean',
         'wajib' => 'boolean',
+        'induk_nilai' => 'array'
     ];
 
     /**
@@ -184,5 +185,60 @@ class GcKriteriaParameter extends Model
     public function scopeUntukPbi($query)
     {
         return $query->whereIn('target', ['pbi', 'pbi_gc'])->orderBy('urutan')->orderBy('id');
+    }
+
+    public function induk(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'induk_id');
+    }
+
+    public function anak(): HasMany
+    {
+        return $this->hasMany(self::class, 'induk_id');
+    }
+
+    /**
+     * ID parameter yang TIDAK berlaku karena jawaban induknya tidak memenuhi syarat
+     * (berantai: anak dari parameter yang tersembunyi ikut tersembunyi).
+     * $jawaban = [parameter_id => jawaban]. Induk yang tidak ada di $params dianggap tidak membatasi.
+     */
+    public static function idTersembunyi($params, array $jawaban): array
+    {
+        $norm = fn ($t) => mb_strtolower(trim((string) $t));
+        $byId = $params->keyBy('id');
+        $sembunyi = [];
+
+        for ($i = 0; $i < 5; $i++) {
+            $berubah = false;
+
+            foreach ($params as $p) {
+                if (! $p->induk_id || ! $byId->has($p->induk_id)) {
+                    continue;
+                }
+
+                $mentah = $jawaban[$p->induk_id] ?? null;
+                if (is_string($mentah) && str_starts_with(trim($mentah), '[')) {
+                    $mentah = json_decode($mentah, true) ?? $mentah;
+                }
+                $dipilih = array_map($norm, array_filter((array) $mentah, fn ($x) => $x !== null && $x !== ''));
+                $syarat = array_map($norm, (array) $p->induk_nilai);
+
+                $tampil = ! isset($sembunyi[$p->induk_id]) && array_intersect($syarat, $dipilih);
+
+                if (! $tampil && ! isset($sembunyi[$p->id])) {
+                    $sembunyi[$p->id] = true;
+                    $berubah = true;
+                } elseif ($tampil && isset($sembunyi[$p->id])) {
+                    unset($sembunyi[$p->id]);
+                    $berubah = true;
+                }
+            }
+
+            if (! $berubah) {
+                break;
+            }
+        }
+
+        return array_keys($sembunyi);
     }
 }

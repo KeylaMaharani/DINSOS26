@@ -11,6 +11,7 @@
 @php
     use App\Support\PbiGcForm;
 
+
     $key = 'jawaban.' . $p->id;
     $val = old($key, $nilai[$p->id] ?? null);
     $wajib = ! PbiGcForm::opsional($p);
@@ -51,9 +52,11 @@
     $statis = isset($identitas[$p->id]) || isset($petaKk[$p->id]);
 @endphp
 
-<div class="min-w-0" @if ($wajib && ! $statis) data-gc-wajib @endif>
+<div class="min-w-0" data-gc-id="{{ $p->id }}"
+     @if ($p->induk_id) data-gc-induk="{{ $p->induk_id }}" data-gc-induk-nilai="{{ json_encode($p->induk_nilai ?? [], JSON_UNESCAPED_UNICODE) }}" @endif
+     @if ($wajib && ! $statis) data-gc-wajib @endif>
     <label for="jawaban-{{ $p->id }}" class="flex items-start gap-2 mb-2">
-        <span class="mt-px shrink-0 inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-brand-soft text-brand text-[11px] font-bold">{{ $nomor }}</span>
+        <span data-gc-no class="mt-px shrink-0 inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-brand-soft text-brand text-[11px] font-bold">{{ $nomor }}</span>
         <span class="text-sm font-semibold text-on-surface leading-snug">
             <span data-gc-nama>{{ $p->nama }}</span> @if ($wajib && ! $statis)<span class="text-error">*</span>@endif
         </span>
@@ -385,10 +388,13 @@
                 });
                 if (kosong.length) {
                     e.preventDefault();
+                    if (window.gcBukaLangkah) { window.gcBukaLangkah(kosong[0]); }
                     kosong[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
                     window.alert(kosong.length + ' pertanyaan wajib belum dijawab. Lengkapi dulu yang ditandai merah.');
                 }
             }, true);
+
+            window.gcWajib = { terisi: terisi, tandai: tandaiKosong, hapus: hapusTanda };
 
             document.addEventListener('click', function (e) {
                 var b = e.target.closest ? e.target.closest('[data-gc-yn-opt]') : null;

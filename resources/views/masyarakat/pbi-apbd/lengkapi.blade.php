@@ -19,6 +19,7 @@
 @section('back', route('masyarakat.dashboard'))
 
 @section('content')
+<div class="gc-lebar">
     @unless (request()->attributes->get('is_mobile'))
         <a href="{{ route('masyarakat.dashboard') }}"
            class="inline-flex items-center gap-1 text-sm text-on-surface-variant mb-3 sm:mb-4 py-1">
@@ -75,10 +76,6 @@
           @if ($bisaDraft ?? false) data-draft-url="{{ route('masyarakat.pbi-apbd.lengkapi.store', $pbiApbd) }}" @endif>
         @csrf
 
-        {{-- ===== LOKASI (otomatis, tidak ditampilkan ke warga) ===== --}}
-        <input type="hidden" name="latitude" id="latitude" value="{{ old('latitude', $pbiApbd->latitude) }}">
-        <input type="hidden" name="longitude" id="longitude" value="{{ old('longitude', $pbiApbd->longitude) }}">
-
         {{-- Parameter koordinat / lintang / bujur: terisi otomatis oleh skrip, tidak terlihat warga --}}
         @foreach ($paramTersembunyi as $p)
             @php $namaP = \Illuminate\Support\Str::lower($p->nama); @endphp
@@ -90,32 +87,6 @@
                    @if (str_contains($namaP, 'bujur')) data-gc-lng @endif>
         @endforeach
 
-        {{-- Kartu status lokasi: HANYA muncul bila pengambilan lokasi gagal (agar warga tahu kenapa tombol simpan terkunci) --}}
-        @if ($bisaEdit)
-            <div id="geo-card" class="hidden rounded-3xl bg-surface-container-lowest shadow-sm ring-1 ring-outline-variant/30 p-4 sm:p-6">
-                <h2 class="mb-1.5 flex items-center gap-3 text-base font-extrabold text-on-surface">
-                    <span class="w-10 h-10 shrink-0 rounded-2xl bg-brand-soft text-brand flex items-center justify-center">
-                        <span class="material-symbols-outlined text-[22px]">location_on</span>
-                    </span>
-                    Izin Lokasi Diperlukan
-                </h2>
-                <p class="text-xs text-on-surface-variant mb-3">
-                    Pastikan Anda berada di rumah/lokasi yang didaftarkan, lalu izinkan akses lokasi di browser.
-                </p>
-
-                <div id="geo-status" class="flex items-start gap-2 text-sm p-3.5 rounded-2xl bg-surface-container">
-                    <span class="material-symbols-outlined text-[18px] shrink-0 mt-px animate-spin" id="geo-icon">progress_activity</span>
-                    <span id="geo-text" class="min-w-0 break-words">Mengambil lokasi Anda...</span>
-                </div>
-
-                <button type="button" id="btn-retry-geo"
-                        class="hidden mt-3 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full border border-primary text-primary text-xs font-semibold">
-                    <span class="material-symbols-outlined text-[16px]">refresh</span>
-                    Coba ambil ulang lokasi
-                </button>
-            </div>
-        @endif
-
         {{-- ===== PERTANYAAN: semua parameter Master Kriteria Ground Check yang aktif ===== --}}
         @if ($parameters->isEmpty())
             <div class="rounded-3xl bg-surface-container-lowest shadow-sm ring-1 ring-outline-variant/30 p-4 sm:p-6">
@@ -123,17 +94,61 @@
             </div>
         @endif
 
-        @php $no = 0; $pertama = true; @endphp
-        @foreach (GcP::KELOMPOK as $kel => $judul)
-            @php $isi = $perKelompok->get($kel); @endphp
-            @continue(! $isi || $isi->isEmpty())
+        <div id="gc-wiz-head" class="rounded-2xl bg-surface-container-lowest shadow-sm ring-1 ring-outline-variant/30 overflow-hidden" hidden>
+            <div id="gc-tabs" class="flex overflow-x-auto" role="tablist"></div>
+            <div class="h-1.5 bg-brand-soft"><div id="gc-wiz-bar" class="h-full transition-all duration-300" style="width:0;background:#0a5ca8"></div></div>
+        </div>
 
-            <div class="rounded-3xl bg-surface-container-lowest shadow-sm ring-1 ring-outline-variant/30 p-4 sm:p-6">
+        @php
+            // Data pribadi anggota (langkah 4). Nama lain di kelompok Kependudukan tetap di Identitas Keluarga.
+            $namaAnggota = ['jenis kelamin', 'tanggal lahir', 'status perkawinan', 'status hubungan dengan kepala keluarga',
+                            'no. telp', 'no telp', 'email', 'nama gadis ibu kandung'];
+            $keAnggota = function ($p) use ($namaAnggota) {
+                $n = \Illuminate\Support\Str::lower(trim($p->nama));
+
+                return $p->kelompok === 'kependudukan' && (in_array($n, $namaAnggota, true) || str_contains($n, 'rekening'));
+            };
+
+            $lihat = $parameters->reject($tersembunyi)->reject(fn ($p) => PbiGcForm::isFotoKk($p))->values();
+            $ambil = fn (array $kel, ?bool $anggota = null) => $lihat
+                ->filter(fn ($p) => in_array($p->kelompok, $kel, true) && ($anggota === null || $keAnggota($p) === $anggota))
+                ->values();
+
+            // Struktur mengikuti rekap formulir Pendataan Keluarga: bagian 1-4 + lampiran
+            $langkah = [
+                ['judul' => 'Identitas Keluarga', 'ikon' => 'badge', 'lokasi' => true,
+                    'bagian' => [[null, $ambil(['kependudukan'], false)]]],
+                ['judul' => 'Keterangan Sosial Ekonomi', 'ikon' => 'home',
+                    'bagian' => [[null, $ambil(['keluarga'])]]],
+                ['judul' => 'Kepemilikan Aset', 'ikon' => 'inventory_2',
+                    'bagian' => [
+                        ['Aset bergerak', $ambil(['aset_bergerak'])],
+                        ['Aset tidak bergerak', $ambil(['aset_tidak_bergerak'])],
+                    ]],
+                ['judul' => 'Keterangan Anggota Keluarga', 'ikon' => 'groups',
+                    'bagian' => [
+                        ['Data pribadi', $ambil(['kependudukan'], true)],
+                        ['Pendidikan', $ambil(['pendidikan'])],
+                        ['Ketenagakerjaan', $ambil(['ketenagakerjaan'])],
+                        ['Kesehatan', $ambil(['kesehatan'])],
+                    ]],
+            ];
+            $dokumentasi = $ambil(['dokumentasi']);
+            $no = 0;
+            $pertama = true;
+        @endphp
+
+        @foreach ($langkah as $l)
+            @php $ada = collect($l['bagian'])->contains(fn ($b) => $b[1]->isNotEmpty()); @endphp
+            @continue(! $ada && empty($l['lokasi']))
+
+            <div class="rounded-3xl bg-surface-container-lowest shadow-sm ring-1 ring-outline-variant/30 p-4 sm:p-6"
+                data-gc-step data-gc-judul="{{ $l['judul'] }}" data-gc-ikon="{{ $l['ikon'] }}">
                 <h2 class="mb-1.5 flex items-center gap-3 text-base font-extrabold text-on-surface">
                     <span class="w-10 h-10 shrink-0 rounded-2xl bg-brand-soft text-brand flex items-center justify-center">
-                        <span class="material-symbols-outlined text-[22px]">checklist</span>
+                        <span class="material-symbols-outlined text-[22px]">{{ $l['ikon'] }}</span>
                     </span>
-                    {{ $judul }}
+                    {{ $l['judul'] }}
                 </h2>
                 @if ($pertama)
                     <p class="text-xs text-on-surface-variant mb-4">Jawab sesuai keadaan sebenarnya. Petugas kelurahan akan mengecek langsung ke lapangan. Isian bertanda <span class="text-error">*</span> wajib diisi.</p>
@@ -142,21 +157,61 @@
                     <div class="mb-4"></div>
                 @endif
 
-                {{-- Satu kolom: setiap pertanyaan satu baris, lebar dibatasi supaya input tidak terlalu panjang --}}
-                <div class="grid grid-cols-1 gap-5 max-w-xl">
-                    @foreach ($isi as $p)
-                        @include('masyarakat.pbi-apbd._gc_field', ['p' => $p, 'nomor' => ++$no])
-                    @endforeach
-                </div>
+                @foreach ($l['bagian'] as [$sub, $isi])
+                    @continue($isi->isEmpty())
+                    @if ($sub)
+                        <h3 class="mt-6 mb-3 pb-1.5 border-b border-outline-variant/40 text-sm font-extrabold text-brand">{{ $sub }}</h3>
+                    @endif
+                    <div class="grid grid-cols-1 gap-5 max-w-xl">
+                        @foreach ($isi as $p)
+                            @include('masyarakat.pbi-apbd._gc_field', ['p' => $p, 'nomor' => ++$no])
+                        @endforeach
+                    </div>
+                @endforeach
+
+                {{-- Titik lokasi = bagian dari Identitas Keluarga (nomor 15-16 di formulir) --}}
+                @if (! empty($l['lokasi']))
+                    @include('masyarakat.pbi-apbd._lokasi')
+                @endif
             </div>
         @endforeach
 
-        {{-- Kartu lampiran PBI: Scan KTP, Scan KK, Surat rawat inap, diagnosa & faskes --}}
-        @include('masyarakat.pbi-apbd._layanan_lampiran')
+        {{-- Langkah terakhir: foto rumah + lampiran PBI (Scan KTP, Scan KK, Surat rawat inap, diagnosa & faskes) --}}
+        <div data-gc-step data-gc-judul="Lampiran & Foto" data-gc-ikon="photo_camera" class="space-y-4 sm:space-y-6">
+            @if ($dokumentasi->isNotEmpty())
+                <div class="rounded-3xl bg-surface-container-lowest shadow-sm ring-1 ring-outline-variant/30 p-4 sm:p-6">
+                    <h2 class="mb-4 flex items-center gap-3 text-base font-extrabold text-on-surface">
+                        <span class="w-10 h-10 shrink-0 rounded-2xl bg-brand-soft text-brand flex items-center justify-center">
+                            <span class="material-symbols-outlined text-[22px]">photo_camera</span>
+                        </span>
+                        Foto Rumah
+                    </h2>
+                    <div class="grid grid-cols-1 gap-5 max-w-xl">
+                        @foreach ($dokumentasi as $p)
+                            @include('masyarakat.pbi-apbd._gc_field', ['p' => $p, 'nomor' => ++$no])
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
+            @include('masyarakat.pbi-apbd._layanan_lampiran')
+        </div>
+
+        <div id="gc-nav" class="flex items-center gap-3 pt-1" hidden>
+            <button type="button" id="gc-prev"
+                    class="flex-1 sm:flex-none sm:px-6 inline-flex items-center justify-center gap-1 py-3 rounded-full border border-outline-variant text-sm font-semibold text-on-surface">
+                <span class="material-symbols-outlined text-[18px]">chevron_left</span> Sebelumnya
+            </button>
+            <button type="button" id="gc-next"
+                    class="flex-1 sm:flex-none sm:px-8 inline-flex items-center justify-center gap-1 py-3 rounded-full bg-primary text-white text-sm font-semibold">
+                Lanjut <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+            </button>
+        </div>
+        <p id="gc-step-error" class="text-xs font-semibold text-error" hidden></p>
 
         {{-- Tombol simpan: blok biasa di paling bawah form (mobile & desktop), tidak mengambang. --}}
         @if ($bisaEdit)
-            <div class="pt-2">
+            <div class="pt-2" id="gc-submit-wrap">
                 @if ($bisaDraft ?? false)
                     <p id="draft-status" aria-live="polite"
                        class="mb-2 text-center text-[11px] font-medium text-on-surface-variant sm:text-left empty:hidden"></p>
@@ -191,6 +246,8 @@
             </div>
         </div>
     @endif
+
+</div>
 @endsection
 
 @push('scripts')
@@ -608,4 +665,177 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 </script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var form = document.getElementById('form-lengkapi');
+    if (!form) { return; }
+    var steps = Array.prototype.slice.call(form.querySelectorAll('[data-gc-step]'));
+    if (steps.length < 2) { return; }
+
+    var bisaEdit = !!document.getElementById('btn-submit');
+    var head = document.getElementById('gc-wiz-head'), nav = document.getElementById('gc-nav');
+    var prev = document.getElementById('gc-prev'), next = document.getElementById('gc-next');
+    var err = document.getElementById('gc-step-error'), submitWrap = document.getElementById('gc-submit-wrap');
+    var bar = document.getElementById('gc-wiz-bar'), tabsEl = document.getElementById('gc-tabs');
+    var now = -1, terjauh = 0, last = steps.length - 1, tabs = [], timer = null;
+
+    // ---- Tab: ikon + judul + badge status ----
+    steps.forEach(function (s, i) {
+        var t = document.createElement('button');
+        t.type = 'button';
+        t.className = 'gc-tab';
+        t.setAttribute('role', 'tab');
+        t.innerHTML = '<span class="material-symbols-outlined"></span><span class="gc-tab-judul"></span><span class="gc-badge" hidden></span>';
+        t.children[0].textContent = s.dataset.gcIkon || 'checklist';
+        t.children[1].textContent = s.dataset.gcJudul || ('Langkah ' + (i + 1));
+        t.addEventListener('click', function () { if (!bisaEdit || i <= terjauh) { tampil(i); } });
+        tabsEl.appendChild(t);
+        tabs.push(t);
+    });
+
+    // ---- Status tiap langkah dari isian yang tampil ----
+    function hitung(step) {
+        var W = window.gcWajib, total = 0, isi = 0;
+        step.querySelectorAll('[data-gc-id]').forEach(function (w) {
+            if (w.hidden) { return; }
+            var ada = Array.prototype.some.call(
+                w.querySelectorAll('input[name^="jawaban"], select[name^="jawaban"], textarea[name^="jawaban"]'),
+                function (e) { return !e.disabled; });
+            if (!ada) { return; }
+            total++;
+            if (W && W.terisi(w)) { isi++; }
+        });
+        if (step.querySelector('[data-gc-lokasi]') && window.gcLokasi) {
+            total++;
+            if (window.gcLokasi.cek()) { isi++; }
+        }
+        return { total: total, isi: isi };
+    }
+
+    function segarkan() {
+        steps.forEach(function (s, i) {
+            var b = tabs[i].children[2], h = hitung(s);
+            if (!h.total) { b.hidden = true; return; }
+            b.hidden = false;
+            b.classList.remove('is-lengkap', 'is-draft', 'is-kosong');
+            if (h.isi >= h.total) { b.className = 'gc-badge is-lengkap'; b.textContent = 'Lengkap'; }
+            else if (h.isi === 0) { b.className = 'gc-badge is-kosong'; b.textContent = 'Kosong'; }
+            else { b.className = 'gc-badge is-draft'; b.textContent = 'Draft ' + h.isi + '/' + h.total; }
+        });
+    }
+
+    function jadwalSegarkan() { clearTimeout(timer); timer = setTimeout(segarkan, 80); }
+    ['change', 'input', 'click'].forEach(function (ev) { form.addEventListener(ev, jadwalSegarkan); });
+
+    function keAtas() {
+        var y = head.getBoundingClientRect().top + window.pageYOffset - 80;
+        window.scrollTo({ top: Math.max(y, 0), behavior: 'smooth' });
+    }
+
+    function tampil(i, awal) {
+        if (i === now) { return; }
+        var arah = i > now ? 'next' : 'prev';
+        steps.forEach(function (s, j) {
+            s.hidden = j !== i;
+            s.classList.remove('is-in-next', 'is-in-prev');
+        });
+        if (!awal) { steps[i].classList.add('is-in-' + arah); }
+        now = i;
+        if (i > terjauh) { terjauh = i; }
+
+        bar.style.width = ((i + 1) / steps.length * 100) + '%';
+        tabs.forEach(function (t, j) {
+            t.classList.toggle('is-active', j === i);
+            t.setAttribute('aria-selected', j === i ? 'true' : 'false');
+            t.disabled = bisaEdit && j > terjauh;
+        });
+        var aktif = tabs[i];
+        if (aktif.scrollIntoView) { tabsEl.scrollLeft = aktif.offsetLeft - (tabsEl.clientWidth - aktif.offsetWidth) / 2; }
+
+        prev.disabled = i === 0;
+        next.hidden = i === last;
+        if (submitWrap) { submitWrap.hidden = i !== last; }
+        err.hidden = true;
+        segarkan();
+        if (!awal) { keAtas(); }
+    }
+
+    function validasi(step) {
+        var lok = step.querySelector('[data-gc-lokasi]');
+        if (bisaEdit && lok && window.gcLokasi && !window.gcLokasi.cek()) {
+            err.textContent = window.gcLokasi.pesan();
+            err.hidden = false;
+            lok.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return false;
+        }
+        var W = window.gcWajib;
+        if (!W) { return true; }
+        var kosong = [];
+        step.querySelectorAll('[data-gc-wajib]').forEach(function (w) {
+            if (w.hidden) { return; }
+            if (W.terisi(w)) { W.hapus(w); } else { W.tandai(w); kosong.push(w); }
+        });
+        if (kosong.length) {
+            kosong[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            err.textContent = kosong.length + ' pertanyaan wajib di bagian ini belum dijawab.';
+            err.hidden = false;
+            return false;
+        }
+        err.hidden = true;
+        return true;
+    }
+
+    next.addEventListener('click', function () {
+        if (bisaEdit && !validasi(steps[now])) { return; }
+        tampil(now + 1);
+    });
+    prev.addEventListener('click', function () { tampil(now - 1); });
+
+    window.gcBukaLangkah = function (el) {
+        for (var i = 0; i < steps.length; i++) {
+            if (steps[i].contains(el)) { tampil(i); return; }
+        }
+    };
+
+    var mulai = 0;
+    var salah = form.querySelector('p.text-error');
+    if (salah) {
+        for (var k = 0; k < steps.length; k++) { if (steps[k].contains(salah)) { mulai = k; break; } }
+    }
+    terjauh = bisaEdit ? mulai : last;
+    head.hidden = false;
+    nav.hidden = false;
+    tampil(mulai, true);
+    setTimeout(segarkan, 400); // setelah skrip lain (syarat, kerja, lokasi) selesai menyiapkan isian
+});
+</script>
+@endpush
+
+@push('head')
+<style>
+    .gc-step.is-in-next { animation: gc-in-next .28s ease-out; }
+    .gc-step.is-in-prev { animation: gc-in-prev .28s ease-out; }
+    @@keyframes gc-in-next { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+    @@keyframes gc-in-prev { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
+    @@media (prefers-reduced-motion: reduce) { .gc-step { animation: none !important; } }
+    #gc-tabs { scrollbar-width: none; }
+    #gc-tabs::-webkit-scrollbar { display: none; }
+    .gc-tab { flex: 1 1 0; min-width: 132px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: .35rem;
+    padding: .9rem .6rem .8rem; background: #fff; color: #42474e; font-size: .8125rem; font-weight: 500; text-align: center; line-height: 1.25;
+    border-bottom: 3px solid transparent; cursor: pointer; transition: background-color .15s; }
+    .gc-tab-judul { display: block; white-space: normal; }
+    .gc-tab .material-symbols-outlined { font-size: 26px; }
+    .gc-tab.is-active { background: #e8f4fd; color: #0a5ca8; border-bottom-color: #0a5ca8; }
+    .gc-tab:disabled { opacity: .55; cursor: not-allowed; }
+    .gc-badge { padding: .1rem .6rem; border-radius: 9999px; font-size: .6875rem; font-weight: 500; }
+    .gc-badge.is-lengkap { background: #dcf5e3; color: #146c2e; }
+    .gc-badge.is-draft { background: #ffefc2; color: #9a5a00; }
+    .gc-badge.is-kosong { background: #eceff3; color: #6b7280; }
+    .gc-dot.is-done { background: #e8f4fd; border-color: #0a5ca8; color: #0a5ca8; }
+    .gc-dot.is-active { background: #0a5ca8; border-color: #0a5ca8; color: #fff; }
+    #gc-prev:disabled { opacity: .4; cursor: not-allowed; }
+    .m-content:has(.gc-lebar) { max-width: 1000px; }
+    .gc-lebar { width: 100%; }
+</style>
 @endpush

@@ -365,7 +365,8 @@ class GroundCheckController extends Controller
 
         // Badge progres tab mengikuti isian yang tampil (termasuk hasil prefill).
         $terisi = array_filter($nilai, fn ($x) => $x !== null && $x !== '');
-        $statusTab = $this->statusTab($tabs, $terisi, $kerja);
+        $sembunyi = GcKriteriaParameter::idTersembunyi($params, $nilai);
+        $statusTab = $this->statusTab($tabs, $terisi, $kerja, $sembunyi);
 
         $tabAwal = (int) session('tab', 0);
 
@@ -409,6 +410,8 @@ class GroundCheckController extends Controller
             ? $params->where('kelompok', 'ketenagakerjaan')->where('id', '!=', $gate->id)->pluck('id')->all()
             : [];
 
+        $sembunyi = GcKriteriaParameter::idTersembunyi($params, (array) $request->input('jawaban', []));
+
         $rules = [];
         $attributes = [];
 
@@ -422,13 +425,18 @@ class GroundCheckController extends Controller
                 continue;
             }
 
+            if (in_array($p->id, $sembunyi, true)) {
+                $rules[$key] = ['nullable'];
+                continue;
+            }
+
             // Perahu & ternak babi: nilainya dipaksa 0 saat disimpan (lihat di bawah), apa pun kiriman browser.
             if ($this->isNolParam($p)) {
                 $rules[$key] = ['nullable'];
                 continue;
             }
 
-            $req = $submit ? 'required' : 'nullable';
+            $req = ($submit && $p->wajib) ? 'required' : 'nullable';
             $labels = $this->labelOpsi($p, $master);
 
             switch ($p->tipe_input) {
@@ -516,12 +524,13 @@ class GroundCheckController extends Controller
             'accepted' => 'Centang pernyataan kebenaran data terlebih dahulu.',
         ], $attributes);
 
-        DB::transaction(function () use ($request, $params, $existing, $v, $submit, $bekerja, $dependenIds) {
+        DB::transaction(function () use ($request, $params, $existing, $v, $submit, $bekerja, $dependenIds, $sembunyi) {
             foreach ($params as $p) {
                 $row = $existing->get($p->id) ?? new GcJawaban(['verifikasi_id' => $v->id, 'parameter_id' => $p->id]);
 
                 // Responden tidak bekerja -> jawaban field turunan dikosongkan.
-                $kosongkan = in_array($p->id, $dependenIds, true) && ! $bekerja;
+                $kosongkan = (in_array($p->id, $dependenIds, true) && ! $bekerja)
+                    || in_array($p->id, $sembunyi, true);
                 $input = $kosongkan ? null : $request->input("jawaban.{$p->id}");
 
                 // Kepemilikan perahu & ternak babi selalu 0, tidak peduli apa yang dikirim browser.
@@ -666,7 +675,7 @@ class GroundCheckController extends Controller
      * Progres tiap tab dari jawaban yang terisi: kosong | draft | lengkap.
      * Field Ketenagakerjaan turunan tidak dihitung bila responden tidak bekerja.
      */
-    private function statusTab(array $tabs, array $tersimpan, ?array $kerja): array
+    private function statusTab(array $tabs, array $tersimpan, ?array $kerja, array $sembunyi = []): array
     {
         $bekerja = $kerja && (($tersimpan[$kerja['gate']] ?? null) === 'Ya');
         $hasil = [];
@@ -676,6 +685,7 @@ class GroundCheckController extends Controller
             $isi = 0;
 
             foreach ($t['params'] as $p) {
+                if (in_array($p->id, $sembunyi, true)) { continue; }
                 if ($kerja && ! $bekerja && in_array($p->id, $kerja['dependen'], true)) {
                     continue;
                 }
