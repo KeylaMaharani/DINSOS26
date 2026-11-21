@@ -83,6 +83,8 @@ class GcKriteriaController extends Controller
 
             GcPbiJawaban::where('parameter_id', $parameter->id)->whereIn('pbi_apbd_id', $bisaDiubah)->delete();
 
+            GcKriteriaParameter::where('induk_id', $parameter->id)->update(['induk_id' => null, 'induk_nilai' => null]);
+
             $parameter->delete();
 
             // Jawaban skor PBI (padanan) ikut dibuang bila tidak ada parameter GC aktif lain yang memakainya,
@@ -127,6 +129,10 @@ class GcKriteriaController extends Controller
             'opsi.*.id' => ['nullable', 'integer'],
             'opsi.*.label' => ['required', 'string', 'max:255'],
             'opsi.*.nilai' => ['nullable', 'numeric', 'between:0,99.99'],
+            'induk_id' => ['nullable', 'integer', 'exists:gc_kriteria_parameters,id', Rule::notIn([$parameter->id])],
+            'induk_nilai' => ['nullable', 'required_with:induk_id', 'array'],
+            'induk_nilai.*' => ['string', 'max:255'],
+             
         ], [
             'kelompok.required' => 'Kelompok wajib dipilih.',
             'nama.required' => 'Pertanyaan wajib diisi.',
@@ -140,13 +146,18 @@ class GcKriteriaController extends Controller
             'opsi.*.nilai.numeric' => 'Nilai pilihan harus berupa angka.',
         ]);
 
+        $syarat = $request->has('induk_id') ? [
+            'induk_id' => $data['induk_id'] ?? null,
+            'induk_nilai' => ($data['induk_id'] ?? null) ? array_values($data['induk_nilai'] ?? []) : null,
+        ] : [];
+
         // "Wajib diisi": bila form belum mengirim field ini, pertahankan nilai lama (baru = wajib),
         // supaya menyimpan dari form lama tidak diam-diam mengubah pengaturan.
         $wajib = $request->has('wajib')
             ? $request->boolean('wajib')
             : ($parameter->exists ? (bool) $parameter->wajib : true);
 
-        DB::transaction(function () use ($request, $data, $parameter, $butuhOpsi, $wajib) {
+        DB::transaction(function () use ($request, $data, $parameter, $butuhOpsi, $wajib, $syarat) {
             // 'sumber' sengaja tidak ada di sini supaya tidak tertimpa dari form.
             $parameter->fill([
                 'kelompok' => $data['kelompok'],
@@ -156,8 +167,7 @@ class GcKriteriaController extends Controller
                 'urutan' => $data['urutan'],
                 'keterangan' => $data['keterangan'] ?? null,
                 'aktif' => $request->boolean('aktif'),
-                'wajib' => $wajib,
-            ])->save();
+                'wajib' => $wajib] + $syarat)->save();
 
             if (! $butuhOpsi) {
                 GcKriteriaOpsi::where('parameter_id', $parameter->id)->delete();

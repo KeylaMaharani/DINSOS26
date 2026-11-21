@@ -206,7 +206,7 @@ class GcKetenagakerjaanSeeder extends Seeder
                 'tipe' => 'pilihan', 'opsi' => ['Ya', 'Tidak'], 'paksa' => true],
             ['awalan' => 'lapangan usaha', 'nama' => 'Lapangan Usaha dari pekerjaan utama',
                 'tipe' => 'pilihan', 'sumber' => 'lapangan_usaha', 'keterangan' => 'Pilihan (26 bidang) dikelola di Master Lapangan Usaha.'],
-            ['awalan' => 'status dalam pekerjaan', 'nama' => 'Status dalam pekerjaan utama',
+            ['awalan' => 'status dalam pekerjaan', 'nama' => 'Status kedudukan dalam pekerjaan utama',
                 'tipe' => 'pilihan', 'opsi' => self::STATUS_PEKERJAAN, 'paksa' => true],
             ['awalan' => 'keterampilan khusus', 'nama' => 'Keterampilan khusus/sertifikat keahlian yang dimiliki',
                 'tipe' => 'pilihan_ganda', 'sumber' => 'keterampilan', 'keterangan' => 'Pilihan dikelola di Master Keterampilan.'],

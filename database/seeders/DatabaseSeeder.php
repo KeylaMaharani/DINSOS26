@@ -42,6 +42,8 @@ class DatabaseSeeder extends Seeder
             PbiKriteriaSeeder::class,
             GcKriteriaSeeder::class,
             GcKetenagakerjaanSeeder::class,
+            GcKriteriaFormDtsenSeeder::class,
+            GcKriteriaSyaratSeeder::class,
         ]);
 
         // 4. Data layanan (bergantung pada role, user & kriteria di atas)
