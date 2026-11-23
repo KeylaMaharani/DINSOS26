@@ -646,6 +646,14 @@
             // ==================== DATA MASTER ====================
             ['separator' => 'Data Master'],
 
+            [
+                'label' => 'API Desil',
+                'icon' => 'api',
+                'route' => 'api-klien.index',
+                'match' => ['api-klien.*'],
+                'superadmin_only' => true,
+            ],
+
             // Kelola Akses & Master Kriteria SENGAJA tidak ada di Role::MODULES (khusus Super Admin)
             [
                 'label' => 'Kelola Akses',

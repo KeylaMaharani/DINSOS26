@@ -161,6 +161,8 @@
             $isNol = \Illuminate\Support\Str::contains($namaAngka, ['perahu', 'babi']);
             if ($isNol) { $val = 0; }
             $valAngka = is_numeric($val) ? (int) $val : null;
+
+            $satuan = \Illuminate\Support\Str::startsWith($namaAngka, 'jumlah tabung gas') ? ' Unit' : '';
         @endphp
         @if ($lb)
             <input type="number" step="any" inputmode="decimal" id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]"
@@ -176,7 +178,7 @@
                     data-gc-cari data-judul="{{ $p->nama }}">
                 <option value="">- Pilih -</option>
                 @for ($n = 0; $n <= 50; $n++)
-                    <option value="{{ $n }}" @selected($valAngka === $n)>{{ $n }}</option>
+                    <option value="{{ $n }}" @selected($valAngka === $n)>{{ $n }}{{ $satuan }}</option>
                 @endfor
             </select>
         @endif
@@ -320,6 +322,7 @@
             .gcs-item.is-clear { color: #ba1a1a; }
             .gcs-item.is-clear .material-symbols-outlined { color: #ba1a1a; margin-left: 0; }
             .gcs-empty { margin: 0; padding: 1.5rem 1rem; text-align: center; font-size: .875rem; color: #6b7280; }
+            .gc-err-on .ga-chip, .gc-err-on .ga-gbox { border-color:#ba1a1a; }
             @@media (min-width: 640px) {
                 .gcs { align-items: center; }
                 .gcs-panel { max-width: 28rem; max-height: 70vh; border-radius: 1.25rem; padding-bottom: 0; box-shadow: 0 20px 50px rgba(0, 0, 0, .25); }
@@ -345,12 +348,12 @@
             /* ---------- Pertanyaan wajib: tidak boleh lanjut kalau masih kosong ---------- */
             function terisi(w) {
                 var els = Array.prototype.filter.call(
-                    w.querySelectorAll('input[name^="jawaban"], select[name^="jawaban"], textarea[name^="jawaban"]'),
+                w.querySelectorAll('input[name^="jawaban"], select[name^="jawaban"], textarea[name^="jawaban"], input[name^="anggota["], select[name^="anggota["]'),
                     function (e) { return !e.disabled; }
                 );
                 if (!els.length) { return true; } // dinonaktifkan oleh aturan lain (mis. tidak bekerja)
-                var cb = els.filter(function (e) { return e.type === 'checkbox'; });
-                if (cb.length) { return cb.some(function (c) { return c.checked; }); }
+                var rd = els.filter(function (e) { return e.type === 'radio'; });
+                if (rd.length) { return rd.some(function (r) { return r.checked; }); }
                 var e = els[0];
                 if (e.type === 'file') { return (e.files && e.files.length > 0) || e.dataset.ada === '1'; }
                 return String(e.value).trim() !== '';
