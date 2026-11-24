@@ -135,6 +135,13 @@ return [
             'path' => storage_path('logs/laravel.log'),
         ],
 
+        'desil_audit' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/desil-audit.log'),
+            'days' => 365,
+            'replace_placeholders' => true,
+        ],
+
     ],
 
 ];

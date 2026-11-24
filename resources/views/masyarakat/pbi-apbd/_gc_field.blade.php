@@ -163,23 +163,89 @@
                 <p class="gcs-empty" data-gc-mempty hidden>Tidak ada pilihan yang cocok.</p>
             </div>
         </div>
-    @elseif (PbiGcForm::isUang($p))
-        <div class="relative">
-            <span
-                class="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-on-surface-variant">Rp</span>
-            <input type="text" inputmode="numeric" autocomplete="off" id="jawaban-{{ $p->id }}"
-                data-gc-rupiah-view value="{{ is_numeric($val) ? number_format((int) $val, 0, ',', '.') : '' }}"
-                @disabled(!$bisaEdit) class="{{ $in }} pl-11">
-            <input type="hidden" name="jawaban[{{ $p->id }}]" value="{{ is_numeric($val) ? (int) $val : '' }}"
-                data-gc-rupiah @disabled(!$bisaEdit)>
-        </div>
-    @elseif (PbiGcForm::isLuas($p))
-        <div class="relative">
-            <input type="number" step="0.01" min="0" inputmode="decimal" id="jawaban-{{ $p->id }}"
+    @elseif ($p->tipe_input === 'angka')
+        @php
+            $lb = PbiGcForm::lintangBujur($p);
+            // Perahu & ternak babi: Bogor tidak punya perairan / tidak ada peternakan babi -> dikunci 0
+            $namaAngka = \Illuminate\Support\Str::lower($p->nama);
+            $isNol = \Illuminate\Support\Str::contains($namaAngka, ['perahu', 'babi']);
+            if ($isNol) {
+                $val = 0;
+            }
+            $valAngka = is_numeric($val) ? (int) $val : null;
+
+            $satuan = \Illuminate\Support\Str::startsWith($namaAngka, 'jumlah tabung gas') ? ' Unit' : '';
+        @endphp
+        @if ($lb)
+            <input type="number" step="any" inputmode="decimal" id="jawaban-{{ $p->id }}"
                 name="jawaban[{{ $p->id }}]" value="{{ $val }}" @disabled(!$bisaEdit)
-                class="{{ $in }} pr-12">
-            <span
-                class="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-on-surface-variant">m²</span>
+                class="{{ $in }}"
+                @if (\Illuminate\Support\Str::contains($namaAngka, 'lintang')) data-gc-lat @endif
+                @if (\Illuminate\Support\Str::contains($namaAngka, 'bujur')) data-gc-lng @endif>
+        @elseif ($isNol)
+            <input type="number" id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]" value="0" readonly
+                data-gc-nol @disabled(!$bisaEdit) class="{{ $in }}">
+        @elseif (PbiGcForm::isUang($p))
+            <div class="relative">
+                <span
+                    class="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-on-surface-variant">Rp</span>
+                <input type="text" inputmode="numeric" autocomplete="off" id="jawaban-{{ $p->id }}"
+                    data-gc-rupiah-view value="{{ is_numeric($val) ? number_format((int) $val, 0, ',', '.') : '' }}"
+                    @disabled(!$bisaEdit) class="{{ $in }} pl-11">
+                <input type="hidden" name="jawaban[{{ $p->id }}]"
+                    value="{{ is_numeric($val) ? (int) $val : '' }}" data-gc-rupiah @disabled(!$bisaEdit)>
+            </div>
+        @elseif (PbiGcForm::isLuas($p))
+            <div class="relative">
+                <input type="number" step="0.01" min="0" inputmode="decimal" id="jawaban-{{ $p->id }}"
+                    name="jawaban[{{ $p->id }}]" value="{{ $val }}" @disabled(!$bisaEdit)
+                    class="{{ $in }} pr-12">
+                <span
+                    class="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-on-surface-variant">m²</span>
+            </div>
+        @else
+            {{-- Angka 0-50 sebagai dropdown (bisa dicari lewat lembar pilihan) --}}
+            <select id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]" @disabled(!$bisaEdit)
+                class="{{ $in }}" data-gc-cari data-judul="{{ $p->nama }}">
+                <option value="">- Pilih -</option>
+                @for ($n = 0; $n <= 50; $n++)
+                    <option value="{{ $n }}" @selected($valAngka === $n)>{{ $n }}{{ $satuan }}
+                    </option>
+                @endfor
+            </select>
+        @endif
+    @elseif ($p->tipe_input === 'tanggal')
+        <input type="date" id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]"
+            value="{{ $val }}" @disabled(!$bisaEdit) class="{{ $in }}">
+    @elseif ($p->tipe_input === 'koordinat')
+        <input type="text" id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]"
+            value="{{ $val }}" data-gc-koordinat placeholder="Terisi otomatis dari titik lokasi rumah"
+            @disabled(!$bisaEdit) class="{{ $in }}">
+    @elseif ($p->tipe_input === 'foto')
+        @if ($val)
+            <p class="flex items-center gap-1 text-xs text-success mb-1.5">
+                <span class="material-symbols-outlined text-[15px]">check_circle</span> Sudah diunggah (ambil foto baru
+                untuk mengganti)
+            </p>
+        @endif
+        {{-- Teks "Choose file" bawaan browser tidak bisa diubah, jadi input disembunyikan dan diganti label bertombol "Ambil foto".
+             Atribut capture (kamera langsung) TIDAK dipasang di sini: dipasang oleh skrip hanya di HP/tablet,
+             supaya laptop/PC membuka dialog pilih file biasa. --}}
+        <div class="relative">
+            <input type="file" id="jawaban-{{ $p->id }}" name="jawaban[{{ $p->id }}]" accept="image/*"
+                @if ($val) data-ada="1" @endif @disabled(!$bisaEdit) class="peer sr-only"
+                style="top:0;left:0">
+            <label for="jawaban-{{ $p->id }}"
+                class="gc-file flex items-center gap-3 w-full rounded-xl border border-outline-variant bg-white p-1.5 cursor-pointer
+                          peer-disabled:opacity-50 peer-disabled:cursor-not-allowed peer-focus-visible:ring-2 peer-focus-visible:ring-brand/40">
+                <span
+                    class="shrink-0 inline-flex items-center gap-1.5 py-2.5 px-4 rounded-lg bg-primary text-white text-xs font-semibold">
+                    <span class="material-symbols-outlined text-[16px]">photo_camera</span> Ambil foto
+                </span>
+                <span class="min-w-0 truncate text-sm text-on-surface-variant" data-gc-filename>
+                    {{ $val ? 'Foto sudah ada' : 'Belum ada foto' }}
+                </span>
+            </label>
         </div>
     @else
         {{-- teks, atau pilihan tanpa opsi di master --}}
@@ -647,6 +713,11 @@
                 color: #6b7280;
             }
 
+            .gc-err-on .ga-chip,
+            .gc-err-on .ga-gbox {
+                border-color: #ba1a1a;
+            }
+
             @@media (min-width: 640px) {
                 .gcs {
                     align-items: center;
@@ -698,7 +769,8 @@
                 function terisi(w) {
                     var els = Array.prototype.filter.call(
                         w.querySelectorAll(
-                        'input[name^="jawaban"], select[name^="jawaban"], textarea[name^="jawaban"]'),
+                            'input[name^="jawaban"], select[name^="jawaban"], textarea[name^="jawaban"], input[name^="anggota["], select[name^="anggota["]'
+                        ),
                         function(e) {
                             return !e.disabled;
                         }
@@ -712,6 +784,14 @@
                     if (cb.length) {
                         return cb.some(function(c) {
                             return c.checked;
+                        });
+                    }
+                    var rd = els.filter(function(e) {
+                        return e.type === 'radio';
+                    });
+                    if (rd.length) {
+                        return rd.some(function(r) {
+                            return r.checked;
                         });
                     }
                     var e = els[0];

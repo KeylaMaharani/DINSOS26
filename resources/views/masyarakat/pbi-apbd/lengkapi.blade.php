@@ -106,7 +106,7 @@
                 ->filter(fn ($p) => in_array($p->kelompok, $kel, true))
                 ->values();
 
-            // Langkah 2 dibagi A-D mengikuti blok urutan (100/200/300/400/500) dari GcSosialEkonomiSeeder.
+            // Langkah 2 dibagi A-E mengikuti blok urutan (100/200/300/400/500) dari GcSosialEkonomiSeeder.
             $sosek = $ambil(['keluarga']);
 
             // Struktur mengikuti formulir Pendataan Keluarga: bagian 1-4 + lampiran
@@ -123,8 +123,8 @@
                     ]],
                 ['judul' => 'Kepemilikan Aset', 'ikon' => 'inventory_2',
                     'bagian' => [
-                        ['Aset bergerak', $ambil(['aset_bergerak'])],
-                        ['Aset tidak bergerak', $ambil(['aset_tidak_bergerak'])],
+                        ['A. Kepemilikan aset bergerak keluarga', $ambil(['aset_bergerak'])],
+                        ['B. Kepemilikan aset tidak bergerak keluarga', $ambil(['aset_tidak_bergerak'])],
                     ]],
                 ['judul' => 'Keterangan Anggota Keluarga', 'ikon' => 'groups',
                     'bagian' => [
@@ -158,17 +158,104 @@
                     <div class="mb-4"></div>
                 @endif
 
-                @foreach ($l['bagian'] as [$sub, $isi])
-                    @continue($isi->isEmpty())
-                    @if ($sub)
-                        <h3 class="mt-6 mb-3 pb-1.5 border-b border-outline-variant/40 text-sm font-extrabold text-brand">{{ $sub }}</h3>
-                    @endif
-                    <div class="grid grid-cols-1 gap-5 max-w-xl">
-                        @foreach ($isi as $p)
-                            @include('masyarakat.pbi-apbd._gc_field', ['p' => $p, 'nomor' => ++$no])
+                @if ($l['judul'] === 'Keterangan Anggota Keluarga')
+                @php
+                    // Semua bagian (data pribadi, pendidikan, ketenagakerjaan, kesehatan) ikut, bukan hanya dua yang pertama
+                    $pertanyaanAnggota = collect($l['bagian'])->flatMap(fn ($b) => $b[1])
+                        ->filter(fn ($p) => in_array($p->id, $idParamAnggota, true))
+                        ->unique('id')->values();
+
+                    $kartu = collect([[
+                        'id' => null, 'nama' => \Illuminate\Support\Str::upper(trim($pbiApbd->nama_kepala_keluarga)),
+                        'nik' => $pbiApbd->nik_kepala_keluarga, 'peran' => 'Kepala keluarga',
+                        'prefix' => 'jawaban', 'nilai' => $nilai, 'terkunci' => false,
+                        'peserta' => (bool) ($kepalaModel->didaftarkan_pbi ?? false), 'pbiAda' => (bool) $kepalaModel,
+                    ]])->concat($anggotaForm->map(fn ($m) => [
+                        'id' => $m['model']->id,
+                        'nama' => \Illuminate\Support\Str::upper(trim($m['model']->nama)),
+                        'nik' => $m['model']->nik,
+                        'peran' => ucwords(str_replace('_', ' ', (string) $m['model']->hubungan_keluarga)),
+                        'prefix' => 'anggota[' . $m['model']->id . ']',
+                        'nilai' => $m['nilai'], 'terkunci' => $m['terkunci'],
+                        'peserta' => (bool) $m['model']->didaftarkan_pbi, 'pbiAda' => true,
+                    ]));
+                @endphp
+
+                <p class="ga-head">Silakan lakukan konfirmasi keberadaan anggota keluarga yang tercatat pada basis data DTSEN</p>
+
+                @php
+                    $infoKartu = $kartu->map(function ($k) use ($bisaEdit, $pertanyaanAnggota) {
+                        $edit = $bisaEdit && ! $k['terkunci'];
+                        $k['edit'] = $edit;
+                        $k['sudahIsi'] = ! $edit || $pertanyaanAnggota->contains(
+                            fn ($p) => filled(old(str_replace(['[', ']'], ['.', ''], $k['prefix']) . '.' . $p->id, $k['nilai'][$p->id] ?? ''))
+                        );
+                        return $k;
+                    });
+                @endphp
+
+                {{-- Kartu anggota: geser ke samping --}}
+                <div class="ga-scroller">
+                    @foreach ($infoKartu as $i => $k)
+                        <div class="ga-member {{ $i === 0 ? 'is-active' : '' }}" data-ga-card="{{ $i }}">
+                            <span class="ga-avatar"><span class="material-symbols-outlined">person</span></span>
+                            <div class="min-w-0 flex-1">
+                                <p class="ga-m-nama break-words">{{ $k['nama'] }}</p>
+                                <p class="ga-m-nik">{{ $k['nik'] }}</p>
+                                <p class="ga-m-peran">{{ $k['peran'] }}</p>
+                                @if ($k['terkunci'])
+                                    <p class="text-[11px] font-semibold text-on-warning-container">Sudah dicek petugas</p>
+                                @endif
+                                <button type="button" class="ga-konf {{ $k['sudahIsi'] ? 'is-ok' : '' }}" data-ga-konfirmasi>
+                                    <span class="material-symbols-outlined">{{ $k['sudahIsi'] ? 'check_circle' : 'fact_check' }}</span>
+                                    <span>{{ $k['sudahIsi'] ? 'Terkonfirmasi' : 'Konfirmasi Keberadaan' }}</span>
+                                </button>
+
+                                @if ($k['pbiAda'])
+                                    <label class="mt-2 flex items-center gap-2 text-xs font-semibold text-on-surface {{ $bisaPilih && ! $k['terkunci'] ? 'cursor-pointer' : 'opacity-60' }}">
+                                        <input type="checkbox"
+                                            @if ($k['id']) name="peserta[]" value="{{ $k['id'] }}" @else name="kepala_pbi" value="1" @endif
+                                            class="w-4 h-4 rounded accent-[#0a5ca8]"
+                                            @checked($k['peserta']) @disabled(! $bisaPilih || $k['terkunci'])>
+                                        Daftarkan sebagai peserta PBI APBD
+                                    </label>
+                                @endif
+                            </div>
+                            @if ($k['id'])
+                                <input type="hidden" name="anggota_ok[{{ $k['id'] }}]" value="1" data-ga-ok
+                                    @disabled(! $k['sudahIsi'] || ! $k['edit'])>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+
+                <p class="ga-total">Total {{ $kartu->count() }} anggota keluarga &middot; geser untuk melihat anggota lain</p>
+
+                {{-- Form: satu panel per anggota, hanya yang dipilih yang tampil --}}
+                @foreach ($infoKartu as $i => $k)
+                    <div class="ga-panel mt-2 {{ $i === 0 ? '' : 'ga-panel-off' }}" data-gc-anggota-panel data-ga-for="{{ $i }}"
+                        @if (! $k['sudahIsi']) hidden @endif>
+                        @foreach ($pertanyaanAnggota as $p)
+                            @include('masyarakat.pbi-apbd._gc_anggota_field', [
+                                'p' => $p, 'namaWarga' => $k['nama'], 'nomor' => ++$no,
+                                'prefix' => $k['prefix'], 'nilai' => $k['nilai'], 'bisaEdit' => $k['edit'],
+                            ])
                         @endforeach
                     </div>
                 @endforeach
+                @else
+                    @foreach ($l['bagian'] as [$sub, $isi])
+                        @continue($isi->isEmpty())
+                        @if ($sub)
+                            <h3 class="mt-6 mb-3 pb-1.5 border-b border-outline-variant/40 text-sm font-extrabold text-brand">{{ $sub }}</h3>
+                        @endif
+                        <div class="grid grid-cols-1 gap-5 max-w-xl">
+                            @foreach ($isi as $p)
+                                @include('masyarakat.pbi-apbd._gc_field', ['p' => $p, 'nomor' => ++$no])
+                            @endforeach
+                        </div>
+                    @endforeach
+                @endif
 
                 {{-- Titik lokasi = bagian dari Identitas Keluarga (nomor 15-16 di formulir) --}}
                 @if (! empty($l['lokasi']))
@@ -248,6 +335,19 @@
             </div>
         </div>
     @endif
+
+    <div id="ga-modal" class="ga-modal" hidden role="dialog" aria-modal="true" aria-label="Pilihan saya">
+    <div class="ga-modal-bg" data-ga-batal></div>
+    <div class="ga-modal-box">
+        <div class="ga-modal-head"><span>Pilihan saya</span><button type="button" data-ga-batal aria-label="Tutup">&times;</button></div>
+        <input type="search" id="ga-cari" class="ga-input" placeholder="Cari" autocomplete="off">
+        <div id="ga-list" class="ga-list"></div>
+        <div class="ga-modal-foot">
+            <button type="button" class="ga-btn-o" data-ga-batal>Kembali</button>
+            <button type="button" class="ga-btn" id="ga-pilih">Pilih</button>
+        </div>
+    </div>
+</div>
 
 </div>
 @endsection
@@ -344,23 +444,10 @@
 
 {{-- Isian teks yang terkunci dari registrasi (No. telp, Email): tampil terkunci. Dropdown terkunci sudah ditangani _gc_field. --}}
 <script>
-window.gcTerkunci = @json(array_keys($terkunci ?? []));
 
 document.addEventListener('DOMContentLoaded', function () {
     var form = document.getElementById('form-lengkapi');
     if (!form) { return; }
-
-    (window.gcTerkunci || []).forEach(function (id) {
-        var el = form.querySelector('[name="jawaban[' + id + ']"]');
-        if (!el || el.tagName !== 'INPUT' || el.type === 'hidden') { return; }
-        el.readOnly = true;
-        el.classList.add('bg-surface-container', 'opacity-70');
-        if (el.type === 'date') {
-            // Kotak tanggal: matikan juga pemilih kalendernya
-            el.style.pointerEvents = 'none';
-            el.tabIndex = -1;
-        }
-    });
 
     // Isian angka yang selalu 0 (Perahu, Perahu motor, ternak babi): tampil terkunci juga
     form.querySelectorAll('input[data-gc-nol]').forEach(function (el) {
@@ -373,7 +460,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
 {{-- Lapangan usaha: penjelasannya tampil di bawah pilihan (sama seperti kolom Pekerjaan di registrasi) --}}
 <script>
-window.gcPenjelasanLap = @json($master['lapangan']->mapWithKeys(fn ($l) => [$l->nama => $l->penjelasan])->all());
 
 document.addEventListener('DOMContentLoaded', function () {
     var lap = document.querySelector('[data-gc-lapangan]');
@@ -490,65 +576,6 @@ document.addEventListener('DOMContentLoaded', function () {
         tgt.value = ya;
         tgt.dispatchEvent(new Event('change', { bubbles: true }));
     });
-});
-</script>
-
-{{-- Ketenagakerjaan: bila "Apakah responden bekerja ...?" dijawab Tidak, field lainnya dinonaktifkan & dikosongkan.
-     Field yang terkunci dari registrasi (lapangan usaha & pekerjaan) dipulihkan lagi saat dijawab Ya. --}}
-<script>
-window.gcKerja = @json($kerja);
-// Nilai awal dari registrasi (Lapangan usaha & Pekerjaan): dipasang kembali saat "bekerja" = Ya bila field masih kosong
-window.gcIsiAwal = @json($isiAwal ?? new \stdClass);
-
-document.addEventListener('DOMContentLoaded', function () {
-    var cfg = window.gcKerja;
-    var form = document.getElementById('form-lengkapi');
-    if (!cfg || !form) { return; }
-
-    var bisaEdit = !!document.getElementById('btn-submit');
-
-    function kontrol(id) {
-        return Array.prototype.slice.call(form.querySelectorAll('[name="jawaban[' + id + ']"],[name="jawaban[' + id + '][]"]'));
-    }
-
-    function terapkan() {
-        var gate = kontrol(cfg.gate)[0];
-        var ya = gate && gate.value === 'Ya';
-        var pulih = [];
-
-        cfg.dependen.forEach(function (id) {
-            kontrol(id).forEach(function (el) {
-                el.disabled = !bisaEdit || !ya;
-                if (!ya) {
-                    if (el.type === 'checkbox' || el.type === 'radio') { el.checked = false; el.dispatchEvent(new Event('change', { bubbles: true })); }
-                    else if (el.type !== 'file') { el.value = ''; el.dispatchEvent(new Event('change', { bubbles: true })); }
-                } else {
-                    // Terkunci -> selalu kembali ke nilai kunci. Terisi awal dari registrasi -> hanya bila masih kosong.
-                    var tujuan = el.hasAttribute('data-gc-kunci')
-                        ? el.dataset.kunciNilai
-                        : (el.value === '' ? ((window.gcIsiAwal || {})[id] || '') : '');
-                    if (tujuan && el.value !== tujuan) { pulih.push({ el: el, nilai: tujuan }); }
-                }
-                var baris = el.closest('.min-w-0');
-                if (baris) { baris.classList.toggle('opacity-50', !ya); }
-            });
-        });
-
-        // Lapangan usaha dulu, baru pekerjaan (opsi pekerjaan dibangun dari lapangan usaha)
-        pulih.sort(function (a, b) {
-            return (b.el.hasAttribute('data-gc-lapangan') ? 1 : 0) - (a.el.hasAttribute('data-gc-lapangan') ? 1 : 0);
-        });
-        pulih.forEach(function (p) {
-            p.el.value = p.nilai;
-            p.el.dispatchEvent(new Event('change', { bubbles: true }));
-        });
-    }
-
-    form.addEventListener('change', function (e) {
-        if (e.target.name === 'jawaban[' + cfg.gate + ']') { terapkan(); }
-    });
-
-    terapkan();
 });
 </script>
 
@@ -671,6 +698,160 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 
+{{-- Kartu anggota + pop-up "Pilihan saya" --}}
+<script>
+
+document.addEventListener('DOMContentLoaded', function () {
+    var form = document.getElementById('form-lengkapi');
+        if (!form) { return; }
+
+        var cards = Array.prototype.slice.call(document.querySelectorAll('[data-ga-card]'));
+
+    var scroller = document.querySelector('.ga-scroller');
+
+    function aktifkan(k) {
+        cards.forEach(function (c) { c.classList.toggle('is-active', c.dataset.gaCard === String(k)); });
+        document.querySelectorAll('[data-ga-for]').forEach(function (p) {
+            p.classList.toggle('ga-panel-off', p.dataset.gaFor !== String(k));
+        });
+        var aktifCard = cards.filter(function (c) { return c.dataset.gaCard === String(k); })[0];
+        if (scroller && aktifCard) {
+            scroller.scrollTo({
+                left: aktifCard.offsetLeft - (scroller.clientWidth - aktifCard.offsetWidth) / 2,
+                behavior: 'smooth'
+            });
+        }
+    }
+    window.gcAktifkanAnggota = function (el) {
+        var p = el && el.closest ? el.closest('[data-ga-for]') : null;
+        if (p) { aktifkan(p.dataset.gaFor); }
+    };
+
+    cards.forEach(function (card) {
+        var k = card.dataset.gaCard;
+        card.addEventListener('click', function () { aktifkan(k); });
+
+        var btn = card.querySelector('[data-ga-konfirmasi]');
+        btn.addEventListener('click', function () {
+            var panel = document.querySelector('[data-ga-for="' + k + '"]');
+            var ok = card.querySelector('[data-ga-ok]');
+            panel.hidden = false;
+            if (ok) { ok.disabled = false; }
+            btn.classList.add('is-ok');
+            btn.children[0].textContent = 'check_circle';
+            btn.children[1].textContent = 'Terkonfirmasi';
+            aktifkan(k);
+            panel.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
+            form.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+    });
+
+    // ---- 3. Pilihan: tombol "Lainnya" membuka pop-up "Pilihan saya" ----
+    var modal = document.getElementById('ga-modal');
+    if (!modal) { return; }
+    var list = document.getElementById('ga-list'), cari = document.getElementById('ga-cari');
+    var aktif = null, pending = [];
+
+    function opts(box) { return Array.prototype.slice.call(box.querySelectorAll('input[data-ga-opt]')); }
+
+    function ringkas(box) {
+        var btn = box.querySelector('[data-ga-buka]');
+        if (!btn) { return; }
+        var n = opts(box).filter(function (i) { return i.checked && i.hasAttribute('data-ga-lanjut'); });
+        var lbl = btn.querySelector('.ga-lbl');
+        lbl.textContent = n.length === 0 ? 'Lainnya' : (n.length === 1 ? n[0].value : n.length + ' dipilih');
+        btn.classList.toggle('is-on', n.length > 0);
+    }
+
+    function render() {
+        var q = cari.value.trim().toLowerCase();
+        list.innerHTML = '';
+        opts(aktif).forEach(function (i) {
+            if (q && i.value.toLowerCase().indexOf(q) < 0) { return; }
+            var d = document.createElement('button');
+            d.type = 'button';
+            d.className = 'ga-item' + (pending.indexOf(i.value) >= 0 ? ' is-on' : '');
+            d.textContent = i.value;
+            d.dataset.v = i.value;
+            list.appendChild(d);
+        });
+    }
+
+    function buka(box) {
+        aktif = box;
+        pending = opts(box).filter(function (i) { return i.checked; }).map(function (i) { return i.value; });
+        cari.value = '';
+        render();
+        modal.hidden = false;
+        document.documentElement.style.overflow = 'hidden';
+        setTimeout(function () { cari.focus(); }, 50);
+    }
+
+    function tutup() {
+        modal.hidden = true;
+        document.documentElement.style.overflow = '';
+        aktif = null;
+    }
+
+    document.addEventListener('click', function (e) {
+        var b = e.target.closest && e.target.closest('[data-ga-buka]');
+        if (b) { buka(b.closest('[data-ga-box]')); return; }
+        if (e.target.closest && e.target.closest('[data-ga-batal]')) { tutup(); }
+    });
+
+    list.addEventListener('click', function (e) {
+        var it = e.target.closest('.ga-item');
+        if (!it || !aktif) { return; }
+        var v = it.dataset.v, multi = aktif.hasAttribute('data-ga-multi');
+        if (!multi) { pending = [v]; }
+        else {
+            var tidakAda = function (x) { return x.toLowerCase() === 'tidak ada'; };
+            var ada = pending.indexOf(v) >= 0;
+            if (ada) { pending = pending.filter(function (x) { return x !== v; }); }
+            else if (tidakAda(v)) { pending = [v]; }
+            else { pending = pending.filter(function (x) { return !tidakAda(x); }).concat(v); }
+        }
+        render();
+    });
+
+    cari.addEventListener('input', render);
+
+    document.getElementById('ga-pilih').addEventListener('click', function () {
+        if (!aktif) { return; }
+        var box = aktif, ubah = null;
+        opts(box).forEach(function (i) {
+            var on = pending.indexOf(i.value) >= 0;
+            if (i.checked !== on) { i.checked = on; ubah = ubah || i; }
+        });
+        ringkas(box);
+        tutup();
+        if (ubah) { ubah.dispatchEvent(new Event('change', { bubbles: true })); }
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !modal.hidden) { tutup(); }
+    });
+
+    // Pilihan ganda: "Tidak Ada" saling meniadakan dengan pilihan lain; label tombol Lainnya ikut diperbarui
+    document.addEventListener('change', function (e) {
+        var box = e.target.closest && e.target.closest('[data-ga-box]');
+        if (!box) { return; }
+        if (box.hasAttribute('data-ga-multi') && e.target.checked) {
+            var tidak = e.target.value.toLowerCase() === 'tidak ada';
+            opts(box).forEach(function (i) {
+                if (i === e.target) { return; }
+                if (tidak || i.value.toLowerCase() === 'tidak ada') { i.checked = false; }
+            });
+        }
+        ringkas(box);
+    });
+
+    document.querySelectorAll('[data-ga-box]').forEach(ringkas);
+});
+</script>
+
+<script src="{{ asset('js/gc-syarat.js') }}"></script>
+
 {{-- Wizard tab + progress bar (persen isian wajib yang sudah terisi) --}}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -705,9 +886,9 @@ document.addEventListener('DOMContentLoaded', function () {
     function hitung(step) {
         var W = window.gcWajib, total = 0, isi = 0;
         step.querySelectorAll('[data-gc-id]').forEach(function (w) {
-            if (w.hidden) { return; }
+            if (w.hidden || w.closest('[data-gc-anggota-panel][hidden]')) { return; }
             var ada = Array.prototype.some.call(
-                w.querySelectorAll('input[name^="jawaban"], select[name^="jawaban"], textarea[name^="jawaban"]'),
+                w.querySelectorAll('input[name^="jawaban"], select[name^="jawaban"], textarea[name^="jawaban"], input[name^="anggota["], select[name^="anggota["], textarea[name^="anggota["]'),
                 function (e) { return !e.disabled; });
             if (!ada) { return; }
             total++;
@@ -776,6 +957,16 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function validasi(step) {
+        var pn = step.querySelector('[data-gc-anggota-panel][hidden]');
+        if (bisaEdit && pn) {
+            err.textContent = 'Konfirmasi keberadaan semua anggota keluarga terlebih dahulu.';
+            err.hidden = false;
+            var kartu = document.querySelector('[data-ga-card="' + pn.dataset.gaFor + '"]');
+            if (window.gcAktifkanAnggota) { window.gcAktifkanAnggota(pn); }
+            if (kartu) { kartu.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' }); }
+            return false;
+        }
+
         var lok = step.querySelector('[data-gc-lokasi]');
         if (bisaEdit && lok && window.gcLokasi && !window.gcLokasi.cek()) {
             err.textContent = window.gcLokasi.pesan();
@@ -798,6 +989,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (W.terisi(w)) { W.hapus(w); } else { W.tandai(w); kosong.push(w); }
         });
         if (kosong.length) {
+            if (window.gcAktifkanAnggota) { window.gcAktifkanAnggota(kosong[0]); }
             kosong[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
             err.textContent = kosong.length + ' pertanyaan wajib di bagian ini belum dijawab.';
             err.hidden = false;
@@ -814,6 +1006,7 @@ document.addEventListener('DOMContentLoaded', function () {
     prev.addEventListener('click', function () { tampil(now - 1); });
 
     window.gcBukaLangkah = function (el) {
+        if (window.gcAktifkanAnggota) { window.gcAktifkanAnggota(el); }
         for (var i = 0; i < steps.length; i++) {
             if (steps[i].contains(el)) { tampil(i); return; }
         }
@@ -934,5 +1127,91 @@ document.addEventListener('DOMContentLoaded', function () {
     #gc-prev:disabled { opacity: .4; cursor: not-allowed; }
     .m-content:has(.gc-lebar) { max-width: 1000px; }
     .gc-lebar { width: 100%; }
+
+    .ga-head { text-align:center; font-weight:800; font-size:1rem; color:#121d26; margin:.25rem 0 1rem; }
+    .ga-member { display:flex; gap:.9rem; align-items:flex-start; max-width:28rem; margin:0 auto; padding:1rem; border:1px solid #d5dae1; border-radius:1rem; background:#fff; }
+    .ga-avatar { width:2.75rem; height:2.75rem; flex:none; border-radius:9999px; background:#e8f4fd; color:#0a5ca8; display:flex; align-items:center; justify-content:center; }
+    .ga-m-nama { font-weight:800; font-size:.875rem; color:#121d26; }
+    .ga-m-nik { font-size:.8125rem; color:#121d26; }
+    .ga-m-peran { font-size:.6875rem; color:#0a5ca8; margin-bottom:.5rem; }
+    .ga-konf { display:inline-flex; align-items:center; gap:.35rem; padding:.3rem .75rem; font-size:.75rem; font-weight:600; border:1px solid #c2c7cf; border-radius:.5rem; background:#fff; color:#121d26; }
+    .ga-konf .material-symbols-outlined { font-size:16px; }
+    .ga-konf.is-ok { border-color:#0a5ca8; color:#0a5ca8; background:#e8f4fd; }
+    .ga-total { text-align:center; font-size:.75rem; color:#0a5ca8; margin:.75rem 0 1.25rem; }
+    .ga-panel { display:flex; flex-direction:column; gap:1rem; }
+    .ga-card { padding:1.25rem 1rem; border:1px solid #d5dae1; border-radius:1rem; background:#fff; text-align:center; }
+    .ga-judul { font-size:1rem; font-weight:800; color:#121d26; margin-bottom:.9rem; line-height:1.35; }
+    .ga-nama { color:#0a5ca8; }
+    .ga-note { font-size:.6875rem; color:#42474e; margin:-.5rem 0 .8rem; }
+    .ga-warn { color:#ba1a1a; }
+    .ga-input { width:100%; max-width:22rem; padding:.6rem .8rem; border:1px solid #c2c7cf; border-radius:.5rem; font-size:.875rem; background:#fff; }
+    .ga-input:focus { outline:none; border-color:#0a5ca8; box-shadow:0 0 0 3px rgba(10,92,168,.18); }
+    .ga-sr { position:absolute; width:1px; height:1px; opacity:0; overflow:hidden; clip:rect(0,0,0,0); pointer-events:none; }
+    .ga-chips { display:flex; flex-wrap:wrap; justify-content:center; gap:.5rem; }
+    .ga-chip { position:relative; display:inline-flex; align-items:center; gap:.2rem; padding:.4rem .85rem; font-size:.75rem; font-weight:500; color:#0a5ca8; background:#fff; border:1px solid #b6cfe6; border-radius:9999px; cursor:pointer; transition:background-color .15s, border-color .15s; }
+    .ga-chip:hover { background:#e8f4fd; }
+    .ga-chip:has(input:checked), .ga-more.is-on { background:#0a5ca8; border-color:#0a5ca8; color:#fff; }
+    .ga-chip:has(input:focus-visible) { outline:2px solid #0a5ca8; outline-offset:2px; }
+    .ga-chip .material-symbols-outlined { font-size:16px; }
+    .ga-chips.is-yn .ga-chip { min-width:4.5rem; justify-content:center; padding:.5rem 1.4rem; }
+    .ga-gender { display:grid; grid-template-columns:1fr 1fr; gap:.75rem; }
+    .ga-gbox { display:flex; align-items:center; justify-content:center; gap:1.5rem; padding:1rem; border:1.5px solid #d5dae1; border-radius:.75rem; font-size:.8125rem; color:#121d26; cursor:pointer; transition:background-color .15s, border-color .15s; }
+    .ga-gcard:has(input:checked) .ga-gbox { border-color:#0a5ca8; background:#e8f4fd; color:#003b62; font-weight:700; }
+    .ga-gcard:has(input:focus-visible) .ga-gbox { outline:2px solid #0a5ca8; outline-offset:2px; }
+    .gc-err-on .ga-chip, .gc-err-on .ga-gbox { border-color:#ba1a1a; }
+    .ga-modal { position:fixed; inset:0; z-index:95; display:flex; align-items:center; justify-content:center; padding:1rem; }
+    .ga-modal[hidden] { display:none; }
+    .ga-modal-bg { position:absolute; inset:0; background:rgba(18,29,38,.5); }
+    .ga-modal-box { position:relative; width:100%; max-width:28rem; max-height:85vh; display:flex; flex-direction:column; gap:.75rem; padding:1.25rem; border-radius:1rem; background:#fff; box-shadow:0 20px 50px rgba(0,0,0,.25); }
+    .ga-modal-head { display:flex; justify-content:space-between; align-items:center; font-size:1rem; font-weight:700; color:#003b62; }
+    .ga-modal-head button { font-size:1.4rem; line-height:1; color:#42474e; }
+    .ga-modal-box .ga-input { max-width:none; }
+    .ga-list { flex:1; overflow-y:auto; min-height:8rem; }
+    .ga-item { display:block; width:100%; text-align:left; padding:.7rem .75rem; font-size:.875rem; border-radius:.5rem; color:#121d26; }
+    .ga-item:hover { background:#edf4ff; }
+    .ga-item.is-on { background:#e8f4fd; color:#003b62; font-weight:700; }
+    .ga-modal-foot { display:flex; justify-content:flex-end; gap:.5rem; }
+    .ga-btn, .ga-btn-o { padding:.55rem 1.25rem; font-size:.8125rem; font-weight:600; border-radius:9999px; border:1px solid #0a5ca8; }
+    .ga-btn { background:#0a5ca8; color:#fff; }
+    .ga-btn-o { background:#fff; color:#0a5ca8; }
+    /* ===== Scroller kartu anggota ===== */
+    .ga-scroller {
+        position: relative;
+        display: flex;
+        gap: .75rem;
+        padding: .25rem .25rem .75rem;
+        overflow-x: auto;
+        overflow-y: hidden;                 /* cegah scroll vertikal bersarang */
+        justify-content: safe center;       /* tengah bila muat, mulai dari kiri bila meluap */
+        overscroll-behavior-x: contain;     /* tidak "menarik" halaman saat mentok */
+        touch-action: pan-x pan-y;          /* biarkan halaman tetap bisa discroll vertikal */
+        scroll-snap-type: x proximity;      /* mandatory bikin loncat-loncat */
+        scroll-padding-inline: .25rem;
+        -webkit-overflow-scrolling: touch;
+        /* scrollbar tipis supaya terlihat bisa digeser (global CSS menyembunyikannya) */
+        scrollbar-width: thin;
+        scrollbar-color: #b6cfe6 transparent;
+        -ms-overflow-style: auto;
+    }
+    .ga-scroller::-webkit-scrollbar { display: block; height: 6px; }
+    .ga-scroller::-webkit-scrollbar-track { background: transparent; }
+    .ga-scroller::-webkit-scrollbar-thumb { background: #b6cfe6; border-radius: 9999px; }
+
+    .ga-scroller .ga-member {
+        flex: 0 0 min(18rem, 85%);
+        max-width: none;
+        margin: 0;
+        scroll-snap-align: center;
+        cursor: pointer;
+    }
+    .ga-member.is-active { border-color:#0a5ca8; box-shadow:0 0 0 2px rgba(10,92,168,.2); }
+
+    /* ===== Panel form anggota ===== */
+    .ga-panel { scroll-margin-top: 6rem; }          /* supaya tidak tertutup header */
+    .ga-panel[hidden],
+    .ga-panel.ga-panel-off { display: none !important; }  /* atribut hidden harus menang atas display:flex */
+
+    main:has(.gc-lebar) { padding-bottom: 1.5rem; }
+    #form-lengkapi { padding-bottom: 0; }
 </style>
 @endpush

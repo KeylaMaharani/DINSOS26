@@ -39,4 +39,9 @@ return [
         'path' => env('LIBREOFFICE_PATH', 'soffice'),
     ],
 
+    'desil_api' => [
+        // format: "nama_klien:sha256_dari_key", pisahkan beberapa klien dengan koma
+        'keys' => array_filter(explode(',', (string) env('DESIL_API_KEYS', ''))),
+    ],
+
 ];
