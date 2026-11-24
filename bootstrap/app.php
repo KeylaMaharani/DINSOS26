@@ -4,10 +4,12 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use App\Http\Middleware\ApiKeyDesil;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
+        api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
@@ -16,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \App\Http\Middleware\CheckRole::class,
             'staff' => \App\Http\Middleware\EnsureStaffOnly::class,
             'module' => \App\Http\Middleware\EnsureModuleAccess::class,
+            'api.desil' => ApiKeyDesil::class,
         ]);
 
         $middleware->web(append: [

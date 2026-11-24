@@ -15,6 +15,7 @@ use App\Http\Controllers\Admin\GroundCheckController;
 use App\Http\Controllers\Admin\KartuKksController;
 use App\Http\Controllers\Admin\KriteriaController;
 use App\Http\Controllers\Admin\MenuPlaceholderController;
+use App\Http\Controllers\Admin\ApiClientController;
 // --- Ngopi Pagi ---
 use App\Http\Controllers\Admin\NgopiPagiController as NgopiPagiAdminController;
 use App\Http\Controllers\Admin\NgopiPagiKonselorController;
@@ -600,6 +601,15 @@ Route::middleware(['auth', 'staff'])->group(function () {
             Route::post('/', [DokumenController::class, 'store'])->name('store');
             Route::delete('/{dokumen}', [DokumenController::class, 'destroy'])->name('destroy');
         });
+    });
+
+    Route::prefix('master/api-desil')->name('api-klien.')->middleware('module:kelola-akses')->group(function () {
+        Route::get('/', [ApiClientController::class, 'index'])->name('index');
+        Route::post('/', [ApiClientController::class, 'store'])->name('store');
+        Route::put('/{klien}', [ApiClientController::class, 'update'])->name('update');
+        Route::post('/{klien}/key', [ApiClientController::class, 'regenerate'])->name('key');
+        Route::post('/{klien}/toggle', [ApiClientController::class, 'toggle'])->name('toggle');
+        Route::delete('/{klien}', [ApiClientController::class, 'destroy'])->name('destroy');
     });
 }); // <-- GRUP ADMIN DITUTUP DI SINI
 

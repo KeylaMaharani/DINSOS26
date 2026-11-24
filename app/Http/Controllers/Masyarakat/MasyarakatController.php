@@ -61,9 +61,13 @@ class MasyarakatController extends Controller
     /** Padanan label "status hubungan" di Master GC untuk pilihan registrasi (kunci = nilai tersimpan dari registrasi). */
     private const ALIAS_HUBUNGAN = [
         'kepala_keluarga' => ['Kepala Keluarga', 'Kepala Rumah Tangga', 'KRT'],
-        'suami' => ['Suami'],
-        'istri' => ['Istri'],
+        'suami' => ['Istri/suami', 'Suami'],
+        'istri' => ['Istri/suami', 'Istri'],
         'anak' => ['Anak', 'Anak Kandung'],
+        'menantu' => ['Menantu'],
+        'cucu' => ['Cucu'],
+        'orang_tua' => ['Lainnya'],
+        'famili_lain' => ['Lainnya', 'Famili Lain'],
         'lainnya' => ['Lainnya', 'Famili Lain'],
     ];
 
@@ -1058,6 +1062,8 @@ class MasyarakatController extends Controller
         // Pengajuan yang belum pernah dikirim selalu memakai form penuh (bukan form lama 18 parameter)
         $pbiApbd->sesuaikanVersiForm();
 
+        
+
         // Form TETAP ditampilkan walau data sudah tidak bisa diubah (mode baca saja);
         // penyimpanan tetap ditolak di lengkapiDataStore().
         // Kepala keluarga hanya bisa mengisi selama draft, atau bila ditolak/dikembalikan petugas.
@@ -1067,6 +1073,17 @@ class MasyarakatController extends Controller
         $bisaDraft = $bisaEdit && $pbiApbd->masyarakatMasihDraft();
 
         $parameters = $this->parameterUntukWarga($pbiApbd);
+
+        $paramAnggota = PbiGcForm::untukAnggota();
+        $gateA = PbiGcForm::gate($paramAnggota);
+        $dependenA = $gateA ? PbiGcForm::dependenIds($paramAnggota) : [];
+
+        // Hanya anggota yang dikonfirmasi (dan belum dicek petugas) yang divalidasi & disimpan
+        $okIds = collect(array_keys((array) $request->input('anggota_ok', [])))->map(fn ($i) => (int) $i);
+        $anggotaList = $this->anggotaUntukForm($pbiApbd)
+            ->filter(fn ($a) => $okIds->contains($a->id) && ! $this->anggotaTerkunci($pbiApbd, $a))
+            ->values();
+
         $master = $this->masterGc();
         $opsiLabels = $parameters->mapWithKeys(fn ($p) => [$p->id => $this->labelOpsi($p, $master, $pbiApbd)])->all();
         $nilai = $this->nilaiAwal($pbiApbd, $parameters, $opsiLabels);
@@ -1098,10 +1115,13 @@ class MasyarakatController extends Controller
 
         // ---- Terkunci dari registrasi: status hubungan, lapangan usaha, pekerjaan ----
         $kunciReg = $this->nilaiTerkunciRegistrasi($pbiApbd, $parameters, $opsiLabels, $master);
+        $kunciReg = $this->nilaiTerkunciRegistrasi($pbiApbd, $parameters, $opsiLabels, $master);
         foreach ($kunciReg as $id => $v) {
-            $nilai[$id] = $v;
+            if (blank($nilai[$id] ?? null)) {
+                $nilai[$id] = $v;
+            }
         }
-        $terkunci = array_fill_keys(array_keys($kunciReg), true);
+        $terkunci = [];
 
         // ---- Lapangan usaha & Pekerjaan: terisi dari registrasi (bila belum pernah dijawab), tetap bisa diubah ----
         $isiAwal = $this->isiAwalPekerjaan($pbiApbd, $parameters, $master);
@@ -1140,10 +1160,34 @@ class MasyarakatController extends Controller
             'surat_rawat_inap' => filled($pbiApbd->surat_rawat_inap) || DokumenMasyarakat::ada($user, 'surat_rawat_inap'),
         ];
 
+        // ---- Anggota keluarga untuk step 4 ----
+        $paramAnggota = PbiGcForm::untukAnggota();
+        foreach ($paramAnggota as $p) {
+            if (! isset($opsiLabels[$p->id])) {
+                $opsiLabels[$p->id] = $this->labelOpsi($p, $master, $pbiApbd);
+            }
+        }
+        $idParamAnggota = $paramAnggota->pluck('id')->all();
+
+        $anggotaForm = $this->anggotaUntukForm($pbiApbd)->map(function ($a) use ($pbiApbd) {
+            return [
+                'model' => $a,
+                'terkunci' => $this->anggotaTerkunci($pbiApbd, $a),
+                'nilai' => \App\Models\PbiApbdAnggotaJawaban::where('anggota_id', $a->id)
+                    ->whereNotNull('jawaban')->pluck('jawaban', 'parameter_id')->all(),
+            ];
+        });
+
+        $bisaPilih = $pbiApbd->pesertaBisaDiubah();
+        $kepalaModel = $pbiApbd->anggotaKeluarga()->get()->first(
+            fn ($a) => $this->digitsOnly($a->nik) === $this->digitsOnly($pbiApbd->nik_kepala_keluarga)
+                || PbiApbd::isHubunganKepala($a->hubungan_keluarga)
+        );
+
         return view('masyarakat.pbi-apbd.lengkapi', compact(
             'pbiApbd', 'parameters', 'perKelompok', 'opsiLabels', 'nilai', 'master', 'kerja', 'bisaEdit', 'bisaDraft',
             'petaAlamat', 'sesuai', 'kk', 'wilayah', 'petaKk', 'terkunci', 'sama', 'identitas', 'isiAwal',
-            'koreksiGate', 'koreksi', 'faskesOpsi', 'lampiran'
+            'koreksiGate', 'koreksi', 'faskesOpsi', 'lampiran', 'anggotaForm', 'idParamAnggota', 'bisaPilih', 'kepalaModel'
         ));
     }
 
@@ -1231,7 +1275,7 @@ class MasyarakatController extends Controller
         // Field Ketenagakerjaan lain hanya berlaku bila responden bekerja ("Ya").
         $gate = PbiGcForm::gate($parameters);
         $bekerja = $gate && $request->input("jawaban.{$gate->id}") === 'Ya';
-        $dependen = PbiGcForm::dependenIds($parameters);
+        $dependen = $gate ? PbiGcForm::dependenIds($parameters) : [];
         $lapParam = $parameters->firstWhere('sumber', 'lapangan_usaha');
 
         // ---- Alamat domisili: SELALU dipaksa dari KK. ----
@@ -1242,8 +1286,7 @@ class MasyarakatController extends Controller
 
         // Alamat sesuai KK + data terkunci dari registrasi: nilainya dipaksa dari server
         $petaKk = $this->petaAlamatKk($parameters);
-        $opsiLabelsKunci = $parameters->mapWithKeys(fn ($x) => [$x->id => $this->labelOpsi($x, $master, $pbiApbd)])->all();
-        $terkunci = $this->nilaiTerkunciRegistrasi($pbiApbd, $parameters, $opsiLabelsKunci, $master);
+        $terkunci = [];
 
         // Nama / No KK: SELALU dipaksa dari registrasi.
         $kunciIdentitas = [];
@@ -1427,6 +1470,44 @@ class MasyarakatController extends Controller
             'date' => ':attribute bukan tanggal yang valid.',
         ];
 
+        foreach ($anggotaList as $a) {
+            $bekerjaA = $gateA && $request->input("anggota.{$a->id}.{$gateA->id}") === 'Ya';
+
+            foreach ($paramAnggota as $p) {
+                $key = "anggota.{$a->id}.{$p->id}";
+                $attributes[$key] = $p->nama . ' (' . $a->nama . ')';
+                $attributes["{$key}.*"] = $attributes[$key];
+                $messages["{$key}.required"] = "Pertanyaan \"{$p->nama}\" untuk {$a->nama} wajib dijawab.";
+                $messages["{$key}.min"] = "Pilih minimal satu jawaban untuk \"{$p->nama}\" ({$a->nama}).";
+
+                if (in_array($p->id, $dependenA, true) && ! $bekerjaA) {
+                    $rules[$key] = ['nullable'];
+                    continue;
+                }
+
+                $req = PbiGcForm::opsional($p) ? 'nullable' : 'required';
+                $labels = $this->labelOpsi($p, $master, $pbiApbd);
+
+                switch ($p->tipe_input) {
+                    case 'pilihan':
+                        $rules[$key] = $labels ? [$req, 'string', Rule::in($labels)] : [$req, 'string', 'max:500'];
+                        break;
+                    case 'pilihan_ganda':
+                        $rules[$key] = ($req === 'required' && $labels) ? ['required', 'array', 'min:1'] : ['nullable', 'array'];
+                        $rules["{$key}.*"] = $labels ? ['string', Rule::in($labels)] : ['string', 'max:255'];
+                        break;
+                    case 'angka':
+                        $rules[$key] = [$req, 'integer', 'between:0,50'];
+                        break;
+                    case 'tanggal':
+                        $rules[$key] = [$req, 'date'];
+                        break;
+                    default:
+                        $rules[$key] = [$req, 'string', 'max:500'];
+                }
+            }
+        }
+
         // Draft: tidak ada isian yang diwajibkan (yang terisi tetap divalidasi formatnya)
         if ($draft) {
             $rules = array_map(function ($r) {
@@ -1449,7 +1530,7 @@ class MasyarakatController extends Controller
             }
         }
 
-        DB::transaction(function () use ($pbiApbd, $parameters, $validated, $request, $ajukanUlang, $dependen, $bekerja, $draft, $petaAlamat, $kk, $petaKk, $terkunci, $kunciIdentitas, $koreksiData) {
+        DB::transaction(function () use ($pbiApbd, $parameters, $validated, $request, $ajukanUlang, $dependen, $bekerja, $draft, $petaAlamat, $kk, $petaKk, $terkunci, $kunciIdentitas, $koreksiData, $anggotaList, $paramAnggota, $gateA, $dependenA) {
             // Simpan data koreksi di tabel terpisah. Memilih "Ya" lagi -> kolom dikosongkan.
             if ($pbiApbd->gcKoreksi()->exists() || collect($koreksiData)->filter()->isNotEmpty()) {
                 $pbiApbd->gcKoreksi()->updateOrCreate([], $koreksiData);
@@ -1559,6 +1640,41 @@ class MasyarakatController extends Controller
 
             // Draft berhenti di sini: hanya lokasi (kalau sudah terambil) yang ikut disimpan.
             // Status, skor/kelas kemiskinan, data_diisi_at, dan log baru diproses saat warga menekan "Simpan Data".
+            foreach ($anggotaList as $a) {
+                $bekerjaA = $gateA && $request->input("anggota.{$a->id}.{$gateA->id}") === 'Ya';
+                $adaIsi = false;
+
+                foreach ($paramAnggota as $p) {
+                    $kosongkan = in_array($p->id, $dependenA, true) && ! $bekerjaA;
+                    $input = $kosongkan ? null : $request->input("anggota.{$a->id}.{$p->id}");
+
+                    if ($p->tipe_input === 'pilihan_ganda') {
+                        $arr = array_values(array_filter((array) $input, fn ($x) => $x !== null && $x !== ''));
+                        $jawaban = $arr ? json_encode($arr, JSON_UNESCAPED_UNICODE) : null;
+                    } else {
+                        $jawaban = ($input === null || $input === '') ? null : (string) $input;
+                    }
+                    $adaIsi = $adaIsi || $jawaban !== null;
+
+                    \App\Models\PbiApbdAnggotaJawaban::updateOrCreate(
+                        ['anggota_id' => $a->id, 'parameter_id' => $p->id],
+                        [
+                            'pbi_apbd_id' => $pbiApbd->id,
+                            'kelompok' => $p->kelompok,
+                            'urutan' => $p->urutan,
+                            'nama_parameter' => $p->nama,
+                            'tipe_input' => $p->tipe_input,
+                            'jawaban' => $jawaban,
+                        ]
+                    );
+                }
+
+                // Hanya submit sungguhan yang memasukkan anggota ke Ground Check (draft tidak)
+                if (! $draft && $adaIsi) {
+                    $a->update(['didaftarkan_gc' => true, 'didaftarkan_gc_at' => $a->didaftarkan_gc_at ?? now()]);
+                }
+            }
+
             if ($draft) {
                 $lat = $validated['latitude'] ?? null;
                 $lng = $validated['longitude'] ?? null;
@@ -1617,6 +1733,27 @@ class MasyarakatController extends Controller
 
         // Berkas lampiran yang masih kosong diisi otomatis dari menu Dokumen (yang sudah terpasang tidak diubah)
         DokumenMasyarakat::isiBilaKosongPbi($pbiApbd);
+
+        // ===== TAMBAHKAN BLOK INI =====
+        // Peserta PBI APBD (dulu dipilih di halaman Daftar Keluarga)
+        if ($pbiApbd->pesertaBisaDiubah()) {
+            $pilih = collect($request->input('peserta', []))->map(fn ($x) => (int) $x)->all();
+
+            foreach ($pbiApbd->anggotaKeluarga()->get() as $a) {
+                $isKepala = $this->digitsOnly($a->nik) === $this->digitsOnly($pbiApbd->nik_kepala_keluarga)
+                    || PbiApbd::isHubunganKepala($a->hubungan_keluarga);
+
+                if (! $isKepala && $this->anggotaTerkunci($pbiApbd, $a)) {
+                    continue;
+                }
+
+                $mau = $isKepala ? $request->boolean('kepala_pbi') : in_array((int) $a->id, $pilih, true);
+
+                if ($mau !== (bool) $a->didaftarkan_pbi) {
+                    $a->update(['didaftarkan_pbi' => $mau]);
+                }
+            }
+        }
 
         // Submit sungguhan -> anggota keluarga masuk Ground Check + notifikasi petugas
         $pbiApbd->sinkronGroundCheck();
@@ -2375,5 +2512,28 @@ class MasyarakatController extends Controller
         if ($has('sd|mi|sdlb|paket a|sekolah dasar')) return ['maks' => 6, 'semester' => false];
 
         return ['maks' => 0, 'semester' => false];
+    }
+
+    private function digitsOnly($v): string
+    {
+        return preg_replace('/\D/', '', (string) $v);
+    }
+
+    /** Anggota keluarga selain kepala keluarga. */
+    private function anggotaUntukForm(PbiApbd $pbi)
+    {
+        $kepalaNik = $this->digitsOnly($pbi->nik_kepala_keluarga);
+
+        return $pbi->anggotaKeluarga()->orderBy('id')->get()
+            ->reject(fn ($a) => $this->digitsOnly($a->nik) === $kepalaNik
+                || PbiApbd::isHubunganKepala($a->hubungan_keluarga))
+            ->values();
+    }
+
+    private function anggotaTerkunci(PbiApbd $pbi, $a): bool
+    {
+        return \App\Models\GcSasaran::where('nik', $this->digitsOnly($a->nik))
+            ->where('no_kk', $this->digitsOnly($pbi->no_kk))
+            ->whereHas('verifikasis')->exists();
     }
 }
