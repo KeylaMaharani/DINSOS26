@@ -97,29 +97,30 @@
         <div id="gc-wiz-head" class="rounded-2xl bg-surface-container-lowest shadow-sm ring-1 ring-outline-variant/30 overflow-hidden" hidden>
             <div id="gc-tabs" class="flex overflow-x-auto" role="tablist"></div>
             <div class="h-1.5 bg-brand-soft"><div id="gc-wiz-bar" class="h-full transition-all duration-300" style="width:0;background:#0a5ca8"></div></div>
+            <p id="gc-wiz-persen" class="px-4 py-1.5 text-[11px] font-semibold text-on-surface-variant">0% terisi</p>
         </div>
 
         @php
-            // Data pribadi anggota (langkah 4). Nama lain di kelompok Kependudukan tetap di Identitas Keluarga.
-            $namaAnggota = ['jenis kelamin', 'tanggal lahir', 'status perkawinan', 'status hubungan dengan kepala keluarga',
-                            'no. telp', 'no telp', 'email', 'nama gadis ibu kandung'];
-            $keAnggota = function ($p) use ($namaAnggota) {
-                $n = \Illuminate\Support\Str::lower(trim($p->nama));
-
-                return $p->kelompok === 'kependudukan' && (in_array($n, $namaAnggota, true) || str_contains($n, 'rekening'));
-            };
-
             $lihat = $parameters->reject($tersembunyi)->reject(fn ($p) => PbiGcForm::isFotoKk($p))->values();
-            $ambil = fn (array $kel, ?bool $anggota = null) => $lihat
-                ->filter(fn ($p) => in_array($p->kelompok, $kel, true) && ($anggota === null || $keAnggota($p) === $anggota))
+            $ambil = fn (array $kel) => $lihat
+                ->filter(fn ($p) => in_array($p->kelompok, $kel, true))
                 ->values();
 
-            // Struktur mengikuti rekap formulir Pendataan Keluarga: bagian 1-4 + lampiran
+            // Langkah 2 dibagi A-D mengikuti blok urutan (100/200/300/400/500) dari GcSosialEkonomiSeeder.
+            $sosek = $ambil(['keluarga']);
+
+            // Struktur mengikuti formulir Pendataan Keluarga: bagian 1-4 + lampiran
             $langkah = [
                 ['judul' => 'Identitas Keluarga', 'ikon' => 'badge', 'lokasi' => true,
-                    'bagian' => [[null, $ambil(['kependudukan'], false)]]],
+                    'bagian' => [[null, $ambil(['identitas_keluarga'])]]],
                 ['judul' => 'Keterangan Sosial Ekonomi', 'ikon' => 'home',
-                    'bagian' => [[null, $ambil(['keluarga'])]]],
+                    'bagian' => [
+                        ['A. Jenis Bangunan & Jumlah Penghuni', $sosek->where('urutan', '<', 200)],
+                        ['B. Kepemilikan, Bukti Tanah, Nilai & Luas Lantai', $sosek->whereBetween('urutan', [200, 299])],
+                        ['C. Kondisi Fisik & Sanitasi / Air / Listrik', $sosek->whereBetween('urutan', [300, 399])],
+                        ['D. Pengeluaran & Pendapatan Keluarga', $sosek->whereBetween('urutan', [400, 499])],
+                        ['E. Keterangan Tambahan', $sosek->where('urutan', '>=', 500)],
+                    ]],
                 ['judul' => 'Kepemilikan Aset', 'ikon' => 'inventory_2',
                     'bagian' => [
                         ['Aset bergerak', $ambil(['aset_bergerak'])],
@@ -127,7 +128,7 @@
                     ]],
                 ['judul' => 'Keterangan Anggota Keluarga', 'ikon' => 'groups',
                     'bagian' => [
-                        ['Data pribadi', $ambil(['kependudukan'], true)],
+                        ['Data pribadi', $ambil(['kependudukan'])],
                         ['Pendidikan', $ambil(['pendidikan'])],
                         ['Ketenagakerjaan', $ambil(['ketenagakerjaan'])],
                         ['Kesehatan', $ambil(['kesehatan'])],
@@ -171,7 +172,8 @@
 
                 {{-- Titik lokasi = bagian dari Identitas Keluarga (nomor 15-16 di formulir) --}}
                 @if (! empty($l['lokasi']))
-                    @include('masyarakat.pbi-apbd._lokasi')
+                    @include('masyarakat.pbi-apbd._lokasi', ['noMulai' => $no + 1])
+                    @php $no += 2; @endphp
                 @endif
             </div>
         @endforeach
@@ -264,6 +266,9 @@
 
     // Mode baca saja (sudah disetujui / sudah dikirim): tidak ada tombol simpan / pengambilan lokasi
     if (!btnSubmit) { return; }
+
+    // Kartu status lokasi lama sudah digantikan _lokasi.blade.php (peta). Bila elemennya tidak ada, lewati.
+    if (!geoCard || !statusText || !statusIcon || !statusBox || !btnRetry) { return; }
 
     function setStatus(text, icon, spin, state) {
         statusText.textContent = text;
@@ -423,7 +428,7 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 
-{{-- Alamat domisili: SELALU terisi dari alamat KK & terkunci (tidak bergantung jawaban "Apakah wilayah sama?").
+{{-- Alamat domisili: SELALU terisi dari alamat KK & terkunci (tidak bergantung jawaban "Apakah alamat sesuai KK?").
      Bila wilayah berbeda, warga mengisi field "Kabupaten/Kecamatan/Kelurahan baru" (disimpan terpisah).
      Server tetap memaksa nilai KK saat disimpan. ("Alamat sesuai KK" tampil sebagai teks oleh server.) --}}
 <script>
@@ -459,7 +464,7 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 
-{{-- "Apakah No KK sama?" dijawab Ya -> "Apakah nama sama?" otomatis Ya (wilayah tidak ikut berubah). Tetap bisa diubah warga. --}}
+{{-- "Apakah No KK sama?" dijawab Ya -> "Apakah nama sama?" otomatis Ya. Hanya aktif bila pasangan pertanyaannya ada di master. --}}
 <script>
 window.gcSama = @json($sama ?? null);
 
@@ -666,6 +671,7 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 
+{{-- Wizard tab + progress bar (persen isian wajib yang sudah terisi) --}}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     var form = document.getElementById('form-lengkapi');
@@ -678,6 +684,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var prev = document.getElementById('gc-prev'), next = document.getElementById('gc-next');
     var err = document.getElementById('gc-step-error'), submitWrap = document.getElementById('gc-submit-wrap');
     var bar = document.getElementById('gc-wiz-bar'), tabsEl = document.getElementById('gc-tabs');
+    var persenEl = document.getElementById('gc-wiz-persen');
     var now = -1, terjauh = 0, last = steps.length - 1, tabs = [], timer = null;
 
     // ---- Tab: ikon + judul + badge status ----
@@ -714,8 +721,10 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function segarkan() {
+        var T = 0, I = 0;
         steps.forEach(function (s, i) {
             var b = tabs[i].children[2], h = hitung(s);
+            T += h.total; I += h.isi;
             if (!h.total) { b.hidden = true; return; }
             b.hidden = false;
             b.classList.remove('is-lengkap', 'is-draft', 'is-kosong');
@@ -723,7 +732,13 @@ document.addEventListener('DOMContentLoaded', function () {
             else if (h.isi === 0) { b.className = 'gc-badge is-kosong'; b.textContent = 'Kosong'; }
             else { b.className = 'gc-badge is-draft'; b.textContent = 'Draft ' + h.isi + '/' + h.total; }
         });
+        var p = T ? Math.round(I / T * 100) : 0;
+        bar.style.width = p + '%';
+        if (persenEl) { persenEl.textContent = p + '% terisi'; }
     }
+
+    // Dipanggil dari _lokasi.blade.php saat titik peta berubah
+    window.gcSegarkanProgres = segarkan;
 
     function jadwalSegarkan() { clearTimeout(timer); timer = setTimeout(segarkan, 80); }
     ['change', 'input', 'click'].forEach(function (ev) { form.addEventListener(ev, jadwalSegarkan); });
@@ -744,7 +759,6 @@ document.addEventListener('DOMContentLoaded', function () {
         now = i;
         if (i > terjauh) { terjauh = i; }
 
-        bar.style.width = ((i + 1) / steps.length * 100) + '%';
         tabs.forEach(function (t, j) {
             t.classList.toggle('is-active', j === i);
             t.setAttribute('aria-selected', j === i ? 'true' : 'false');
@@ -767,6 +781,13 @@ document.addEventListener('DOMContentLoaded', function () {
             err.textContent = window.gcLokasi.pesan();
             err.hidden = false;
             lok.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return false;
+        }
+        var pasang = window.gcPasangMeteran ? window.gcPasangMeteran() : null;
+        if (pasang && step.contains(pasang.pertama)) {
+            pasang.pertama.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            err.textContent = pasang.pesan;
+            err.hidden = false;
             return false;
         }
         var W = window.gcWajib;
@@ -809,6 +830,82 @@ document.addEventListener('DOMContentLoaded', function () {
     tampil(mulai, true);
     setTimeout(segarkan, 400); // setelah skrip lain (syarat, kerja, lokasi) selesai menyiapkan isian
 });
+</script>
+
+{{-- Syarat tampil (induk_id / induk_nilai): sembunyikan pertanyaan yang syaratnya belum terpenuhi --}}
+@include('partials.gc-syarat')
+
+{{-- Nomor pertanyaan mengikuti yang tampil: pertanyaan yang disembunyikan syarat tidak menyisakan nomor loncat --}}
+<script>
+(function () {
+    var form = document.getElementById('form-lengkapi');
+    if (!form) { return; }
+
+    var daftar = Array.prototype.slice.call(form.querySelectorAll('[data-gc-no]')).map(function (el) {
+        return { el: el, asli: parseInt(el.textContent, 10) };
+    }).filter(function (x) { return !isNaN(x.asli); });
+
+    function tersembunyi(el) {
+        for (var n = el.closest('[data-gc-id]'); n && n !== form; n = n.parentElement) {
+            if (n.hasAttribute('data-gc-step')) { break; }
+            if (n.hidden || window.getComputedStyle(n).display === 'none') { return true; }
+        }
+        return false;
+    }
+
+    var jalan = false;
+    function susun() {
+        jalan = false;
+        var hitung = 0, sebelumnya = 0;
+        daftar.forEach(function (x) {
+            // selisih nomor asli (mis. nomor titik lokasi) tetap dipertahankan
+            hitung += Math.max(0, x.asli - sebelumnya - 1);
+            sebelumnya = x.asli;
+            if (tersembunyi(x.el)) { return; }
+            hitung++;
+            if (x.el.textContent !== String(hitung)) { x.el.textContent = hitung; }
+        });
+    }
+    function jadwalkan() {
+        if (jalan) { return; }
+        jalan = true;
+        window.requestAnimationFrame(susun);
+    }
+
+    // ID Pelanggan PLN / No Meteran Listrik: boleh salah satu, tidak boleh dua-duanya kosong (bila tampil)
+    window.gcPasangMeteran = function () {
+        var a = null, b = null;
+        form.querySelectorAll('[data-gc-id]').forEach(function (w) {
+            var n = w.querySelector('[data-gc-nama]');
+            var t = n ? n.textContent.trim().toLowerCase() : '';
+            if (t === 'id pelanggan pln') { a = w; }
+            if (t === 'no meteran listrik') { b = w; }
+        });
+        if (!a || !b || a.hidden || b.hidden || a.style.display === 'none' || b.style.display === 'none') { return null; }
+        function isi(w) {
+            return Array.prototype.some.call(w.querySelectorAll('input[name^="jawaban"]'), function (e) {
+                return !e.disabled && e.value.trim() !== '';
+            });
+        }
+        if (isi(a) || isi(b)) { return null; }
+        return { pertama: a, pesan: 'Isi minimal salah satu: ID Pelanggan PLN atau No Meteran Listrik.' };
+    };
+
+    form.addEventListener('submit', function (e) {
+        var p = window.gcPasangMeteran();
+        if (!p || !document.getElementById('btn-submit') || e.submitter && e.submitter.name === 'aksi') { return; }
+        e.preventDefault();
+        if (window.gcBukaLangkah) { window.gcBukaLangkah(p.pertama); }
+        var er = document.getElementById('gc-step-error');
+        if (er) { er.textContent = p.pesan; er.hidden = false; }
+        p.pertama.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, true);
+
+    new MutationObserver(jadwalkan).observe(form, { attributes: true, subtree: true, attributeFilter: ['style', 'hidden', 'class'] });
+    ['change', 'input', 'click'].forEach(function (e) { form.addEventListener(e, function () { setTimeout(jadwalkan, 0); }); });
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(jadwalkan, 100); setTimeout(jadwalkan, 600); });
+    jadwalkan();
+})();
 </script>
 @endpush
 

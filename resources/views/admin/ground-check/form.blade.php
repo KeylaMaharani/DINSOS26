@@ -3,8 +3,6 @@
 @php
     use App\Models\GcKriteriaParameter as GcP;
 
-    // Tab awal: tab pertama yang berisi galat validasi (jika ada), atau tab terakhir untuk galat pernyataan,
-    // atau tab yang terakhir dibuka sebelumnya.
     $mulai = $tabAwal ?? 0;
     if ($errors->any()) {
         $mulai = null;
@@ -57,14 +55,12 @@
 
     <form id="gc-form" method="POST" action="{{ route('ground-check.simpan', $sasaran) }}" enctype="multipart/form-data" x-ref="form" novalidate>
         @csrf
-        {{-- Bawaan "draft" supaya tidak pernah menembus validasi JS secara tidak sengaja.
-             Tombol "Submit" mengubahnya menjadi "submit" lewat kirim(). --}}
         <input type="hidden" name="aksi" value="draft" x-ref="aksi">
         <input type="hidden" name="tab_aktif" :value="tab">
 
         <div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl overflow-hidden">
 
-            {{-- Header tab (dengan badge progres: Belum diisi / Draft x/y / Lengkap) --}}
+            {{-- Header tab (badge progres: Belum diisi / Draft x/y / Lengkap) --}}
             <div class="flex overflow-x-auto border-b border-outline-variant/40">
                 @foreach ($tabs as $i => $t)
                     @php
@@ -84,31 +80,49 @@
                     </button>
                 @endforeach
             </div>
+
+            {{-- Progress bar = persen isian wajib yang sudah terisi --}}
             <div class="h-1.5 bg-surface-container">
-                <div class="h-full bg-brand transition-all duration-300" :style="`width: ${((tab + 1) / total) * 100}%`"></div>
+                <div class="h-full bg-brand transition-all duration-300" :style="`width: ${persen}%`"></div>
             </div>
+            <p class="px-5 pt-2 text-[11px] font-semibold text-on-surface-variant" x-text="persen + '% terisi'"></p>
 
             {{-- Isi tab --}}
             <div class="p-5">
                 <p x-show="pesan" x-cloak x-text="pesan" class="mb-3 px-4 py-2.5 rounded-lg bg-error-container text-on-error-container text-xs font-medium"></p>
 
                 @foreach ($tabs as $i => $t)
-                    {{-- [UBAH] satu kolom: setiap field satu baris (sebelumnya grid 2 kolom) --}}
                     <div id="gc-panel-{{ $i }}" x-show="tab === {{ $i }}" @if ($i !== $mulai) x-cloak @endif class="space-y-1">
                         @foreach ($t['kelompok'] as $kel)
-                            @php $isi = $t['params']->where('kelompok', $kel); @endphp
+                            @php
+                                $isi = $t['params']->where('kelompok', $kel);
+
+                                // Tab "2. Sosial Ekonomi" dibagi A-D mengikuti blok urutan (100/200/300/400) dari GcSosialEkonomiSeeder.
+                                $bagian = $kel === 'keluarga' ? [
+                                    'A. Jenis Bangunan & Jumlah Penghuni' => $isi->where('urutan', '<', 200),
+                                    'B. Kepemilikan, Bukti Tanah, Nilai & Luas Lantai' => $isi->whereBetween('urutan', [200, 299]),
+                                    'C. Kondisi Fisik & Sanitasi / Air / Listrik' => $isi->whereBetween('urutan', [300, 399]),
+                                    'D. Pengeluaran & Pendapatan Keluarga' => $isi->where('urutan', '>=', 400),
+                                ] : ['' => $isi];
+                            @endphp
                             @if ($isi->isNotEmpty())
-                                @if (count($t['kelompok']) > 1 && isset(GcP::SUBJUDUL[$kel]))
-                                    <h4 class="text-xs font-bold text-on-surface mt-4 mb-1 first:mt-0">{{ GcP::SUBJUDUL[$kel] }}</h4>
-                                @endif
-                                @foreach ($isi as $p)
-                                    {{-- Parameter bersumber master memakai partial sendiri --}}
-                                    @include(
-                                        $p->sumber === 'penyakit_kronis'
-                                            ? 'admin.ground-check._field_penyakit'
-                                            : ($p->sumber ? 'admin.ground-check._field_master' : 'admin.ground-check._field'),
-                                        ['p' => $p, 'nilai' => $nilai, 'master' => $master]
-                                    )
+                                @foreach ($bagian as $judul => $grup)
+                                    @continue($grup->isEmpty())
+
+                                    @if ($judul !== '')
+                                        <h4 class="text-sm font-extrabold text-brand mt-5 mb-2 pb-1.5 border-b border-outline-variant/40 first:mt-0">{{ $judul }}</h4>
+                                    @elseif (count($t['kelompok']) > 1 && isset(GcP::SUBJUDUL[$kel]))
+                                        <h4 class="text-xs font-bold text-on-surface mt-4 mb-1 first:mt-0">{{ GcP::SUBJUDUL[$kel] }}</h4>
+                                    @endif
+
+                                    @foreach ($grup as $p)
+                                        @include(
+                                            $p->sumber === 'penyakit_kronis'
+                                                ? 'admin.ground-check._field_penyakit'
+                                                : ($p->sumber ? 'admin.ground-check._field_master' : 'admin.ground-check._field'),
+                                            ['p' => $p, 'nilai' => $nilai, 'master' => $master]
+                                        )
+                                    @endforeach
                                 @endforeach
                             @endif
                         @endforeach
@@ -155,19 +169,19 @@
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    /* ---------- Wizard tab A-G ---------- */
+    /* ---------- Wizard tab ---------- */
     function gcWizard(total, start) {
         return {
             tab: start,
             total: total,
             pesan: '',
+            persen: 0,
 
             init() {
                 this.$watch('tab', () => {
                     setTimeout(() => { if (window.gcMap) window.gcMap.invalidateSize(); }, 150);
                 });
 
-                // Hilangkan border merah begitu isian diisi
                 const bersihkan = (e) => {
                     const w = e.target.closest('[data-wajib]');
                     if (w && !this.kosong(w)) {
@@ -176,15 +190,30 @@
                 };
                 this.$el.addEventListener('input', bersihkan);
                 this.$el.addEventListener('change', bersihkan);
+
+                // Progress bar mengikuti isian
+                const hit = () => this.hitungPersen();
+                this.$el.addEventListener('input', hit);
+                this.$el.addEventListener('change', hit);
+                this.$nextTick(() => setTimeout(hit, 300)); // setelah skrip "bekerja" & syarat selesai
             },
 
-            // true jika semua kontrol pada baris w nonaktif (mis. Ketenagakerjaan saat jawabannya "Tidak")
+            // Persen isian wajib (di semua tab) yang sudah terisi
+            hitungPersen() {
+                let t = 0, i = 0;
+                document.querySelectorAll('#gc-form [data-wajib]').forEach((w) => {
+                    if (this.nonaktif(w)) return;
+                    t++;
+                    if (!this.kosong(w)) i++;
+                });
+                this.persen = t ? Math.round((i / t) * 100) : 0;
+            },
+
             nonaktif(w) {
                 const els = w.querySelectorAll('input,select,textarea');
                 return els.length > 0 && [...els].every((e) => e.disabled);
             },
 
-            // true jika isian wajib pada baris w masih kosong
             kosong(w) {
                 const t = w.dataset.wajib;
                 if (t === 'ganda') {
@@ -198,12 +227,10 @@
                 return !el || String(el.value).trim() === '';
             },
 
-            // true jika semua isian wajib (bertanda *) pada tab ke-i sudah terisi
             cekTab(i) {
                 const panel = document.getElementById('gc-panel-' + i);
                 let ok = true, pertama = null;
                 panel.querySelectorAll('[data-wajib]').forEach((w) => {
-                    // Baris yang dinonaktifkan (tidak berlaku) tidak diwajibkan
                     if (this.nonaktif(w)) {
                         w.classList.remove('ring-1', 'ring-error');
                         return;
@@ -228,21 +255,17 @@
                 if (m) m.scrollTo({ top: 0, behavior: 'smooth' });
             },
 
-            // Navigasi antar tab bebas (tanpa validasi) supaya petugas bisa pindah tab
-            // saat berkas belum ada. Kewajiban semua field dicek saat Submit.
             lanjut() { this.pesan = ''; this.tab++; this.keAtas(); },
 
             kembali() { this.pesan = ''; this.tab--; this.keAtas(); },
 
             keTab(i) { this.pesan = ''; this.tab = i; this.keAtas(); },
 
-            // Simpan sebagai draf: tanpa validasi, semua tab ikut tersimpan
             draft() {
                 this.$refs.aksi.value = 'draft';
                 this.$refs.form.submit();
             },
 
-            // Submit akhir: semua tab wajib lengkap + pernyataan dicentang
             kirim() {
                 for (let k = 0; k < this.total; k++) {
                     if (!this.cekTab(k)) { this.tab = k; return; }
@@ -301,10 +324,10 @@
             if (lat) lat.value = a;
             if (lng) lng.value = b;
 
-            // Isian koordinat terisi lewat skrip (bukan ketikan), jadi bersihkan border merahnya manual
             [koor, lat, lng].forEach((x) => {
                 const w = x && x.closest('[data-wajib]');
                 if (w) w.classList.remove('ring-1', 'ring-error');
+                if (x) x.dispatchEvent(new Event('input', { bubbles: true }));
             });
         }
 
@@ -368,8 +391,7 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 
-{{-- Ketenagakerjaan: jika "Apakah responden bekerja ...?" dijawab Tidak, field lain dinonaktifkan & dikosongkan.
-     Dijawab Ya -> field terbuka dan wajib diisi. Script ini HARUS setelah script lapangan usaha di atas. --}}
+{{-- Ketenagakerjaan: "bekerja?" Tidak -> field lain dinonaktifkan & dikosongkan --}}
 <script>
 window.gcKerja = @json($kerja);
 
@@ -398,7 +420,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (!ya) {
                     if (el.type === 'checkbox' || el.type === 'radio') el.checked = false;
                     else if (el.type !== 'file') el.value = '';
-                    // beri tahu skrip lain (panel info lapangan usaha, daftar pekerjaan)
                     el.dispatchEvent(new Event('change', { bubbles: true }));
                 }
 
@@ -411,7 +432,6 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         });
 
-        // Pekerjaan baru aktif bila responden bekerja DAN lapangan usaha sudah dipilih
         const lap = form.querySelector('[data-gc-lapangan]');
         const pk = form.querySelector('[data-gc-pekerjaan]');
         if (ya && lap && pk) pk.disabled = !lap.value;
@@ -425,8 +445,7 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 
-{{-- Kepemilikan perahu & ternak babi: Kota Bogor selalu 0 -> dikunci di 0.
-     (Server tetap memaksa 0 saat disimpan, apa pun kiriman browser.) --}}
+{{-- Kepemilikan perahu & ternak babi: Kota Bogor selalu 0 --}}
 <script>
 window.gcNol = @json($nolIds ?? []);
 
@@ -450,4 +469,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 </script>
+
+{{-- Syarat tampil (induk_id / induk_nilai): sembunyikan field yang syaratnya belum terpenuhi --}}
+@include('partials.gc-syarat')
 @endpush

@@ -11,6 +11,7 @@ use Illuminate\Support\Str;
  * GANTI app/Support/PbiGcForm.php dengan file ini.
  * Perubahan: parameters()/idTetap()/kelengkapan() menerima filter $target (mis. ['pbi','pbi_gc'] untuk sisi PBI/Kelurahan),
  * serta untukAnggota() untuk form per anggota keluarga.
+ * Tambahan (tab Sosial Ekonomi): isUang(), isLuas(), dan wajibIds() kini mengabaikan pertanyaan yang tersembunyi oleh syarat (induk).
  */
 class PbiGcForm
 {
@@ -76,6 +77,18 @@ class PbiGcForm
         return Str::contains(Str::lower($p->nama), ['lintang', 'bujur']);
     }
 
+    /** Parameter angka bernilai Rupiah: namanya memuat "[Rp]". */
+    public static function isUang(GcKriteriaParameter $p): bool
+    {
+        return $p->tipe_input === 'angka' && Str::contains(Str::lower((string) $p->nama), '[rp]');
+    }
+
+    /** Parameter angka luas (meter persegi): namanya memuat "[m²]". */
+    public static function isLuas(GcKriteriaParameter $p): bool
+    {
+        return $p->tipe_input === 'angka' && Str::contains(Str::lower((string) $p->nama), '[m²]');
+    }
+
     /** Parameter foto "Foto kartu keluarga": memakai Scan KK yang sudah diunggah di pengajuan PBI. */
     public static function isFotoKk(GcKriteriaParameter $p): bool
     {
@@ -95,15 +108,21 @@ class PbiGcForm
             || ! $p->wajib;
     }
 
-    /** id parameter yang wajib diisi, diberi peta id => jawaban yang sudah ada. */
+    /**
+     * id parameter yang wajib diisi, diberi peta id => jawaban yang sudah ada.
+     * Pertanyaan yang tersembunyi karena syarat induk tidak terpenuhi tidak dihitung.
+     */
     public static function wajibIds($params, array $jawaban): array
     {
         $gate = self::gate($params);
         $bekerja = $gate && (($jawaban[$gate->id] ?? null) === 'Ya');
         $dependen = self::dependenIds($params);
+        $sembunyi = GcKriteriaParameter::idTersembunyi($params, $jawaban);
 
         return $params
-            ->filter(fn ($p) => ! self::opsional($p) && (! in_array($p->id, $dependen, true) || $bekerja))
+            ->filter(fn ($p) => ! self::opsional($p)
+                && ! in_array($p->id, $sembunyi, true)
+                && (! in_array($p->id, $dependen, true) || $bekerja))
             ->pluck('id')->all();
     }
 

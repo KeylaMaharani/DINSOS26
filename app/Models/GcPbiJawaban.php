@@ -19,6 +19,23 @@ class GcPbiJawaban extends Model
     /** Parameter identitas: sudah tampil di card Data Pemohon, jadi tidak diulang di Isian Masyarakat. */
     public const NAMA_IDENTITAS = [
         'nama', 'no kk', 'alamat sesuai kk', 'no telp', 'no. telp', 'email',
+        'nik kepala keluarga', 'jumlah anggota keluarga', 'provinsi', 'kabupaten/kota',
+        'kecamatan', 'desa/kelurahan', 'kode pos', 'satuan lingkungan setempat (rt/rw/dusun)',
+        'alamat lengkap', 'nama jalan', 'nomor rumah',
+        // Nama baru identitas keluarga
+        'siapa nama kepala keluarga di kartu keluarga (kk) anda?',
+        'berapa nomor induk kependudukan (nik) kepala keluarga anda?',
+        'berapa nomor kartu keluarga (kk) anda?',
+        'berapa jumlah anggota keluarga anda?',
+        'provinsi tempat tinggal keluarga saat ini',
+        'kabupaten/kota tempat tinggal keluarga saat ini',
+        'kecamatan tempat tinggal keluarga saat ini',
+        'desa/kelurahan tempat tinggal keluarga saat ini',
+        'kode pos tempat tinggal saat ini',
+        'satuan lingkungan setempat (rt/rw/dusun dll)',
+        'alamat lengkap rumah/tempat tinggal anda?',
+        'nama jalan rumah/tempat tinggal anda?',
+        'nomor rumah/tempat tinggal anda?',
     ];
 
     /** Sembunyikan parameter identitas (dicocokkan lewat nama, huruf besar/kecil & spasi pinggir diabaikan). */

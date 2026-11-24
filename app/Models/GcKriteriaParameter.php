@@ -6,17 +6,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-/**
- * GANTI isi app/Models/GcKriteriaParameter.php dengan file ini.
- * Perubahan: kolom `target`, konstanta TARGET, targetBawaan(), scope untukPbi(), dan untukPetugas() kini hanya gc + pbi_gc.
- */
 class GcKriteriaParameter extends Model
 {
     protected $table = 'gc_kriteria_parameters';
 
     protected $fillable = [
         'kelompok', 'target', 'urutan', 'nama', 'bobot', 'tipe_input', 'sumber',
-        'pbi_parameter_id', 'keterangan', 'aktif', 'wajib', 'induk_id', 'induk_nilai'
+        'pbi_parameter_id', 'keterangan', 'aktif', 'wajib', 'induk_id', 'induk_nilai', 'placeholder'
     ];
 
     protected $casts = [
@@ -43,6 +39,7 @@ class GcKriteriaParameter extends Model
     private const NAMA_KHUSUS_PBI = [
         'status lahan tempat tinggal yang ditempati',
         'kondisi dinding',
+        'bagaimana kondisi dinding di tempat tinggal anda?',
         'kondisi atap',
         'cara memperoleh air minum',
         'daya listrik terpasang',
@@ -62,14 +59,46 @@ class GcKriteriaParameter extends Model
         'email',
         'status kepemilikan bangunan tempat tinggal yang ditempati',
         'jenis lantai terluas',
+        'apa jenis lantai terluas di tempat tinggal anda?',
         'jenis dinding terluas',
         'jenis atap terluas',
+        'apa jenis atap terluas di tempat tinggal anda?',
         'sumber air minum utama',
+        'apa sumber air minum utama di tempat tinggal anda?',
         'sumber penerangan utama',
+        'apa sumber penerangan utama di tempat tinggal anda?',
         'bahan bakar/energi utama untuk memasak',
         'kepemilikan fasilitas bab',
+        'di tempat tinggal anda, apakah memiliki fasilitas tempat buang air besar (bab) dan siapa saja yang menggunakan?',
         'pendapatan sebulan terakhir',
         'foto kartu keluarga',
+        // Identitas keluarga (formulir bagian 1)
+        'nik kepala keluarga',
+        'jumlah anggota keluarga',
+        'provinsi',
+        'kabupaten/kota',
+        'kecamatan',
+        'desa/kelurahan',
+        'kode pos',
+        'satuan lingkungan setempat (rt/rw/dusun)',
+        'alamat lengkap',
+        'nama jalan',
+        'nomor rumah',
+        'apakah alamat tempat tinggal saat ini sesuai dengan kartu keluarga?',
+        // Nama baru identitas keluarga
+        'siapa nama kepala keluarga di kartu keluarga (kk) anda?',
+        'berapa nomor induk kependudukan (nik) kepala keluarga anda?',
+        'berapa nomor kartu keluarga (kk) anda?',
+        'berapa jumlah anggota keluarga anda?',
+        'provinsi tempat tinggal keluarga saat ini',
+        'kabupaten/kota tempat tinggal keluarga saat ini',
+        'kecamatan tempat tinggal keluarga saat ini',
+        'desa/kelurahan tempat tinggal keluarga saat ini',
+        'kode pos tempat tinggal saat ini',
+        'satuan lingkungan setempat (rt/rw/dusun dll)',
+        'alamat lengkap rumah/tempat tinggal anda?',
+        'nama jalan rumah/tempat tinggal anda?',
+        'nomor rumah/tempat tinggal anda?',
     ];
 
     /** Target bawaan sebuah pertanyaan berdasarkan namanya (dipakai migrasi & seeder). */
@@ -90,7 +119,8 @@ class GcKriteriaParameter extends Model
 
     /** Kelompok di master (dipakai filter & form master). */
     public const KELOMPOK = [
-        'kependudukan'        => 'A. Kependudukan',
+        'identitas_keluarga'  => '1. Identitas Keluarga',
+        'kependudukan'        => 'A. Kependudukan (data pribadi anggota)',
         'pendidikan'          => 'B. Pendidikan',
         'ketenagakerjaan'     => 'C. Ketenagakerjaan',
         'kesehatan'           => 'D. Kesehatan',
@@ -100,21 +130,23 @@ class GcKriteriaParameter extends Model
         'dokumentasi'         => 'G. Dokumentasi',
     ];
 
-    /** Tab pada form entry Ground Check (sama seperti di aplikasi SOLID). */
+    /** Tab pada form entry Ground Check: sama dengan 5 langkah form masyarakat. */
     public const TAB = [
-        'kependudukan'    => ['label' => 'A. Kependudukan', 'icon' => 'person', 'kelompok' => ['kependudukan']],
-        'pendidikan'      => ['label' => 'B. Pendidikan', 'icon' => 'school', 'kelompok' => ['pendidikan']],
-        'ketenagakerjaan' => ['label' => 'C. Ketenagakerjaan', 'icon' => 'work', 'kelompok' => ['ketenagakerjaan']],
-        'kesehatan'       => ['label' => 'D. Kesehatan', 'icon' => 'medical_services', 'kelompok' => ['kesehatan']],
-        'keluarga'        => ['label' => 'E. Keluarga', 'icon' => 'home', 'kelompok' => ['keluarga']],
-        'aset'            => ['label' => 'F. Kepemilikan Aset', 'icon' => 'inventory_2', 'kelompok' => ['aset_bergerak', 'aset_tidak_bergerak']],
-        'dokumentasi'     => ['label' => 'G. Dokumentasi', 'icon' => 'photo_camera', 'kelompok' => ['dokumentasi']],
+        'identitas' => ['label' => '1. Identitas Keluarga', 'icon' => 'badge', 'kelompok' => ['identitas_keluarga']],
+        'keluarga'  => ['label' => '2. Sosial Ekonomi', 'icon' => 'home', 'kelompok' => ['keluarga']],
+        'aset'      => ['label' => '3. Kepemilikan Aset', 'icon' => 'inventory_2', 'kelompok' => ['aset_bergerak', 'aset_tidak_bergerak']],
+        'anggota'   => ['label' => '4. Anggota Keluarga', 'icon' => 'groups', 'kelompok' => ['kependudukan', 'pendidikan', 'ketenagakerjaan', 'kesehatan']],
+        'dokumentasi' => ['label' => '5. Lampiran & Foto', 'icon' => 'photo_camera', 'kelompok' => ['dokumentasi']],
     ];
 
     /** Sub-judul di dalam tab yang memuat lebih dari satu kelompok. */
     public const SUBJUDUL = [
-        'aset_bergerak'       => 'Keluarga memiliki aset bergerak sebagai berikut:',
-        'aset_tidak_bergerak' => 'Kepemilikan aset tidak bergerak (lahan sawah/kebun):',
+        'aset_bergerak'       => 'Aset bergerak',
+        'aset_tidak_bergerak' => 'Aset tidak bergerak',
+        'kependudukan'        => 'Data pribadi',
+        'pendidikan'          => 'Pendidikan',
+        'ketenagakerjaan'     => 'Ketenagakerjaan',
+        'kesehatan'           => 'Kesehatan',
     ];
 
     public const TIPE_INPUT = [
