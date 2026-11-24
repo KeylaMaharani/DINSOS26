@@ -1,6 +1,9 @@
-{{-- Langkah slider: konfirmasi titik lokasi (geotagging). Variabel: $pbiApbd, $bisaEdit --}}
+{{-- Langkah slider: konfirmasi titik lokasi (geotagging) = nomor 15-16 formulir. Variabel: $pbiApbd, $bisaEdit, $noMulai (opsional, default 15) --}}
 <div data-gc-lokasi class="mt-8 border-t border-outline-variant/40 pt-6">
-    <h2 class="mb-1 text-center text-base sm:text-lg font-extrabold text-on-surface">Titik lokasi (geotagging) tempat tinggal saat ini</h2>
+    <div class="mb-1 flex items-center justify-center gap-2">
+        <span class="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-brand-soft text-brand text-[11px] font-bold">{{ $noMulai ?? 15 }}</span>
+        <h2 class="text-base sm:text-lg font-extrabold text-on-surface">Titik lokasi (geotagging) tempat tinggal saat ini</h2>
+    </div>
     <p class="mb-4 text-center text-xs text-on-surface-variant">
         @if ($bisaEdit)
             Tekan tombol otomatis, isi manual, atau geser marker di peta untuk titik yang lebih tepat.
@@ -39,7 +42,11 @@
     <div id="gc-peta" class="w-full rounded-2xl overflow-hidden border border-outline-variant"
          style="height:300px;background:#e4effd" role="application" aria-label="Peta titik lokasi rumah"></div>
 
-    <label class="mt-4 flex items-start gap-3 rounded-2xl border border-outline-variant p-3.5 cursor-pointer">
+    <p class="mt-5 mb-1.5 flex items-center gap-2 text-sm font-semibold text-on-surface">
+        <span class="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-brand-soft text-brand text-[11px] font-bold">{{ ($noMulai ?? 15) + 1 }}</span>
+        Pernyataan kesesuaian lokasi
+    </p>
+    <label class="flex items-start gap-3 rounded-2xl border border-outline-variant p-3.5 cursor-pointer">
         <input type="checkbox" id="konfirmasi-lokasi" name="konfirmasi_lokasi" value="1"
                class="mt-0.5 h-5 w-5 shrink-0 accent-[#0a5ca8]" @checked(! $bisaEdit) @disabled(! $bisaEdit)>
         <span class="text-sm text-on-surface">Saya menyatakan bahwa titik lokasi di peta sudah sesuai dengan rumah saya.</span>
@@ -146,6 +153,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!opsi.awal && bisaEdit) { chk.checked = false; } // titik berubah -> konfirmasi ulang
         status('');
         segarkan();
+        if (window.gcSegarkanProgres) { window.gcSegarkanProgres(); }
     }
 
     if (bisaEdit) {

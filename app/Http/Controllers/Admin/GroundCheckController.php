@@ -25,7 +25,7 @@ class GroundCheckController extends Controller
 {
     private const TAHUN = 2026;
 
-    /** Kelompok (tab) yang boleh diisi anggota selain kepala keluarga: A sampai D. */
+    /** Kelompok (tab) yang boleh diisi anggota selain kepala keluarga: data pribadi, pendidikan, ketenagakerjaan, kesehatan. */
     private const KELOMPOK_NON_KEPALA = ['kependudukan', 'pendidikan', 'ketenagakerjaan', 'kesehatan'];
 
     /** Langkah 3: daftar sasaran (1 baris = 1 KK) + ringkasan (dengan filter tahun, rentang tanggal & RW). */
@@ -283,7 +283,7 @@ class GroundCheckController extends Controller
             ->with('success', 'Status ' . $sasaran->nama . ' disimpan: ' . GcVerifikasi::STATUS_TEMUAN[$data['status_temuan']] . '.');
     }
 
-    /** Langkah 7-13: form tab A-G (kepala keluarga) atau A-D (istri/anak/anggota lain). */
+    /** Form isian: tab 1-5 (kepala keluarga) atau hanya tab "Anggota Keluarga" (istri/anak/anggota lain). */
     public function form(Request $request, GcSasaran $sasaran)
     {
         $v = $this->verifikasiDitemukan($sasaran);
@@ -293,7 +293,7 @@ class GroundCheckController extends Controller
         }
 
         // Petugas melihat SEMUA parameter (flag aktif hanya untuk halaman masyarakat),
-        // tetapi anggota non-kepala dibatasi tab A-D.
+        // tetapi anggota non-kepala dibatasi ke data pribadi, pendidikan, ketenagakerjaan, kesehatan.
         $params = $this->paramsUntuk($sasaran);
         $master = $this->masterKetenagakerjaan();
 
@@ -336,7 +336,7 @@ class GroundCheckController extends Controller
 
         // Foto lain (tampak depan, tampak dalam, dll) yang sudah diunggah kepala keluarga:
         // ditampilkan sebagai nilai awal bila petugas belum mengunggah sendiri.
-        // Hanya untuk kepala keluarga (foto rumah = data satu KK; form anggota lain hanya tab A-D).
+        // Hanya untuk kepala keluarga (foto rumah = data satu KK).
         if ($pbi && $this->isKepala($sasaran)) {
             $idFoto = $params->where('tipe_input', 'foto')->pluck('id')->all();
 
@@ -382,7 +382,7 @@ class GroundCheckController extends Controller
         abort_if(! $v, 403);
 
         $submit = $request->input('aksi') === 'submit';
-        // Hanya parameter yang berlaku untuk anggota ini (non-kepala: A-D saja).
+        // Hanya parameter yang berlaku untuk anggota ini (non-kepala: data pribadi, pendidikan, kerja, kesehatan).
         $params = $this->paramsUntuk($sasaran);
         $existing = $v->jawabans()->get()->keyBy('parameter_id');
         $master = $this->masterKetenagakerjaan();
@@ -639,7 +639,7 @@ class GroundCheckController extends Controller
         return trim((string) $this->kepalaNik($sasaran->no_kk)) === trim((string) $sasaran->nik);
     }
 
-    /** Parameter yang berlaku: kepala keluarga = semua (A-G), anggota lain = A-D. */
+    /** Parameter yang berlaku: kepala keluarga = semua tab, anggota lain = data pribadi, pendidikan, kerja, kesehatan. */
     private function paramsUntuk(GcSasaran $sasaran)
     {
         $query = GcKriteriaParameter::untukPetugas()->with('opsis');
@@ -745,7 +745,7 @@ class GroundCheckController extends Controller
      *     - kepala keluarga -> semua jawaban (foto dilewati di sini, ditangani terpisah di form());
      *     - anggota lain    -> hanya kelompok Keluarga & Aset (data milik satu KK);
      *       (untuk anggota non-kepala, kelompok ini tidak ada di form sehingga otomatis terlewati);
-     *     lalu jenis kelamin, status hubungan, dan jawaban per anggota (tab A-D) dari data anggota di pengajuan;
+     *     lalu jenis kelamin, status hubungan, dan jawaban per anggota (tab data pribadi s.d. kesehatan) dari data anggota di pengajuan;
      *     lalu untuk akun lama (form 18 parameter) yang masih kosong diisi dari jawaban PBI
      *     (pbi_apbd_jawabans) dengan padanan yang sama;
      *  3. isian Keluarga/Aset dari anggota satu KK yang sudah disubmit petugas.
@@ -759,7 +759,9 @@ class GroundCheckController extends Controller
 
         $identitas = [
             'nama' => $sasaran->nama,
+            'siapa nama kepala keluarga di kartu keluarga (kk) anda?' => $sasaran->nama,
             'no kk' => $sasaran->no_kk,
+            'berapa nomor kartu keluarga (kk) anda?' => $sasaran->no_kk,
             'alamat' => $sasaran->alamat,
             'rt' => $sasaran->rt,
             'rw' => $sasaran->rw,
@@ -767,6 +769,25 @@ class GroundCheckController extends Controller
             'kelurahan' => $kelurahan,
             'desa/kelurahan' => $kelurahan,
             'tanggal lahir' => optional($sasaran->tanggal_lahir)->format('Y-m-d'),
+            // Identitas keluarga (formulir bagian 1)
+            'nik kepala keluarga' => $this->kepalaNik($sasaran->no_kk),
+            'berapa nomor induk kependudukan (nik) kepala keluarga anda?' => $this->kepalaNik($sasaran->no_kk),
+            'jumlah anggota keluarga' => GcSasaran::where('no_kk', $sasaran->no_kk)->count(),
+            'berapa jumlah anggota keluarga anda?' => GcSasaran::where('no_kk', $sasaran->no_kk)->count(),
+            'provinsi' => config('wilayah.provinsi'),
+            'provinsi tempat tinggal keluarga saat ini' => config('wilayah.provinsi'),
+            'kabupaten/kota' => config('wilayah.kab_kota'),
+            'kabupaten/kota tempat tinggal keluarga saat ini' => config('wilayah.kab_kota'),
+            'kecamatan tempat tinggal keluarga saat ini' => $kecamatan,
+            'desa/kelurahan tempat tinggal keluarga saat ini' => $kelurahan,
+            'alamat lengkap' => $sasaran->alamat,
+            'alamat lengkap rumah/tempat tinggal anda?' => $sasaran->alamat,
+            'satuan lingkungan setempat (rt/rw/dusun)' => ($sasaran->rt || $sasaran->rw)
+                ? 'RT ' . ($sasaran->rt ?: '-') . ' RW ' . ($sasaran->rw ?: '-')
+                : null,
+            'satuan lingkungan setempat (rt/rw/dusun dll)' => ($sasaran->rt || $sasaran->rw)
+                ? 'RT ' . ($sasaran->rt ?: '-') . ' RW ' . ($sasaran->rw ?: '-')
+                : null,
         ];
         foreach ($params as $p) {
             $nama = Str::lower(trim($p->nama));
@@ -775,7 +796,7 @@ class GroundCheckController extends Controller
             }
         }
 
-        $kelompokKeluarga = ['keluarga', 'aset_bergerak', 'aset_tidak_bergerak'];
+        $kelompokKeluarga = ['identitas_keluarga', 'keluarga', 'aset_bergerak', 'aset_tidak_bergerak'];
 
         // 2. Jawaban warga
         $pbi = $this->pbiSasaran($sasaran);
@@ -800,7 +821,7 @@ class GroundCheckController extends Controller
                 $nilai[$j->parameter_id] = $j->jawaban;
             }
 
-            // Data anggota ini di pengajuan: jawaban per anggota (tab A-D), jenis kelamin, status hubungan
+            // Data anggota ini di pengajuan: jawaban per anggota, jenis kelamin, status hubungan
             $digit = fn ($v) => preg_replace('/\D/', '', (string) $v);
             $anggotaPbi = $pbi->anggotaKeluarga()->get()
                 ->first(fn ($x) => $digit($x->nik) === $digit($sasaran->nik));

@@ -8,7 +8,6 @@ use App\Models\PbiKriteriaParameter;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
-
 class GcKriteriaSeeder extends Seeder
 {
     /** Nama (huruf kecil) parameter yang pilihannya berasal dari master terpisah -> nilai kolom 'sumber'. */
@@ -16,9 +15,15 @@ class GcKriteriaSeeder extends Seeder
         'apakah memiliki keluhan kesehatan kronis/menahun?' => 'penyakit_kronis',
     ];
 
+    /** Teks contoh di dalam kolom isian (nama pertanyaan huruf kecil => placeholder). */
+    private const PLACEHOLDER = [
+        'berapa jumlah anggota keluarga anda?' => 'Jumlah Anggota',
+        'kode pos tempat tinggal saat ini' => 'Nomor Kode Pos',
+        'nomor rumah/tempat tinggal anda?' => 'Nomor Rumah',
+    ];
+
     public function run(): void
     {
-        // Bersihkan opsi yatim (sisa dari parameter yang sudah dihapus/di-truncate).
         $yatim = GcKriteriaOpsi::whereNotIn('parameter_id', GcKriteriaParameter::select('id'))->delete();
         if ($yatim > 0) {
             $this->command?->warn("{$yatim} opsi yatim dibersihkan.");
@@ -29,24 +34,36 @@ class GcKriteriaSeeder extends Seeder
             return;
         }
 
-        // Opsi PBI disalin dari master PBI, jadi master PBI harus sudah terisi.
         if (!PbiKriteriaParameter::exists()) {
             $this->call(PbiKriteriaSeeder::class);
         }
 
         $yaTidak = ['Ya', 'Tidak'];
 
-        // [kelompok, nama, bobot, tipe_input, nama parameter PBI (atau null), opsi sementara (atau []), aktif?, wajib?]
+        // [kelompok, nama, bobot, tipe_input, nama parameter PBI (atau null), opsi sementara, aktif?, wajib?]
         $data = [
-            // ================= A. KEPENDUDUKAN =================
-            ['kependudukan', 'Nama', 0.5, 'teks', null, []],
-            ['kependudukan', 'No KK', 1, 'teks', null, []],
-            ['kependudukan', 'Alamat sesuai KK', 1, 'teks', null, []],
-            ['kependudukan', 'Apakah No KK sama?', 1, 'pilihan', null, $yaTidak],
-            ['kependudukan', 'Apakah nama sama?', 1, 'pilihan', null, $yaTidak],
-            ['kependudukan', 'Apakah wilayah sama?', 1, 'pilihan', null, $yaTidak],
+            // ================= 1. IDENTITAS KELUARGA (urut sesuai formulir) =================
+            ['identitas_keluarga', 'Siapa nama Kepala Keluarga di Kartu Keluarga (KK) Anda?', 0, 'teks', null, []],
+            ['identitas_keluarga', 'Berapa Nomor Induk Kependudukan (NIK) Kepala Keluarga Anda?', 0, 'teks', null, []],
+            ['identitas_keluarga', 'Berapa Nomor Kartu Keluarga (KK) Anda?', 0, 'teks', null, []],
+            ['identitas_keluarga', 'Berapa jumlah anggota keluarga Anda?', 0, 'angka', null, []],
+            ['identitas_keluarga', 'Provinsi tempat tinggal keluarga saat ini', 0, 'teks', null, []],
+            ['identitas_keluarga', 'Kabupaten/Kota tempat tinggal keluarga saat ini', 0, 'teks', null, []],
+            ['identitas_keluarga', 'Kecamatan tempat tinggal keluarga saat ini', 0, 'teks', null, []],
+            ['identitas_keluarga', 'Desa/Kelurahan tempat tinggal keluarga saat ini', 0, 'teks', null, []],
+            ['identitas_keluarga', 'Kode Pos tempat tinggal saat ini', 0, 'teks', null, []],
+            ['identitas_keluarga', 'Satuan Lingkungan Setempat (RT/RW/Dusun dll)', 0, 'teks', null, []],
+            ['identitas_keluarga', 'Alamat Lengkap Rumah/Tempat Tinggal Anda?', 0, 'teks', null, []],
+            ['identitas_keluarga', 'Nama Jalan Rumah/Tempat Tinggal Anda?', 0, 'teks', null, [], true, false],
+            ['identitas_keluarga', 'Nomor Rumah/Tempat Tinggal Anda?', 0, 'teks', null, [], true, false],
+            ['identitas_keluarga', 'Apakah alamat tempat tinggal saat ini sesuai dengan Kartu Keluarga?', 0, 'pilihan', null, $yaTidak],
+            // Titik lokasi (nomor 15-16 formulir)
+            ['identitas_keluarga', 'Koordinat lokasi', 1, 'koordinat', null, []],
+            ['identitas_keluarga', 'Koordinat lintang', 1, 'angka', null, []],
+            ['identitas_keluarga', 'Koordinat bujur', 1, 'angka', null, []],
+
+            // ================= A. KEPENDUDUKAN (data pribadi anggota) =================
             ['kependudukan', 'Nama gadis ibu kandung', 0.5, 'teks', null, []],
-            ['kependudukan', 'Alamat domisili', 1, 'teks', null, []],
             ['kependudukan', 'Jenis kelamin', 0.5, 'pilihan', null, ['Laki-laki', 'Perempuan']],
             ['kependudukan', 'Tanggal lahir', 0.5, 'tanggal', null, []],
             ['kependudukan', 'Status perkawinan', 0.5, 'pilihan', null,
@@ -77,31 +94,27 @@ class GcKriteriaSeeder extends Seeder
             // ================= D. KESEHATAN =================
             ['kesehatan', 'Status disabilitas', 4, 'pilihan_ganda', null,
                 ['Tidak ada', 'Tuna netra', 'Tuna rungu', 'Tuna wicara', 'Tuna daksa', 'Tuna grahita', 'Disabilitas mental', 'Disabilitas ganda']],
-            // Pilihan berasal dari Master Penyakit Kronis (lihat SUMBER_MASTER), bukan dari gc_kriteria_opsis.
             ['kesehatan', 'Apakah memiliki keluhan kesehatan kronis/menahun?', 3, 'pilihan', null, []],
 
             // ================= E. KELUARGA =================
-            // Tidak bertaut ke PBI (jumlah keluarga satu rumah & jumlah sepeda motor khusus Ground Check).
             ['keluarga', 'Jumlah keluarga yang tinggal dalam satu rumah', 2, 'angka', null, []],
             ['keluarga', 'Status kepemilikan bangunan tempat tinggal yang ditempati', 4, 'pilihan', 'Status penguasaan bangunan tempat tinggal yang ditempati', []],
-            ['keluarga', 'Jenis lantai terluas', 2, 'pilihan', 'Jenis lantai', []],
+            ['keluarga', 'Apa jenis lantai terluas di tempat tinggal Anda?', 2, 'pilihan', 'Jenis lantai', []],
             ['keluarga', 'Jenis dinding terluas', 2, 'pilihan', 'Jenis dinding', []],
-            ['keluarga', 'Jenis atap terluas', 2, 'pilihan', 'Jenis atap', []],
-            ['keluarga', 'Sumber air minum utama', 3, 'pilihan', 'Sumber air minum', []],
-            ['keluarga', 'Sumber penerangan utama', 2, 'pilihan', 'Sumber penerangan utama', []],
+            ['keluarga', 'Apa jenis atap terluas di tempat tinggal Anda?', 2, 'pilihan', 'Jenis atap', []],
+            ['keluarga', 'Apa sumber air minum utama di tempat tinggal Anda?', 3, 'pilihan', 'Sumber air minum', []],
+            ['keluarga', 'Apa sumber penerangan utama di tempat tinggal Anda?', 2, 'pilihan', 'Sumber penerangan utama', []],
             ['keluarga', 'Bahan bakar/energi utama untuk memasak', 2, 'pilihan', 'Bahan bakar/energi utama untuk memasak', []],
-            // 6 opsi sesuai form SOLID; nilai/skor diisi Super Admin lewat menu master.
-            ['keluarga', 'Kepemilikan fasilitas BAB', 2, 'pilihan', null, [
-                'Ada, digunakan hanya Anggota Keluarga sendiri',
-                'Ada, digunakan bersama Anggota Keluarga dari keluarga tertentu',
+            ['keluarga', 'Di tempat tinggal Anda, apakah memiliki fasilitas tempat buang air besar (BAB) dan siapa saja yang menggunakan?', 2, 'pilihan', null, [
+                'Ada, digunakan oleh anggota keluarga dalam satu rumah',
+                'Ada, digunakan bersama oleh anggota keluarga dari beberapa rumah',
                 'Ada, di MCK komunal',
                 'Ada, di MCK umum/siapapun menggunakan',
                 'Ada, Anggota Keluarga tidak menggunakan',
                 'Tidak ada fasilitas',
             ]],
-            // Pertanyaan khusus PBI (opsi disalin dari master PBI)
             ['keluarga', 'Status lahan tempat tinggal yang ditempati', 0.5, 'pilihan', 'Status lahan tempat tinggal yang ditempati', []],
-            ['keluarga', 'Kondisi dinding', 0.3, 'pilihan', 'Kondisi dinding', []],
+            ['keluarga', 'Bagaimana kondisi dinding di tempat tinggal Anda?', 0.3, 'pilihan', 'Kondisi dinding', []],
             ['keluarga', 'Kondisi atap', 0.25, 'pilihan', 'Kondisi atap', []],
             ['keluarga', 'Cara memperoleh air minum', 0.25, 'pilihan', 'Cara memperoleh air minum', []],
             ['keluarga', 'Daya listrik terpasang', 0.1, 'pilihan', 'Daya listrik terpasang', []],
@@ -110,7 +123,7 @@ class GcKriteriaSeeder extends Seeder
             ['keluarga', 'Jumlah tanggungan keluarga', 0.4, 'pilihan', 'Jumlah tanggungan keluarga', []],
             ['keluarga', 'Kepemilikan kendaraan roda 2', 0.4, 'pilihan', 'Kepemilikan kendaraan roda 2', []],
 
-            // ================= F1. ASET BERGERAK (semua isian angka) =================
+            // ================= F1. ASET BERGERAK =================
             ['aset_bergerak', 'Jumlah tabung gas 5,5 kg atau lebih', 1, 'angka', null, []],
             ['aset_bergerak', 'Jumlah lemari es/kulkas', 1, 'angka', null, []],
             ['aset_bergerak', 'Jumlah air conditioner (AC)', 1, 'angka', null, []],
@@ -133,18 +146,13 @@ class GcKriteriaSeeder extends Seeder
             ['aset_tidak_bergerak', 'Memiliki rumah/bangunan di tempat lain', 1.5, 'pilihan', null, $yaTidak],
             ['aset_tidak_bergerak', 'Jumlah ternak sapi yang dimiliki', 0.5, 'angka', null, []],
             ['aset_tidak_bergerak', 'Jumlah ternak kerbau yang dimiliki', 0.5, 'angka', null, []],
-            // Ada di form SOLID (Buku Saku hal. 8) tetapi tidak ada di dokumen 39 variabel -> tampil di form, bobot 0 (belum ditentukan).
             ['aset_tidak_bergerak', 'Jumlah ternak kuda yang dimiliki', 0, 'angka', null, []],
             ['aset_tidak_bergerak', 'Jumlah ternak babi yang dimiliki', 0.5, 'angka', null, []],
             ['aset_tidak_bergerak', 'Jumlah ternak kambing/domba yang dimiliki', 0.5, 'angka', null, []],
 
             // ================= G. DOKUMENTASI =================
-            ['dokumentasi', 'Koordinat lokasi', 1, 'koordinat', null, []],
-            ['dokumentasi', 'Koordinat lintang', 1, 'angka', null, []],
-            ['dokumentasi', 'Koordinat bujur', 1, 'angka', null, []],
             ['dokumentasi', 'Foto tampak depan', 2, 'foto', null, []],
             ['dokumentasi', 'Foto tampak dalam', 1, 'foto', null, []],
-            // Memakai Scan KK dari pengajuan PBI -> tidak wajib diunggah ulang (kolom ke-8 wajib = false)
             ['dokumentasi', 'Foto kartu keluarga', 2, 'foto', null, [], true, false],
         ];
 
@@ -154,6 +162,11 @@ class GcKriteriaSeeder extends Seeder
                 $aktif = $row[6] ?? true;
                 $wajib = $row[7] ?? true;
                 $sumber = self::SUMBER_MASTER[mb_strtolower(trim($nama))] ?? null;
+
+                // Koordinat / lintang / bujur tidak wajib dari warga
+                if ($tipe === 'koordinat' || str_contains(mb_strtolower($nama), 'lintang') || str_contains(mb_strtolower($nama), 'bujur')) {
+                    $wajib = false;
+                }
 
                 $pbi = null;
                 if ($pbiNama) {
@@ -173,17 +186,16 @@ class GcKriteriaSeeder extends Seeder
                     'target' => GcKriteriaParameter::targetBawaan($kelompok, $nama),
                     'pbi_parameter_id' => $pbi?->id,
                     'keterangan' => $this->keterangan($tipe, $pbi, $opsiSementara, $aktif, $sumber),
+                    'placeholder' => self::PLACEHOLDER[mb_strtolower(trim($nama))] ?? null,
                     'aktif' => $aktif,
                     'wajib' => $wajib,
                 ]);
 
-                // Opsi hanya untuk tipe pilihan / pilihan_ganda yang TIDAK bersumber master.
                 if (!$param->butuhOpsi()) {
                     continue;
                 }
 
                 if ($pbi) {
-                    // Salin opsi + indeks dari PBI.
                     foreach ($pbi->opsis()->orderBy('urutan')->get() as $j => $opsi) {
                         $param->opsis()->updateOrCreate(
                             ['label' => $opsi->label],
@@ -191,7 +203,6 @@ class GcKriteriaSeeder extends Seeder
                         );
                     }
                 } else {
-                    // Opsi sementara, nilai belum ditentukan.
                     foreach ($opsiSementara as $j => $label) {
                         $param->opsis()->updateOrCreate(
                             ['label' => $label],

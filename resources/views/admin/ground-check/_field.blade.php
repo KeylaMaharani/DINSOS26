@@ -4,11 +4,14 @@
     $id = $p->id;
     $val = old("jawaban.{$id}", $nilai[$id] ?? null);
     $tipe = $p->tipe_input;
-    $wajib = $tipe !== 'pilihan_ganda' || $p->opsis->isNotEmpty();
+    // Hormati flag "Wajib diisi" dari Master Kriteria Ground Check
+    $wajib = $p->wajib && ($tipe !== 'pilihan_ganda' || $p->opsis->isNotEmpty());
     $namaLower = Str::lower($p->nama);
     $lat = $tipe === 'angka' && Str::contains($namaLower, 'lintang');
     $lng = $tipe === 'angka' && Str::contains($namaLower, 'bujur');
     $angkaKoordinat = $lat || $lng;
+    $uang = \App\Support\PbiGcForm::isUang($p);
+    $luas = \App\Support\PbiGcForm::isLuas($p);
 
     if ($tipe === 'pilihan_ganda' && is_string($val)) {
         $val = json_decode($val, true) ?: [];
@@ -33,8 +36,10 @@
     );
 @endphp
 
-{{-- [UBAH] Satu baris per field: label di kiri (layar lebar), input di kanan dengan lebar dibatasi --}}
-<div class="py-1.5 sm:flex sm:items-start sm:gap-4"
+{{-- [UBAH] Satu baris per field: label di kiri (layar lebar), input di kanan dengan lebar dibatasi.
+     data-gc-id / data-gc-induk dibaca partials.gc-syarat untuk menyembunyikan field yang syaratnya tidak terpenuhi. --}}
+<div class="py-1.5 sm:flex sm:items-start sm:gap-4" data-gc-id="{{ $id }}"
+     @if ($p->induk_id) data-gc-induk="{{ $p->induk_id }}" data-gc-induk-nilai="{{ json_encode($p->induk_nilai ?? [], JSON_UNESCAPED_UNICODE) }}" @endif
      @if ($wajib && ! $statis) data-wajib="{{ $tipe === 'pilihan_ganda' ? 'pilihan' : $tipe }}" @endif
      @if ($tipe === 'foto' && ! empty($nilai[$id])) data-ada="1" @endif>
 
@@ -72,10 +77,14 @@
                     @break
 
                 @case('angka')
-                    <input type="number" step="{{ $angkaKoordinat ? 'any' : '1' }}" @if (! $angkaKoordinat) min="0" @endif
-                           name="jawaban[{{ $id }}]" value="{{ $val }}"
-                           @if ($lat) data-gc-lat @endif @if ($lng) data-gc-lng @endif
-                           class="{{ $input }}" />
+                    <div class="flex items-center gap-2">
+                        @if ($uang)<span class="text-xs font-semibold text-on-surface-variant">Rp</span>@endif
+                        <input type="number" step="{{ $angkaKoordinat || $luas ? 'any' : '1' }}" @if (! $angkaKoordinat) min="0" @endif
+                               name="jawaban[{{ $id }}]" value="{{ $val }}"
+                               @if ($lat) data-gc-lat @endif @if ($lng) data-gc-lng @endif
+                               class="{{ $input }}" />
+                        @if ($luas)<span class="text-xs font-semibold text-on-surface-variant">m²</span>@endif
+                    </div>
                     @break
 
                 @case('tanggal')

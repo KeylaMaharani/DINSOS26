@@ -185,7 +185,7 @@ class MasyarakatController extends Controller
     {
         $user = $request->user();
 
-                $pbi = $user->pengajuanPbiApbd()->with('anggotaKeluarga')->latest()->get()
+        $pbi = $user->pengajuanPbiApbd()->with('anggotaKeluarga')->latest()->get()
             ->filter(fn ($r) => $r->sudahDiajukanPbi())
             ->map(fn ($r) => $this->barisPermohonan(
                 $r,
@@ -250,7 +250,7 @@ class MasyarakatController extends Controller
 
         // PBI yang masih draft (warga belum menekan "Simpan Data") belum menjadi pengajuan,
         // jadi tidak ditampilkan di tracking.
-         $pbiList = $user->pengajuanPbiApbd()->with('anggotaKeluarga')->latest()->get()
+        $pbiList = $user->pengajuanPbiApbd()->with('anggotaKeluarga')->latest()->get()
             ->reject(fn ($r) => ! $r->sudahDiajukanPbi());
         $dtsenList = $user->pengajuanDtsen()->latest()->get();
 
@@ -812,7 +812,7 @@ class MasyarakatController extends Controller
 
     /**
      * Pertanyaan di form warga = parameter Master Kriteria Ground Check yang AKTIF, urut mengikuti master.
-     *  - Pendaftar baru (form_lama = false) -> semua parameter aktif (39 variabel).
+     *  - Pendaftar baru (form_lama = false) -> semua parameter aktif.
      *  - Akun lama (form_lama = true)       -> hanya yang bertaut ke 18 parameter PBI.
      * Hapus/nonaktifkan di Master GC -> otomatis hilang dari halaman warga.
      */
@@ -900,13 +900,17 @@ class MasyarakatController extends Controller
         // nama pertanyaan (huruf kecil) => nilai dari registrasi
         $registrasi = [
             'nama' => $pbi->nama_kepala_keluarga,
+            'siapa nama kepala keluarga di kartu keluarga (kk) anda?' => $pbi->nama_kepala_keluarga,
             'nama lengkap' => $pbi->nama_kepala_keluarga,
             'nama kepala keluarga' => $pbi->nama_kepala_keluarga,
             'nama responden' => $pbi->nama_kepala_keluarga,
             'no kk' => $pbi->no_kk,
+            'berapa nomor kartu keluarga (kk) anda?' => $pbi->no_kk,
             'nomor kk' => $pbi->no_kk,
             'no. kk' => $pbi->no_kk,
+            'berapa nomor induk kependudukan (nik) kepala keluarga anda?' => $pbi->nik_kepala_keluarga,
             'nik' => $pbi->nik_kepala_keluarga,
+            'nik kepala keluarga' => $pbi->nik_kepala_keluarga,
             'no nik' => $pbi->nik_kepala_keluarga,
             'nomor nik' => $pbi->nik_kepala_keluarga,
             'alamat' => $pbi->alamat,
@@ -914,8 +918,10 @@ class MasyarakatController extends Controller
             'rt' => $pbi->rt,
             'rw' => $pbi->rw,
             'rt/rw' => ($pbi->rt || $pbi->rw) ? trim($pbi->rt . '/' . $pbi->rw, '/') : null,
-            'provinsi' => $pbi->provinsi,
-            'kabupaten/kota' => $pbi->kabupaten_kota,
+            'provinsi' => $pbi->provinsi ?: config('wilayah.provinsi'),
+            'provinsi tempat tinggal keluarga saat ini' => $pbi->provinsi ?: config('wilayah.provinsi'),
+            'kabupaten/kota' => $pbi->kabupaten_kota ?: config('wilayah.kab_kota'),
+            'kabupaten/kota tempat tinggal keluarga saat ini' => $pbi->kabupaten_kota ?: config('wilayah.kab_kota'),
             'kab/kota' => $pbi->kabupaten_kota,
             'kota' => $pbi->kabupaten_kota,
             'kecamatan' => $pbi->kecamatan,
@@ -933,6 +939,7 @@ class MasyarakatController extends Controller
             'jenis kelamin' => $jk === 'L' ? 'Laki-laki' : ($jk === 'P' ? 'Perempuan' : null),
             'agama' => $pemohon->agama ?? null,
             'jumlah anggota keluarga' => $jumlahArt,
+            'berapa jumlah anggota keluarga anda?' => $jumlahArt,
             'jumlah art' => $jumlahArt,
             'jumlah anggota rumah tangga' => $jumlahArt,
         ];
@@ -965,7 +972,7 @@ class MasyarakatController extends Controller
                 $isi = $cocokkan($isi, $opsiLabels[$p->id] ?? []);
             } elseif ($p->tipe_input === 'angka') {
                 // Angka hanya dari pertanyaan jumlah anggota (dropdown 0-50)
-                $isi = (is_numeric($isi) && $isi >= 0 && $isi <= 50 && str_starts_with($nama, 'jumlah')) ? (string) (int) $isi : null;
+                $isi = (is_numeric($isi) && $isi >= 0 && $isi <= 50 && str_contains($nama, 'jumlah')) ? (string) (int) $isi : null;
             } elseif ($p->tipe_input === 'tanggal') {
                 $isi = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $isi) ? $isi : null;
             }
@@ -982,7 +989,9 @@ class MasyarakatController extends Controller
     private const NAMA_BAB_PBI = 'Penggunaan fasilitas tempat buang air besar';
     private const PETA_BAB = [
         'Ada, digunakan hanya Anggota Keluarga sendiri' => 'Sendiri',
+        'Ada, digunakan oleh anggota keluarga dalam satu rumah' => 'Sendiri',
         'Ada, digunakan bersama Anggota Keluarga dari keluarga tertentu' => 'Bersama',
+        'Ada, digunakan bersama oleh anggota keluarga dari beberapa rumah' => 'Bersama',
         'Ada, di MCK komunal' => 'Bersama',
         'Ada, di MCK umum/siapapun menggunakan' => 'Bersama',
         'Ada, Anggota Keluarga tidak menggunakan' => 'Tidak ada',
@@ -1010,7 +1019,8 @@ class MasyarakatController extends Controller
                 continue;
             }
 
-            if (Str::lower(trim($p->nama)) === 'kepemilikan fasilitas bab') {
+            $namaBab = Str::lower(trim($p->nama));
+            if ($namaBab === 'kepemilikan fasilitas bab' || Str::contains($namaBab, 'fasilitas tempat buang air besar')) {
                 $pp = $pbiBab;
                 $label = self::PETA_BAB[$label] ?? null;
             } else {
@@ -1062,8 +1072,6 @@ class MasyarakatController extends Controller
         // Pengajuan yang belum pernah dikirim selalu memakai form penuh (bukan form lama 18 parameter)
         $pbiApbd->sesuaikanVersiForm();
 
-        
-
         // Form TETAP ditampilkan walau data sudah tidak bisa diubah (mode baca saja);
         // penyimpanan tetap ditolak di lengkapiDataStore().
         // Kepala keluarga hanya bisa mengisi selama draft, atau bila ditolak/dikembalikan petugas.
@@ -1073,16 +1081,6 @@ class MasyarakatController extends Controller
         $bisaDraft = $bisaEdit && $pbiApbd->masyarakatMasihDraft();
 
         $parameters = $this->parameterUntukWarga($pbiApbd);
-
-        $paramAnggota = PbiGcForm::untukAnggota();
-        $gateA = PbiGcForm::gate($paramAnggota);
-        $dependenA = $gateA ? PbiGcForm::dependenIds($paramAnggota) : [];
-
-        // Hanya anggota yang dikonfirmasi (dan belum dicek petugas) yang divalidasi & disimpan
-        $okIds = collect(array_keys((array) $request->input('anggota_ok', [])))->map(fn ($i) => (int) $i);
-        $anggotaList = $this->anggotaUntukForm($pbiApbd)
-            ->filter(fn ($a) => $okIds->contains($a->id) && ! $this->anggotaTerkunci($pbiApbd, $a))
-            ->values();
 
         $master = $this->masterGc();
         $opsiLabels = $parameters->mapWithKeys(fn ($p) => [$p->id => $this->labelOpsi($p, $master, $pbiApbd)])->all();
@@ -1115,7 +1113,6 @@ class MasyarakatController extends Controller
 
         // ---- Terkunci dari registrasi: status hubungan, lapangan usaha, pekerjaan ----
         $kunciReg = $this->nilaiTerkunciRegistrasi($pbiApbd, $parameters, $opsiLabels, $master);
-        $kunciReg = $this->nilaiTerkunciRegistrasi($pbiApbd, $parameters, $opsiLabels, $master);
         foreach ($kunciReg as $id => $v) {
             if (blank($nilai[$id] ?? null)) {
                 $nilai[$id] = $v;
@@ -1131,10 +1128,10 @@ class MasyarakatController extends Controller
             }
         }
 
-        // ---- "Apakah No KK sama?" Ya -> "Apakah nama sama?" ikut Ya ----
+        // ---- "Apakah No KK sama?" Ya -> "Apakah nama sama?" ikut Ya (hanya bila pasangannya ada di master) ----
         $sama = $this->pasanganSama($parameters);
 
-        // ---- Nama & No KK: SELALU dari registrasi (tampil sebagai teks). ----
+        // ---- Nama, NIK, No KK, Provinsi, Kab/Kota, RT/RW: SELALU dari registrasi (tampil sebagai teks). ----
         $identitas = $this->petaIdentitas($pbiApbd, $parameters);
         foreach ($identitas as $id => $cfg) {
             $nilai[$id] = $cfg['nilai'];
@@ -1232,6 +1229,16 @@ class MasyarakatController extends Controller
 
         $parameters = $this->parameterUntukWarga($pbiApbd);
 
+        // ---- Anggota keluarga (langkah 4): hanya yang dikonfirmasi & belum dicek petugas yang divalidasi/disimpan ----
+        $paramAnggota = PbiGcForm::untukAnggota();
+        $gateA = PbiGcForm::gate($paramAnggota);
+        $dependenA = $gateA ? PbiGcForm::dependenIds($paramAnggota) : [];
+
+        $okIds = collect(array_keys((array) $request->input('anggota_ok', [])))->map(fn ($i) => (int) $i);
+        $anggotaList = $this->anggotaUntukForm($pbiApbd)
+            ->filter(fn ($a) => $okIds->contains($a->id) && ! $this->anggotaTerkunci($pbiApbd, $a))
+            ->values();
+
         $rules = [
             'latitude' => ['required', 'numeric', 'between:-90,90'],
             'longitude' => ['required', 'numeric', 'between:-180,180'],
@@ -1278,6 +1285,9 @@ class MasyarakatController extends Controller
         $dependen = $gate ? PbiGcForm::dependenIds($parameters) : [];
         $lapParam = $parameters->firstWhere('sumber', 'lapangan_usaha');
 
+        // Pertanyaan yang tersembunyi karena syarat induk tidak terpenuhi (mis. nama gedung bila bukan Apartemen).
+        $sembunyi = GcKriteriaParameter::idTersembunyi($parameters, (array) $request->input('jawaban', []));
+
         // ---- Alamat domisili: SELALU dipaksa dari KK. ----
         $petaAlamat = $this->petaAlamat($parameters);
         $sesuaiParam = $parameters->first(fn ($p) => $this->isSesuaiKkParam($p));
@@ -1288,7 +1298,7 @@ class MasyarakatController extends Controller
         $petaKk = $this->petaAlamatKk($parameters);
         $terkunci = [];
 
-        // Nama / No KK: SELALU dipaksa dari registrasi.
+        // Nama / No KK / NIK / Provinsi / Kab-Kota / RT-RW: SELALU dipaksa dari registrasi.
         $kunciIdentitas = [];
         foreach ($this->petaIdentitas($pbiApbd, $parameters) as $id => $cfg) {
             $kunciIdentitas[$id] = $cfg['nilai'];
@@ -1303,6 +1313,12 @@ class MasyarakatController extends Controller
 
             // Responden tidak bekerja -> field turunan tidak diwajibkan & dikosongkan.
             if (in_array($p->id, $dependen, true) && ! $bekerja) {
+                $rules[$key] = ['nullable'];
+                continue;
+            }
+
+            // Tersembunyi oleh syarat induk -> tidak diwajibkan & jawabannya dikosongkan.
+            if (in_array($p->id, $sembunyi, true)) {
                 $rules[$key] = ['nullable'];
                 continue;
             }
@@ -1370,7 +1386,15 @@ class MasyarakatController extends Controller
                     break;
 
                 case 'angka':
-                    $rules[$key] = PbiGcForm::lintangBujur($p) ? [$req, 'numeric'] : [$req, 'integer', 'between:0,50'];
+                    if (PbiGcForm::lintangBujur($p)) {
+                        $rules[$key] = [$req, 'numeric'];
+                    } elseif (PbiGcForm::isUang($p)) {
+                        $rules[$key] = [$req, 'integer', 'min:0', 'max:999999999999'];
+                    } elseif (PbiGcForm::isLuas($p)) {
+                        $rules[$key] = [$req, 'numeric', 'min:0', 'max:100000'];
+                    } else {
+                        $rules[$key] = [$req, 'integer', 'between:0,50'];
+                    }
                     break;
 
                 case 'tanggal':
@@ -1463,6 +1487,7 @@ class MasyarakatController extends Controller
             'in' => 'Pilihan pada :attribute tidak valid.',
             'numeric' => ':attribute harus berupa angka.',
             'min.numeric' => ':attribute tidak boleh negatif.',
+            'max.numeric' => ':attribute terlalu besar.',
             'integer' => ':attribute harus berupa angka bulat.',
             'between.numeric' => ':attribute harus antara 0 sampai 50.',
             'image' => ':attribute harus berupa gambar.',
@@ -1519,6 +1544,16 @@ class MasyarakatController extends Controller
 
         $validated = $request->validate($rules, $messages, $attributes);
 
+        // Listrik PLN bermeteran: isi minimal salah satu antara ID Pelanggan PLN atau No Meteran Listrik.
+        $pln = $parameters->first(fn ($x) => Str::lower(trim($x->nama)) === 'id pelanggan pln');
+        $met = $parameters->first(fn ($x) => Str::lower(trim($x->nama)) === 'no meteran listrik');
+        if (! $draft && $pln && $met && ! in_array($pln->id, $sembunyi, true)
+            && blank($request->input("jawaban.{$pln->id}")) && blank($request->input("jawaban.{$met->id}"))) {
+            throw ValidationException::withMessages([
+                "jawaban.{$pln->id}" => 'Isi minimal salah satu: ID Pelanggan PLN atau No Meteran Listrik.',
+            ]);
+        }
+
         // Draft kosong dan belum pernah ada jawaban: jangan membuat baris apa pun
         if ($draft) {
             $adaIsian = collect($request->input('jawaban', []))->flatten()
@@ -1530,7 +1565,7 @@ class MasyarakatController extends Controller
             }
         }
 
-        DB::transaction(function () use ($pbiApbd, $parameters, $validated, $request, $ajukanUlang, $dependen, $bekerja, $draft, $petaAlamat, $kk, $petaKk, $terkunci, $kunciIdentitas, $koreksiData, $anggotaList, $paramAnggota, $gateA, $dependenA) {
+        DB::transaction(function () use ($pbiApbd, $parameters, $validated, $request, $ajukanUlang, $dependen, $sembunyi, $bekerja, $draft, $petaAlamat, $kk, $petaKk, $terkunci, $kunciIdentitas, $koreksiData, $anggotaList, $paramAnggota, $gateA, $dependenA) {
             // Simpan data koreksi di tabel terpisah. Memilih "Ya" lagi -> kolom dikosongkan.
             if ($pbiApbd->gcKoreksi()->exists() || collect($koreksiData)->filter()->isNotEmpty()) {
                 $pbiApbd->gcKoreksi()->updateOrCreate([], $koreksiData);
@@ -1561,7 +1596,8 @@ class MasyarakatController extends Controller
                 $row = $lama->get($p->id) ?? new GcPbiJawaban(['pbi_apbd_id' => $pbiApbd->id, 'parameter_id' => $p->id]);
 
                 // Responden tidak bekerja -> jawaban field turunan dikosongkan.
-                $kosongkan = in_array($p->id, $dependen, true) && ! $bekerja;
+                $kosongkan = (in_array($p->id, $dependen, true) && ! $bekerja)
+                    || in_array($p->id, $sembunyi, true);
                 $input = $kosongkan ? null : $request->input("jawaban.{$p->id}");
 
                 // Kepemilikan perahu selalu 0, tidak peduli apa yang dikirim browser.
@@ -1638,8 +1674,7 @@ class MasyarakatController extends Controller
             GcPbiJawaban::where('pbi_apbd_id', $pbiApbd->id)->whereNotNull('parameter_id')
                 ->whereNotIn('parameter_id', GcKriteriaParameter::pluck('id'))->delete();
 
-            // Draft berhenti di sini: hanya lokasi (kalau sudah terambil) yang ikut disimpan.
-            // Status, skor/kelas kemiskinan, data_diisi_at, dan log baru diproses saat warga menekan "Simpan Data".
+            // Jawaban anggota keluarga (langkah 4)
             foreach ($anggotaList as $a) {
                 $bekerjaA = $gateA && $request->input("anggota.{$a->id}.{$gateA->id}") === 'Ya';
                 $adaIsi = false;
@@ -1675,6 +1710,8 @@ class MasyarakatController extends Controller
                 }
             }
 
+            // Draft berhenti di sini: hanya lokasi (kalau sudah terambil) yang ikut disimpan.
+            // Status, skor/kelas kemiskinan, data_diisi_at, dan log baru diproses saat warga menekan "Simpan Data".
             if ($draft) {
                 $lat = $validated['latitude'] ?? null;
                 $lng = $validated['longitude'] ?? null;
@@ -1734,7 +1771,6 @@ class MasyarakatController extends Controller
         // Berkas lampiran yang masih kosong diisi otomatis dari menu Dokumen (yang sudah terpasang tidak diubah)
         DokumenMasyarakat::isiBilaKosongPbi($pbiApbd);
 
-        // ===== TAMBAHKAN BLOK INI =====
         // Peserta PBI APBD (dulu dipilih di halaman Daftar Keluarga)
         if ($pbiApbd->pesertaBisaDiubah()) {
             $pilih = collect($request->input('peserta', []))->map(fn ($x) => (int) $x)->all();
@@ -1758,7 +1794,7 @@ class MasyarakatController extends Controller
         // Submit sungguhan -> anggota keluarga masuk Ground Check + notifikasi petugas
         $pbiApbd->sinkronGroundCheck();
 
-                // Submit form kepala keluarga = data Ground Check terisi. PBI APBD baru diajukan bila ada peserta yang dicentang.
+        // Submit form kepala keluarga = data Ground Check terisi. PBI APBD baru diajukan bila ada peserta yang dicentang.
         $pbiApbd->unsetRelation('anggotaKeluarga');
 
         $pesan = $pbiApbd->punyaPeserta()
@@ -2189,7 +2225,7 @@ class MasyarakatController extends Controller
     // ---- Alamat domisili: sesuai KK / input manual (wilayah berantai) ----
 
     /**
-     * Peran field alamat pada sebuah parameter GC: alamat | rt | rw | kecamatan | kelurahan,
+     * Peran field alamat pada sebuah parameter GC: alamat | jalan | rt | rw | kecamatan | kelurahan,
      * atau null bila bukan field alamat. Dikenali lewat nama parameter di Master Kriteria GC.
      */
     private function peranAlamat($p): ?string
@@ -2209,6 +2245,7 @@ class MasyarakatController extends Controller
         $adaRw = (bool) preg_match('/\brw\b/', $n);
 
         return match (true) {
+            Str::contains($n, 'nama jalan') => 'jalan',
             Str::contains($n, 'kecamatan') => 'kecamatan',
             Str::contains($n, ['kelurahan', 'desa']) => 'kelurahan',
             $adaRt && ! $adaRw => 'rt',
@@ -2255,11 +2292,28 @@ class MasyarakatController extends Controller
         return $domisili ?: $semua;
     }
 
+    /**
+     * Nama jalan diambil dari alamat KK saat registrasi: bagian sebelum koma / "No." / "RT" / "RW".
+     * Bila tidak bisa dipisah, seluruh alamat dipakai.
+     */
+    private function namaJalanDariAlamat(?string $alamat): ?string
+    {
+        $alamat = trim((string) $alamat);
+        if ($alamat === '') {
+            return null;
+        }
+
+        $jalan = trim(preg_split('/\s*(,|;|\bno\.?\s*\d|\bnomor\b|\brt\b|\brw\b)/i', $alamat, 2)[0] ?? '', " \t.-");
+
+        return $jalan !== '' ? $jalan : $alamat;
+    }
+
     /** Alamat KK dari data registrasi (sumber isian otomatis). */
     private function nilaiKk(PbiApbd $pbi): array
     {
         return [
             'alamat' => $pbi->alamat,
+            'jalan' => $this->namaJalanDariAlamat($pbi->alamat),
             'rt' => $pbi->rt,
             'rw' => $pbi->rw,
             'kecamatan' => strtoupper(trim((string) $pbi->kecamatan)),
@@ -2296,7 +2350,8 @@ class MasyarakatController extends Controller
 
     /**
      * Pasangan "Apakah No KK sama?" (sumber) -> "Apakah nama sama?" (target): sumber dijawab Ya, target otomatis Ya.
-     * Mengembalikan ['sumber' => id, 'target' => id] atau null bila salah satunya tidak ada di master.
+     * Mengembalikan ['sumber' => id, 'target' => id] atau null bila salah satunya tidak ada di master
+     * (form identitas terbaru tidak lagi memakai pasangan ini).
      */
     private function pasanganSama($parameters): ?array
     {
@@ -2321,32 +2376,54 @@ class MasyarakatController extends Controller
     }
 
     /**
-     * Field identitas (Nama, No KK) yang SELALU diambil dari registrasi (ditampilkan sebagai teks).
-     * Hasil: [id parameter field => ['gate' => id pertanyaan Ya/Tidak, 'nilai' => nilai registrasi]]
+     * Field identitas yang SELALU diambil dari registrasi (ditampilkan sebagai teks):
+     * Nama, NIK Kepala Keluarga, No KK, Provinsi, Kabupaten/Kota, Satuan lingkungan (RT/RW).
+     * Hasil: [id parameter => ['gate' => id pertanyaan Ya/Tidak atau null, 'nilai' => nilai registrasi]]
      */
     private function petaIdentitas(PbiApbd $pbi, $parameters): array
     {
-        $pasangan = $this->pasanganSama($parameters);
+        $pasangan = $this->pasanganSama($parameters); // boleh null pada form identitas terbaru
 
-        if (! $pasangan) {
-            return [];
-        }
+        $rtRw = ($pbi->rt || $pbi->rw)
+            ? 'RT ' . ($pbi->rt ?: '-') . ' RW ' . ($pbi->rw ?: '-')
+            : null;
 
-        $cari = fn (array $daftar) => $parameters->first(
-            fn ($p) => $p->tipe_input === 'teks'
-                && in_array(preg_replace('/\s+/', ' ', Str::lower(trim((string) $p->nama))), $daftar, true)
-        );
+        $sumber = [
+            'nama' => $pbi->nama_kepala_keluarga,
+            'siapa nama kepala keluarga di kartu keluarga (kk) anda?' => $pbi->nama_kepala_keluarga,
+            'nama lengkap' => $pbi->nama_kepala_keluarga,
+            'nama kepala keluarga' => $pbi->nama_kepala_keluarga,
+            'nama responden' => $pbi->nama_kepala_keluarga,
+            'nik kepala keluarga' => $pbi->nik_kepala_keluarga,
+            'berapa nomor induk kependudukan (nik) kepala keluarga anda?' => $pbi->nik_kepala_keluarga,
+            'nik' => $pbi->nik_kepala_keluarga,
+            'no kk' => $pbi->no_kk,
+            'berapa nomor kartu keluarga (kk) anda?' => $pbi->no_kk,
+            'nomor kk' => $pbi->no_kk,
+            'no. kk' => $pbi->no_kk,
+            'provinsi' => $pbi->provinsi ?: config('wilayah.provinsi'),
+            'provinsi tempat tinggal keluarga saat ini' => $pbi->provinsi ?: config('wilayah.provinsi'),
+            'kabupaten/kota' => $pbi->kabupaten_kota ?: config('wilayah.kab_kota'),
+            'kabupaten/kota tempat tinggal keluarga saat ini' => $pbi->kabupaten_kota ?: config('wilayah.kab_kota'),
+            'satuan lingkungan setempat (rt/rw/dusun)' => $rtRw,
+            'satuan lingkungan setempat (rt/rw/dusun dll)' => $rtRw,
+        ];
 
         $peta = [];
 
-        $kk = $cari(['no kk', 'nomor kk', 'no. kk']);
-        if ($kk && filled($pbi->no_kk)) {
-            $peta[$kk->id] = ['gate' => $pasangan['sumber'], 'nilai' => (string) $pbi->no_kk];
-        }
+        foreach ($parameters as $p) {
+            if ($p->tipe_input !== 'teks') {
+                continue;
+            }
 
-        $nama = $cari(['nama', 'nama lengkap', 'nama kepala keluarga', 'nama responden']);
-        if ($nama && filled($pbi->nama_kepala_keluarga)) {
-            $peta[$nama->id] = ['gate' => $pasangan['target'], 'nilai' => (string) $pbi->nama_kepala_keluarga];
+            $n = preg_replace('/\s+/', ' ', Str::lower(trim((string) $p->nama)));
+
+            if (filled($sumber[$n] ?? null)) {
+                $peta[$p->id] = [
+                    'gate' => str_contains($n, 'nama') ? ($pasangan['target'] ?? null) : ($pasangan['sumber'] ?? null),
+                    'nilai' => (string) $sumber[$n],
+                ];
+            }
         }
 
         return $peta;
