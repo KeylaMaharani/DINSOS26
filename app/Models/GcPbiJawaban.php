@@ -18,10 +18,23 @@ class GcPbiJawaban extends Model
 
     /** Parameter identitas: sudah tampil di card Data Pemohon, jadi tidak diulang di Isian Masyarakat. */
     public const NAMA_IDENTITAS = [
-        'nama', 'no kk', 'alamat sesuai kk', 'no telp', 'no. telp', 'email',
-        'nik kepala keluarga', 'jumlah anggota keluarga', 'provinsi', 'kabupaten/kota',
-        'kecamatan', 'desa/kelurahan', 'kode pos', 'satuan lingkungan setempat (rt/rw/dusun)',
-        'alamat lengkap', 'nama jalan', 'nomor rumah',
+        'nama',
+        'no kk',
+        'alamat sesuai kk',
+        'no telp',
+        'no. telp',
+        'email',
+        'nik kepala keluarga',
+        'jumlah anggota keluarga',
+        'provinsi',
+        'kabupaten/kota',
+        'kecamatan',
+        'desa/kelurahan',
+        'kode pos',
+        'satuan lingkungan setempat (rt/rw/dusun)',
+        'alamat lengkap',
+        'nama jalan',
+        'nomor rumah',
         // Nama baru identitas keluarga
         'siapa nama kepala keluarga di kartu keluarga (kk) anda?',
         'berapa nomor induk kependudukan (nik) kepala keluarga anda?',
@@ -42,6 +55,17 @@ class GcPbiJawaban extends Model
     public function scopeBukanIdentitas($query)
     {
         return $query->whereNotIn(DB::raw('LOWER(TRIM(nama_parameter))'), self::NAMA_IDENTITAS);
+    }
+
+    /** Hanya jawaban yang saklar "Tampil di verifikasi"-nya menyala (Master Kriteria PBI). Identitas tidak ikut. */
+    public function scopeTampilVerifikasi($query)
+    {
+        return $query->whereIn(
+            'parameter_id',
+            GcKriteriaParameter::where('tampil_verifikasi', true)
+                ->where('kelompok', '!=', 'identitas_keluarga')
+                ->select('id')
+        );
     }
 
     public function pbiApbd(): BelongsTo

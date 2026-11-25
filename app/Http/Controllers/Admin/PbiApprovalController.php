@@ -208,7 +208,7 @@ class PbiApprovalController extends Controller
             'faskesOptions' => $faskesOptions,
             // Jawaban masyarakat yang berlaku untuk PBI (khusus PBI + bersama), isian + foto, ditampilkan juga di halaman tahap lanjut.
             // Parameter identitas (Nama, No KK, Alamat, No. Telp, Email) sudah ada di card Data Pemohon, jadi disaring.
-            'gcJawabans' => $pbiApbd->gcJawabansPbi()->bukanIdentitas()->get(),
+            'gcJawabans' => $pbiApbd->gcJawabans()->bukanIdentitas()->tampilVerifikasi()->get(),        
         ]);
     }
 

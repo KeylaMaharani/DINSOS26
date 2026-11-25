@@ -20,10 +20,18 @@ class PbiGcForm
 
     /** Pertanyaan A-D yang TIDAK ditanyakan lagi per anggota (sudah ada di data anggota / milik kepala keluarga). */
     private const NAMA_OTOMATIS_ANGGOTA = [
-        'nama', 'no kk', 'alamat sesuai kk', 'alamat domisili',
-        'apakah no kk sama?', 'apakah nama sama?', 'apakah wilayah sama?',
-        'jenis kelamin', 'tanggal lahir', 'status hubungan dengan kepala keluarga',
-        'no. telp', 'no telp', 'email',
+        'nama',
+        'no kk',
+        'alamat sesuai kk',
+        'alamat domisili',
+        'apakah no kk sama?',
+        'apakah nama sama?',
+        'apakah wilayah sama?',
+        'tanggal lahir',
+        'email',
+        'rt',
+        'rw',
+        'rt/rw',   // disembunyikan dari form anggota
     ];
 
     public static function namaNormal(?string $nama): string
@@ -48,7 +56,7 @@ class PbiGcForm
     public static function untukAnggota()
     {
         return GcKriteriaParameter::aktif()->with('opsis')->get()
-            ->filter(fn ($p) => in_array($p->kelompok, self::KELOMPOK_ANGGOTA, true)
+            ->filter(fn($p) => in_array($p->kelompok, self::KELOMPOK_ANGGOTA, true)
                 && in_array($p->target, ['gc', 'pbi_gc'], true)
                 && ! in_array($p->tipe_input, ['foto', 'koordinat'], true)
                 && ! in_array(self::namaNormal($p->nama), self::NAMA_OTOMATIS_ANGGOTA, true))
@@ -58,7 +66,7 @@ class PbiGcForm
     /** Pertanyaan pemicu di Ketenagakerjaan ("Apakah responden bekerja ...?"). */
     public static function gate($params): ?GcKriteriaParameter
     {
-        return $params->first(fn ($p) => $p->kelompok === 'ketenagakerjaan'
+        return $params->first(fn($p) => $p->kelompok === 'ketenagakerjaan'
             && Str::startsWith(Str::lower(trim($p->nama)), 'apakah responden bekerja'));
     }
 
@@ -120,7 +128,7 @@ class PbiGcForm
         $sembunyi = GcKriteriaParameter::idTersembunyi($params, $jawaban);
 
         return $params
-            ->filter(fn ($p) => ! self::opsional($p)
+            ->filter(fn($p) => ! self::opsional($p)
                 && ! in_array($p->id, $sembunyi, true)
                 && (! in_array($p->id, $dependen, true) || $bekerja))
             ->pluck('id')->all();
@@ -133,7 +141,7 @@ class PbiGcForm
         $dependen = self::dependenIds($params);
 
         return $params
-            ->filter(fn ($p) => ! self::opsional($p) && ! in_array($p->id, $dependen, true))
+            ->filter(fn($p) => ! self::opsional($p) && ! in_array($p->id, $dependen, true))
             ->pluck('id')->all();
     }
 
@@ -221,7 +229,7 @@ class PbiGcForm
 
         return [
             'total' => count($wajib),
-            'terjawab' => count(array_filter($wajib, fn ($id) => isset($jawaban[$id]) && $jawaban[$id] !== '')),
+            'terjawab' => count(array_filter($wajib, fn($id) => isset($jawaban[$id]) && $jawaban[$id] !== '')),
         ];
     }
 
