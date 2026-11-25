@@ -273,6 +273,11 @@ Route::middleware(['auth', 'staff'])->group(function () {
     // Master Kriteria Kemiskinan (hanya Super Admin)
     Route::prefix('master/kriteria')->name('master.kriteria.')->middleware('module:kelola-akses')->group(function () {
         Route::get('/', [KriteriaController::class, 'index'])->name('index');
+        Route::post('/hitung-ulang', [KriteriaController::class, 'hitungUlang'])->name('hitung-ulang');
+        Route::put('/gc/{gcParameter}/toggle', [KriteriaController::class, 'toggle'])->name('toggle');
+        Route::get('/gc/{gcParameter}/peta', [KriteriaController::class, 'peta'])->name('peta');
+        Route::put('/gc/{gcParameter}/peta', [KriteriaController::class, 'petaUpdate'])->name('peta.update');
+
         Route::get('/tambah', [KriteriaController::class, 'create'])->name('create');
         Route::post('/', [KriteriaController::class, 'store'])->name('store');
         Route::get('/{parameter}/edit', [KriteriaController::class, 'edit'])->name('edit');
@@ -637,11 +642,10 @@ Route::middleware(['auth', 'role:masyarakat'])->prefix('akun-saya')->name('masya
     Route::put('/password', [MasyarakatController::class, 'akunUpdate'])->name('password.update');
 
     Route::prefix('pbi-apbd/{pbiApbd}')->name('pbi-apbd.')->group(function () {
-        // Langkah pemilihan: anggota keluarga mana yang didaftarkan ke Ground Check
         Route::get('/keluarga', [PbiKeluargaController::class, 'index'])->name('keluarga');
         Route::post('/keluarga', [PbiKeluargaController::class, 'store'])->name('keluarga.store');
+        Route::get('/pilih-anggota', [PbiKeluargaController::class, 'pilih'])->name('pilih-anggota');
 
-        // Jawaban per anggota keluarga (tab A-D)
         Route::get('/anggota/{anggota}', [PbiAnggotaController::class, 'edit'])->whereNumber('anggota')->name('anggota');
         Route::post('/anggota/{anggota}', [PbiAnggotaController::class, 'update'])->whereNumber('anggota')->name('anggota.store');
 

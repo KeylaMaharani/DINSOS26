@@ -2,7 +2,7 @@
      Indeks/bobot/skor hanya tampil untuk petugas Dinsos (bukan role kelurahan/masyarakat). --}}
 @php
     $lihatSkor = ! in_array(auth()->user()->role?->normalizedSlug(), ['kelurahan', 'masyarakat'], true);
-    $jawabans = $data->jawabans()->orderBy('urutan')->get();
+    $jawabans = $data->gcJawabans()->bukanIdentitas()->tampilVerifikasi()->orderBy('urutan')->get();
     $fmt = fn ($v, $d = 2) => number_format((float) $v, $d, ',', '.');
 @endphp
 

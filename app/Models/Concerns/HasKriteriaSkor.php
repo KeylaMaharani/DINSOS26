@@ -36,14 +36,19 @@ trait HasKriteriaSkor
      */
     public function hitungUlangSkor(): void
     {
-        $jawabans = $this->jawabans()->get();
+        $jawabans = $this->jawabans()
+            ->where(function ($q) {
+                $q->whereNull('parameter_id')
+                    ->orWhereIn('parameter_id', \App\Models\PbiKriteriaParameter::where('aktif', true)->select('id'));
+            })
+            ->get();
 
         if ($jawabans->isEmpty()) {
             $this->forceFill(['skor_kumulatif' => null, 'kelas_kemiskinan' => null])->save();
             return;
         }
 
-        $micro = $jawabans->sum(fn ($j) => (int) round(((float) $j->skor) * 1000000));
+        $micro = $jawabans->sum(fn($j) => (int) round(((float) $j->skor) * 1000000));
         $senti = intdiv($micro + 5000, 10000); // pembulatan half-up ke 0,01
 
         $this->forceFill([
