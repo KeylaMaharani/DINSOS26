@@ -61,14 +61,14 @@ class PbiKelurahanController extends Controller
         $idTetap = PbiGcForm::idTetap(null, self::TARGET_PBI);
 
         $query = PbiApbd::query()->untukKelurahan($user)->with('anggotaKeluarga')->withCount([
-            'gcJawabans as jawabans_count' => fn ($q) => $q->whereNotNull('jawaban')->whereIn('parameter_id', $idTetap),
+            'gcJawabans as jawabans_count' => fn($q) => $q->whereNotNull('jawaban')->whereIn('parameter_id', $idTetap),
         ]);
 
         // Tab "proses": data sudah diisi DAN ada minimal satu peserta PBI APBD. Draft / belum ada peserta tidak ikut.
         $tab === 'proses'
             ? $query->where('status', 'kelurahan')
-                ->whereNotNull('data_diisi_at')
-                ->whereHas('anggotaKeluarga', fn ($a) => $a->where('didaftarkan_pbi', true))
+            ->whereNotNull('data_diisi_at')
+            ->whereHas('anggotaKeluarga', fn($a) => $a->where('didaftarkan_pbi', true))
             : $query->where('status', '!=', 'kelurahan');
 
         // Filter tanggal permohonan (created_at) & pencarian: dipakai bersama oleh tabel dan kartu ringkasan.
@@ -86,7 +86,7 @@ class PbiKelurahanController extends Controller
                         ->orWhere('no_registrasi', 'like', "%{$s}%")
                         ->orWhere('nik_kepala_keluarga', 'like', "%{$s}%")
                         ->orWhere('no_kk', 'like', "%{$s}%")
-                        ->orWhereHas('anggotaKeluarga', fn ($a) => $a
+                        ->orWhereHas('anggotaKeluarga', fn($a) => $a
                             ->where('nama', 'like', "%{$s}%")
                             ->orWhere('nik', 'like', "%{$s}%"));
                 });
@@ -136,8 +136,7 @@ class PbiKelurahanController extends Controller
             'totalParameter' => $kelengkapan['total'],
             'terjawab' => $kelengkapan['terjawab'],
             // Parameter identitas (Nama, No KK, Alamat, No. Telp, Email) sudah ada di card Data Pemohon, jadi disaring
-            'gcJawabans' => $pbiApbd->gcJawabansPbi()->bukanIdentitas()->get(),
-            // id parameter yang sedang tampil di halaman masyarakat (untuk menandai yang disembunyikan)
+            'gcJawabans' => $pbiApbd->gcJawabans()->bukanIdentitas()->tampilVerifikasi()->get(),
             'idAktif' => PbiGcForm::parameters()->pluck('id')->all(),
         ]);
     }
@@ -159,7 +158,9 @@ class PbiKelurahanController extends Controller
             'aksi' => ['required', Rule::in(['simpan', 'validasi', 'kembalikan', 'tolak', 'verifikasi_data'])],
             'catatan' => [
                 Rule::requiredIf(in_array($request->input('aksi'), ['kembalikan', 'tolak'], true)),
-                'nullable', 'string', 'max:2000',
+                'nullable',
+                'string',
+                'max:2000',
             ],
             'verifikasi' => ['nullable', 'array'],
         ];

@@ -66,7 +66,7 @@
             <div class="flex items-end">
                 <label class="inline-flex items-center gap-2 text-sm">
                     <input type="checkbox" name="aktif" value="1" @checked(old('aktif', $isEdit ? $parameter->aktif : true)) class="rounded" />
-                    Tampilkan pertanyaan ini di form masyarakat
+                    Ikut dihitung dalam skor
                 </label>
             </div>
         </div>

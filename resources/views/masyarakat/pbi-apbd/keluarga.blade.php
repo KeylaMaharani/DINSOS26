@@ -78,7 +78,7 @@
 
         <div class="mt-3">
             @if ($kepala['bisa_isi'])
-                <a href="{{ route('masyarakat.pbi-apbd.lengkapi', $pbiApbd) }}"
+                <a href="{{ route('masyarakat.pbi-apbd.pilih-anggota', $pbiApbd) }}"
                    class="w-full sm:w-auto sm:px-8 inline-flex items-center justify-center gap-2 py-3 rounded-full bg-primary shadow-md text-white font-semibold text-sm">
                     <span class="material-symbols-outlined text-[18px]">edit_note</span>
                     {{ $kepala['sudah_mengisi'] ? 'Perbaiki Data Pengajuan' : 'Isi Data Pengajuan' }}

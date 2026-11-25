@@ -11,17 +11,31 @@ class GcKriteriaParameter extends Model
     protected $table = 'gc_kriteria_parameters';
 
     protected $fillable = [
-        'kelompok', 'target', 'urutan', 'nama', 'bobot', 'tipe_input', 'sumber',
-        'pbi_parameter_id', 'keterangan', 'aktif', 'wajib', 'induk_id', 'induk_nilai', 'placeholder'
+        'kelompok',
+        'target',
+        'urutan',
+        'nama',
+        'bobot',
+        'tipe_input',
+        'sumber',
+        'pbi_parameter_id',
+        'keterangan',
+        'aktif',
+        'wajib',
+        'induk_id',
+        'induk_nilai',
+        'placeholder',
+        'tampil_verifikasi',
     ];
 
     protected $casts = [
         'bobot' => 'float',
         'aktif' => 'boolean',
         'wajib' => 'boolean',
-        'induk_nilai' => 'array'
+        'tampil_verifikasi' => 'boolean',
+        'induk_nilai' => 'array',
     ];
-
+    
     /**
      * Ke mana jawaban sebuah pertanyaan dipakai.
      *  pbi_gc = pertanyaan sama, dijawab sekali, dipakai PBI APBD dan Ground Check
@@ -236,7 +250,7 @@ class GcKriteriaParameter extends Model
      */
     public static function idTersembunyi($params, array $jawaban): array
     {
-        $norm = fn ($t) => mb_strtolower(trim((string) $t));
+        $norm = fn($t) => mb_strtolower(trim((string) $t));
         $byId = $params->keyBy('id');
         $sembunyi = [];
 
@@ -252,7 +266,7 @@ class GcKriteriaParameter extends Model
                 if (is_string($mentah) && str_starts_with(trim($mentah), '[')) {
                     $mentah = json_decode($mentah, true) ?? $mentah;
                 }
-                $dipilih = array_map($norm, array_filter((array) $mentah, fn ($x) => $x !== null && $x !== ''));
+                $dipilih = array_map($norm, array_filter((array) $mentah, fn($x) => $x !== null && $x !== ''));
                 $syarat = array_map($norm, (array) $p->induk_nilai);
 
                 $tampil = ! isset($sembunyi[$p->induk_id]) && array_intersect($syarat, $dipilih);

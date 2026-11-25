@@ -9,7 +9,7 @@ use App\Models\PbiApbdLog;
 use Illuminate\Http\Request;
 
 /**
- * Halaman "Daftar Keluarga". Dua hal yang BERDIRI SENDIRI:
+ * Halaman "Daftar Keluarga" + "Pilih Anggota". Dua hal yang BERDIRI SENDIRI:
  *  1. Peserta PBI APBD  = kotak centang (didaftarkan_pbi). Berlaku untuk kepala keluarga maupun anggota.
  *     Pengajuan PBI APBD baru masuk antrean Kelurahan bila data sudah diisi DAN ada minimal satu peserta.
  *  2. Sasaran Ground Check = terbentuk SETELAH data diisi (kepala: saat mengirim form pengajuan;
@@ -17,8 +17,19 @@ use Illuminate\Http\Request;
  */
 class PbiKeluargaController extends Controller
 {
-    /** GET /akun-saya/pbi-apbd/{pbiApbd}/keluarga */
+    /** GET .../keluarga */
     public function index(Request $request, PbiApbd $pbiApbd)
+    {
+        return $this->render($request, $pbiApbd, 'masyarakat.pbi-apbd.keluarga');
+    }
+
+    /** GET .../pilih-anggota */
+    public function pilih(Request $request, PbiApbd $pbiApbd)
+    {
+        return $this->render($request, $pbiApbd, 'masyarakat.pbi-apbd.pilih-anggota');
+    }
+
+    private function render(Request $request, PbiApbd $pbiApbd, string $view)
     {
         $this->authorizePemilik($request, $pbiApbd);
 
@@ -62,9 +73,7 @@ class PbiKeluargaController extends Controller
             'hubungan' => $hubKepala !== '' ? ucwords(str_replace('_', ' ', $hubKepala)) : 'Kepala Keluarga',
             'ada_baris' => (bool) $kepalaModel,
             'peserta_pbi' => (bool) ($kepalaModel->didaftarkan_pbi ?? false),
-            // Data kepala keluarga sudah diisi (menekan "Simpan Data") -> masuk Ground Check
             'sudah_mengisi' => $pbiApbd->kepalaSudahMengajukan(),
-            // PBI APBD benar-benar sudah diajukan ke petugas (data terisi + ada peserta)
             'diajukan_pbi' => $pbiApbd->sudahDiajukanPbi(),
             'jumlah_peserta' => $pbiApbd->daftarPeserta()->count(),
             'status_label' => $pbiApbd->statusLabel(),
@@ -72,7 +81,7 @@ class PbiKeluargaController extends Controller
             'dikembalikan' => (bool) ($pbiApbd->dikembalikan_ke_masyarakat || $pbiApbd->status === 'ditolak'),
         ];
 
-        return view('masyarakat.pbi-apbd.keluarga', [
+        return view($view, [
             'pbiApbd' => $pbiApbd,
             'kepala' => $kepala,
             'baris' => $baris,
@@ -81,7 +90,7 @@ class PbiKeluargaController extends Controller
         ]);
     }
 
-    /** POST /akun-saya/pbi-apbd/{pbiApbd}/keluarga  — menyimpan pilihan peserta PBI APBD. */
+    /** POST .../keluarga — menyimpan pilihan peserta PBI APBD. */
     public function store(Request $request, PbiApbd $pbiApbd)
     {
         $this->authorizePemilik($request, $pbiApbd);
@@ -120,6 +129,10 @@ class PbiKeluargaController extends Controller
                     // Hanya diproses bila kotak kepala memang tampil di form
                     $mau = $request->has('kepala_pbi_form') ? $request->boolean('kepala_pbi') : (bool) $a->didaftarkan_pbi;
                 } else {
+                    // Anggota yang sudah dicek petugas tidak diubah
+                    if ($this->anggotaTerkunci($pbiApbd, $a)) {
+                        continue;
+                    }
                     $mau = in_array((int) $a->id, $pilih, true);
                 }
 
@@ -183,6 +196,14 @@ class PbiKeluargaController extends Controller
     {
         return $this->digits($anggota->nik) === $this->digits($pbi->nik_kepala_keluarga)
             || PbiApbd::isHubunganKepala($anggota->hubungan_keluarga);
+    }
+
+    /** Anggota yang sudah dicek petugas Ground Check (pilihannya tidak boleh diubah). */
+    private function anggotaTerkunci(PbiApbd $pbi, $a): bool
+    {
+        return GcSasaran::where('nik', $this->digits($a->nik))
+            ->where('no_kk', $this->digits($pbi->no_kk))
+            ->whereHas('verifikasis')->exists();
     }
 
     private function authorizePemilik(Request $request, PbiApbd $pbiApbd): void

@@ -6,7 +6,10 @@
     $adalahPilihan = in_array($p->tipe_input, ['pilihan', 'pilihan_ganda'], true);
     $prefix = $prefix ?? 'jawaban';                       // anggota: 'anggota[12]'
     $nmField = $multi ? "{$prefix}[{$p->id}][]" : "{$prefix}[{$p->id}]";
-    $oldKey = str_replace(['[', ']'], ['.', ''], $prefix) . '.' . $p->id; 
+    $oldKey = str_replace(['[', ']'], ['.', ''], $prefix) . '.' . $p->id;
+
+    // Normalisasi $nilai agar selalu array (aman untuk null / Collection)
+    $nilai = $nilai instanceof \Illuminate\Support\Collection ? $nilai->all() : (array) ($nilai ?? []);
 
     $judulMap = [
         'dimana keberadaan anggota keluarga sekarang?' => 'Dimana keberadaan {n} sekarang?',
@@ -22,9 +25,18 @@
         'kepemilikan rekening aktif/dompet digital' => 'Apakah {n} memiliki rekening aktif atau dompet digital?',
         'apakah memiliki keluhan kesehatan kronis/menahun?' => 'Apakah {n} memiliki keluhan kesehatan kronis/menahun ?',
     ];
-    $judul = $judulMap[$nm] ?? ($Str::startsWith($nm, 'apakah menyandang ')
-        ? 'Apakah {n} menyandang ' . $Str::after($p->nama, 'menyandang ')
-        : $p->nama);
+
+    if (isset($judulMap[$nm])) {
+        $judul = $judulMap[$nm];
+    } elseif ($Str::startsWith($nm, 'apakah menyandang ')) {
+        // Pencocokan case-insensitive, kapitalisasi teks asli tetap dipertahankan
+        $kata = 'menyandang ';
+        $pos = mb_stripos($p->nama, $kata);
+        $sisa = $pos !== false ? mb_substr($p->nama, $pos + mb_strlen($kata)) : '';
+        $judul = 'Apakah {n} menyandang ' . $sisa;
+    } else {
+        $judul = $p->nama;
+    }
     $judulHtml = str_replace('{n}', '<span class="ga-nama">' . e($namaWarga) . '</span>', e($judul));
 
     $isTelp = in_array($nm, ['no. telp', 'no telp'], true);

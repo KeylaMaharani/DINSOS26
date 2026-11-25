@@ -64,9 +64,10 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
     <style>
         /* Cegah teks otomatis membesar saat layar diputar di iOS */
-        html { -webkit-text-size-adjust: 100%; }
-        /* Jaga agar konten panjang (nama, alamat, URL) tidak membuat halaman bergeser ke samping */
-        body { overflow-x: hidden; }
+        html { -webkit-text-size-adjust: 100%; height: 100%; }
+        /* Dokumen TIDAK boleh bisa di-scroll: hanya <main> yang scroll.
+           Mencegah seluruh layout (topbar + konten) tergeser ke atas ("offside") saat scrollIntoView. */
+        html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
         /* Sembunyikan elemen yang belum sempat diinisialisasi Alpine.js */
         [x-cloak] { display: none !important; }
 
@@ -224,7 +225,7 @@
          - collapsed     : gabungan keduanya --}}
     {{-- h-screen h-dvh: h-dvh (tinggi layar dinamis) menimpa h-screen di browser yang mendukung,
          supaya di iPhone konten tidak terpotong toolbar Safari. Browser lama tetap pakai h-screen. --}}
-    <div x-cloak class="flex h-screen h-dvh overflow-hidden" x-data="{
+    <div x-cloak class="flex h-screen h-dvh overflow-clip" x-data="{
         sidebarOpen: false,
         collapsedPref: (function() { try { return localStorage.getItem('userSidebarCollapsed') === '1'; } catch (e) { return false; } })(),
         desktop: window.innerWidth >= 1024,
@@ -401,8 +402,7 @@
             :class="collapsed ? 'w-28' : 'w-[18rem]'"></div>
 
         <!-- Main -->
-        <div class="flex-1 flex flex-col min-w-0 h-screen h-dvh overflow-hidden">
-
+    <div class="flex-1 flex flex-col min-w-0 h-screen h-dvh overflow-clip"> 
             <!-- Topbar -->
             <div class="shrink-0 flex items-center gap-4 pl-4 pr-6 pt-4 pb-2 lg:pl-6 lg:pr-8">
                 <button @click="sidebarOpen = true"
@@ -442,7 +442,7 @@
             </div>
 
             <!-- Content -->
-            <main class="flex-1 overflow-y-auto pl-4 pr-6 pb-24 pt-2 lg:pl-6 lg:pr-8">
+            <main class="flex-1 min-h-0 overflow-y-auto overscroll-contain pl-4 pr-6 pb-24 pt-2 lg:pl-6 lg:pr-8">
                 <div class="@yield('container', 'max-w-3xl') mx-auto">
                     {{-- Banner "Masuk sebagai": tampil hanya saat Super Admin sedang melihat akun ini (dari master) --}}
                     @if (session('impersonator_id'))
@@ -477,6 +477,34 @@
     </div>
 
     @stack('scripts')
+
+    {{-- Dokumen / kolom layout tidak boleh ikut tergeser; hanya <main> yang boleh scroll.
+         Bila ada scrollIntoView yang menggeser wadah lain, langsung dikembalikan ke 0. --}}
+    <script>
+        (function () {
+            function kunci() {
+                var se = document.scrollingElement || document.documentElement;
+                if (se.scrollTop || se.scrollLeft) { se.scrollTo(0, 0); }
+                document.querySelectorAll('body, body > div, body > div > div, body > div > div > div').forEach(function (e) {
+                    if (e.tagName === 'MAIN') { return; }
+                    if (e.scrollTop || e.scrollLeft) { e.scrollTo(0, 0); }
+                });
+            }
+            window.addEventListener('scroll', kunci, { passive: true });
+            // capture: scroll tidak bubbling, jadi ditangkap dari semua elemen (kecuali <main> yang memang boleh scroll)
+            document.addEventListener('scroll', function (e) {
+                var t = e.target;
+                if (t === document || t === document.documentElement || t === document.body) { kunci(); return; }
+                if (t && t.nodeType === 1 && (t.tagName === 'DIV' || t.tagName === 'ASIDE' || t.tagName === 'SECTION')) {
+                    var klas = t.className || '';
+                    // elemen yang memang scroll sendiri (daftar, kartu anggota, sidebar, dsb.) dibiarkan
+                    if (/overflow-(y|x)-auto|overflow-auto|sidebar-scroll|ga-scroller|gcs-list|gc-mlist|ga-list|gc-tabs|overflow-x-auto/.test(klas) || t.id === 'gc-tabs') { return; }
+                    if (t.closest('main, aside, .gcs, .ga-modal')) { return; }
+                    if (t.scrollTop || t.scrollLeft) { t.scrollTo(0, 0); }
+                }
+            }, true);
+        })();
+    </script>
 </body>
 
 </html>
